@@ -1,0 +1,826 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+    Settings, Shield, UserPlus, FileText, ArrowLeft,
+    ChevronRight, LogOut, Search,
+    MoreVertical, ShieldAlert, ShieldCheck,
+    CreditCard as IdCard, RefreshCw, Plus, Trash2, Tag, Map as MapIcon,
+    Box, Briefcase, Ruler, ChevronDown
+} from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../lib/AuthContext';
+
+interface Profile {
+    id: string;
+    rol: 'INSPECTOR' | 'JEFE' | 'ADMIN';
+    nombre: string;
+    apellido: string;
+    cedula: string;
+    estado: string | null;
+    telefono: string | null;
+    fecha_creacion: string;
+    is_active?: boolean;
+}
+
+interface CatalogItem {
+    id: string;
+    type: 'RUBRO' | 'ENTE' | 'ESTADO' | 'ACTIVIDAD' | 'MEDIDA' | 'ARTICULO' | 'MINPPAL';
+    name: string;
+    is_active: boolean;
+    created_at: string;
+    parent_id?: string;
+    parent?: { name: string };
+}
+
+export default function AdminPanel() {
+    const navigate = useNavigate();
+    const { profile: currentUser, fetchProfile } = useAuth();
+    const [view, setView] = useState<'overview' | 'users' | 'catalog'>('overview');
+    const [profiles, setProfiles] = useState<Profile[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterRol, setFilterRol] = useState<'ALL' | 'INSPECTOR' | 'JEFE' | 'ADMIN'>('ALL');
+    const [showRoleMenu, setShowRoleMenu] = useState<string | null>(null);
+    const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    // Estados para Edición de Usuario
+    const [editingUser, setEditingUser] = useState<Profile | null>(null);
+    const [editForm, setEditForm] = useState({
+        nombre: '',
+        apellido: '',
+        cedula: '',
+        telefono: '',
+        estado: '',
+        newPassword: ''
+    });
+    const [saving, setSaving] = useState(false);
+
+    // Estados para Catálogos
+    const [catalogType, setCatalogType] = useState<'RUBRO' | 'ENTE' | 'ESTADO' | 'ACTIVIDAD' | 'MEDIDA' | 'ARTICULO' | 'MINPPAL'>('RUBRO');
+    const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+    const [rubrosForSelect, setRubrosForSelect] = useState<{ id: string, name: string }[]>([]);
+    const [loadingCatalog, setLoadingCatalog] = useState(false);
+    const [newCatalogName, setNewCatalogName] = useState('');
+    const [selectedParentId, setSelectedParentId] = useState('');
+
+    useEffect(() => {
+        if (view === 'users') {
+            fetchProfiles();
+        } else if (view === 'catalog') {
+            fetchCatalogItems();
+        }
+    }, [view, catalogType]);
+
+    async function fetchProfiles() {
+        try {
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .order('fecha_creacion', { ascending: false });
+
+            if (error) throw error;
+            setProfiles(data || []);
+        } catch (error) {
+            console.error('Error fetching profiles:', error);
+            alert('Error al cargar la lista de usuarios');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function changeUserRole(userId: string, newRole: Profile['rol']) {
+        if (!window.confirm(`¿Estás seguro de cambiar el rol a ${newRole}?`)) return;
+
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ rol: newRole })
+                .eq('id', userId);
+
+            if (error) throw error;
+            fetchProfiles();
+            setShowRoleMenu(null);
+        } catch (error) {
+            console.error('Error updating role:', error);
+            alert('No se pudo actualizar el rol');
+        }
+    }
+
+    async function toggleUserStatus(userId: string, currentStatus: boolean) {
+        if (!window.confirm(`¿Estás seguro de ${currentStatus ? 'SUSPENDER' : 'ACTIVAR'} a este usuario?`)) return;
+
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ is_active: !currentStatus })
+                .eq('id', userId);
+
+            if (error) throw error;
+            fetchProfiles();
+            setShowActionMenu(null);
+        } catch (error) {
+            alert('Error al cambiar estado del usuario. Asegúrate de que la columna is_active exista en la tabla profiles.');
+        }
+    }
+
+    const openEditModal = (user: Profile) => {
+        setEditingUser(user);
+        setEditForm({
+            nombre: user.nombre,
+            apellido: user.apellido,
+            cedula: user.cedula,
+            telefono: user.telefono || '',
+            estado: user.estado || '',
+            newPassword: ''
+        });
+        setShowActionMenu(null);
+    };
+
+    async function handleUpdateUser() {
+        if (!editingUser) return;
+        setSaving(true);
+        try {
+            // 1. Actualizar Perfil
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({
+                    nombre: editForm.nombre,
+                    apellido: editForm.apellido,
+                    cedula: editForm.cedula,
+                    telefono: editForm.telefono,
+                    estado: editForm.estado
+                })
+                .eq('id', editingUser.id);
+
+            if (profileError) throw profileError;
+
+            // 2. Nota sobre contraseña
+            if (editForm.newPassword) {
+                alert("Perfil actualizado. Nota: Para cambiar la contraseña de otro usuario se requiere configuración de Service Role. Los cambios de datos personales se guardaron con éxito.");
+            }
+
+            // Si el usuario editado es el mismo que está logueado, refrescar perfil global
+            if (editingUser.id === currentUser?.id) {
+                await fetchProfile(editingUser.id);
+            }
+
+            fetchProfiles();
+            setEditingUser(null);
+        } catch (error) {
+            console.error(error);
+            alert("Error al actualizar datos.");
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    // --- FUNCIONES DE CATÁLOGO ---
+    async function fetchCatalogItems() {
+        try {
+            setLoadingCatalog(true);
+            let query = supabase
+                .from('catalog_items')
+                .select('*, parent:parent_id(name)')
+                .eq('type', catalogType)
+                .order('name', { ascending: true });
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+            setCatalogItems(data || []);
+
+            // Si estamos en la vista de artículos, cargar también los rubros para el selector
+            if (catalogType === 'ARTICULO') {
+                const { data: rubros } = await supabase
+                    .from('catalog_items')
+                    .select('id, name')
+                    .eq('type', 'RUBRO')
+                    .eq('is_active', true)
+                    .order('name', { ascending: true });
+                setRubrosForSelect(rubros || []);
+            }
+        } catch (error) {
+            console.error('Error fetching catalogs:', error);
+        } finally {
+            setLoadingCatalog(false);
+        }
+    }
+
+    async function addCatalogItem() {
+        if (!newCatalogName.trim()) return;
+        try {
+            const insertData: any = {
+                type: catalogType,
+                name: newCatalogName.trim().toUpperCase()
+            };
+
+            if (catalogType === 'ARTICULO' && selectedParentId) {
+                insertData.parent_id = selectedParentId;
+            }
+
+            const { error } = await supabase
+                .from('catalog_items')
+                .insert([insertData]);
+
+            if (error) throw error;
+            setNewCatalogName('');
+            setSelectedParentId('');
+            fetchCatalogItems();
+        } catch (error: any) {
+            if (error.code === '23505') {
+                alert('Este elemento ya existe en el catálogo.');
+            } else {
+                alert('Error al agregar elemento.');
+            }
+        }
+    }
+
+    async function toggleCatalogStatus(id: string, currentStatus: boolean) {
+        try {
+            const { error } = await supabase
+                .from('catalog_items')
+                .update({ is_active: !currentStatus })
+                .eq('id', id);
+
+            if (error) throw error;
+            fetchCatalogItems();
+        } catch (error) {
+            alert('Error al actualizar estado.');
+        }
+    }
+
+    async function deleteCatalogItem(id: string) {
+        if (!window.confirm('¿Estás seguro de eliminar este elemento?')) return;
+        try {
+            const { error } = await supabase
+                .from('catalog_items')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            fetchCatalogItems();
+        } catch (error) {
+            alert('Error al eliminar elemento. Es posible que esté siendo usado en reportes.');
+        }
+    }
+
+
+    const filteredProfiles = profiles.filter(p => {
+        const matchesSearch =
+            p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.apellido.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.cedula.includes(searchTerm);
+        const matchesRol = filterRol === 'ALL' || p.rol === filterRol;
+        return matchesSearch && matchesRol;
+    });
+
+    return (
+        <div className="min-h-screen bg-[#F8FAFC] flex flex-col lg:flex-row font-sans relative">
+            {/* Botón de Menú Móvil */}
+            <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="lg:hidden fixed bottom-6 right-6 w-14 h-14 bg-[#007AFF] text-white rounded-2xl z-[10001] shadow-2xl flex items-center justify-center active:scale-95 transition-all"
+            >
+                {isSidebarOpen ? <ArrowLeft size={24} /> : <Settings size={24} />}
+            </button>
+
+            {/* Sidebar Fija / Móvil */}
+            <aside className={`
+                w-80 bg-white border-r border-slate-100 flex flex-col p-8 
+                fixed lg:sticky top-0 left-0 h-screen z-[9999] transition-transform duration-300
+                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+            `}>
+                <div className="flex items-center gap-4 mb-12">
+                    <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-slate-900/20">
+                        <Shield size={24} />
+                    </div>
+                    <div>
+                        <h1 className="font-black text-slate-900 tracking-tight leading-none text-lg">Admin Console</h1>
+                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-1">Control de Gestión</p>
+                    </div>
+                </div>
+
+                <nav className="flex-1 space-y-2">
+                    {[
+                        { id: 'overview', label: 'Panel General', icon: <Settings size={20} /> },
+                        { id: 'users', label: 'Gestión de Usuarios', icon: <UserPlus size={20} /> },
+                        { id: 'catalog', label: 'Control de Catálogos', icon: <FileText size={20} /> },
+                    ].map((item) => (
+                        <button
+                            key={item.id}
+                            onClick={() => {
+                                setView(item.id as any);
+                                setIsSidebarOpen(false);
+                            }}
+                            className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black text-sm transition-all duration-300 ${view === item.id ? 'bg-[#007AFF] text-white shadow-xl shadow-blue-500/30' : 'text-slate-400 hover:bg-slate-50'}`}
+                        >
+                            {item.icon}
+                            {item.label}
+                        </button>
+                    ))}
+                </nav>
+
+                <div className="mt-auto space-y-4">
+                    {currentUser && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-4 hidden md:block">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Sesión Activa</p>
+                            <p className="text-xs font-black text-slate-900 uppercase truncate">{currentUser.nombre} {currentUser.apellido}</p>
+                        </div>
+                    )}
+                    <button
+                        onClick={() => navigate('/login')}
+                        className="w-full flex items-center gap-4 px-6 py-4 text-red-500 font-black text-sm hover:bg-red-50 rounded-2xl transition-all"
+                    >
+                        <LogOut size={20} /> CERRAR SESIÓN
+                    </button>
+                </div>
+            </aside>
+
+            {/* Overlay para cerrar sidebar móvil */}
+            {isSidebarOpen && (
+                <div
+                    onClick={() => setIsSidebarOpen(false)}
+                    className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9998]"
+                />
+            )}
+
+            {/* Main Content */}
+            <main className="flex-1 p-4 md:p-8 lg:p-12 overflow-y-auto w-full">
+                <div className="max-w-[1400px] mx-auto space-y-8 md:space-y-12 pb-32">
+
+                    {/* ENCABEZADO DINÁMICO */}
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="px-3 py-1 bg-blue-50 text-[#007AFF] text-[10px] font-black rounded-full uppercase tracking-widest border border-blue-100">
+                                    {view === 'overview' ? 'DASHBOARD' : view === 'users' ? 'SEGURIDAD' : 'CATÁLOGOS'}
+                                </div>
+                            </div>
+                            <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase leading-none">
+                                {view === 'overview' ? 'Panel Control' : view === 'users' ? 'Gestión Usuarios' : 'Catálogos Sistema'}
+                            </h2>
+                            <p className="text-slate-400 font-bold uppercase text-[9px] md:text-[11px] tracking-widest mt-3">
+                                {view === 'overview' ? 'Configuración global y métricas del sistema.' : view === 'users' ? 'Administración de accesos y roles de inspectores.' : 'Gestión de listas dinámicas del sistema.'}
+                            </p>
+                        </div>
+                        <button onClick={() => navigate('/dashboard')} className="w-full lg:w-auto px-6 md:px-8 py-4 bg-white border border-slate-200 rounded-2xl text-slate-900 font-black text-[10px] md:text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-slate-50 hover:shadow-lg transition-all active:scale-95 shadow-sm">
+                            <ArrowLeft size={18} className="text-blue-600" /> Dashboard Web
+                        </button>
+                    </div>
+
+                    {/* VISTA: OVERVIEW */}
+                    {view === 'overview' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div
+                                onClick={() => setView('users')}
+                                className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/40 border border-slate-50 group hover:border-blue-300 transition-all cursor-pointer relative overflow-hidden"
+                            >
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50/50 rounded-bl-[5rem] -mr-16 -mt-16 group-hover:bg-blue-100 transition-all"></div>
+                                <div className="w-16 h-16 bg-blue-50 rounded-3xl flex items-center justify-center text-[#007AFF] mb-8 shadow-inner">
+                                    <UserPlus size={32} />
+                                </div>
+                                <h3 className="font-black text-slate-900 text-2xl uppercase tracking-tighter mb-4 flex items-center justify-between">
+                                    Seguridad y Roles
+                                    <ChevronRight size={24} className="text-slate-300 group-hover:translate-x-2 transition-all" />
+                                </h3>
+                                <p className="text-slate-400 font-medium text-sm leading-relaxed mb-6">
+                                    Gestiona permisos específicos, activa o suspende cuentas de inspectores y audita accesos regionales.
+                                </p>
+                                <div className="flex gap-2">
+                                    <span className="px-3 py-1.5 bg-slate-50 text-slate-400 text-[9px] font-black rounded-lg uppercase tracking-widest">Active Members: {profiles.length || '...'}</span>
+                                </div>
+                            </div>
+
+                            <div
+                                onClick={() => setView('catalog')}
+                                className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/40 border border-slate-50 group hover:border-emerald-300 transition-all cursor-pointer relative overflow-hidden"
+                            >
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50/50 rounded-bl-[5rem] -mr-16 -mt-16 group-hover:bg-emerald-100 transition-all"></div>
+                                <div className="w-16 h-16 bg-emerald-50 rounded-3xl flex items-center justify-center text-emerald-600 mb-8 shadow-inner">
+                                    <FileText size={32} />
+                                </div>
+                                <h3 className="font-black text-slate-900 text-2xl uppercase tracking-tighter mb-4 flex items-center justify-between">
+                                    Catálogos Estructurales
+                                    <ChevronRight size={24} className="text-slate-300 group-hover:translate-x-2 transition-all" />
+                                </h3>
+                                <p className="text-slate-400 font-medium text-sm leading-relaxed mb-6">
+                                    Actualiza la lista de rubros, entes ejecutores y estados geográficos para mantener el sistema flexible.
+                                </p>
+                                <div className="flex gap-2">
+                                    <span className="px-3 py-1.5 bg-slate-50 text-slate-400 text-[9px] font-black rounded-lg uppercase tracking-widest">32 Rubros Base</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VISTA: USERS (Paso 1 del Plan) */}
+                    {view === 'users' && (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-500">
+
+                            {/* Filtros de Usuario */}
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-wrap gap-6 items-end">
+                                <div className="flex-1 min-w-[300px] space-y-3">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Buscar por Nombre o Cédula</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                        <input
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            placeholder="Ej. Juan Pérez o 12345678..."
+                                            className="w-full pl-14 pr-6 py-4 bg-slate-50 border-2 border-slate-50 rounded-2xl text-[14px] font-bold outline-none focus:border-blue-100 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="w-64 space-y-3">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Filtrar por Rol</label>
+                                    <select
+                                        value={filterRol}
+                                        onChange={(e) => setFilterRol(e.target.value as any)}
+                                        className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-100 transition-all appearance-none"
+                                    >
+                                        <option value="ALL">TODOS LOS ROLES</option>
+                                        <option value="INSPECTOR">INSPECTORES</option>
+                                        <option value="JEFE">JEFES</option>
+                                        <option value="ADMIN">ADMINISTRADORES</option>
+                                    </select>
+                                </div>
+                                <button onClick={fetchProfiles} className="p-4 bg-slate-50 text-[#007AFF] rounded-2xl hover:bg-blue-50 transition-all">
+                                    <RefreshCw size={22} className={loading ? 'animate-spin' : ''} />
+                                </button>
+                            </div>
+
+                            {/* Tabla de Usuarios */}
+                            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-x-auto">
+                                <table className="w-full text-left border-collapse min-w-[800px]">
+                                    <thead>
+                                        <tr className="bg-slate-50/50 border-b border-slate-50">
+                                            <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Identificación</th>
+                                            <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rol Actual</th>
+                                            <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Ubicación</th>
+                                            <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {filteredProfiles.map((p) => (
+                                            <tr key={p.id} className="group hover:bg-slate-50/50 transition-all">
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-black text-xs">
+                                                            {p.nombre[0]}{p.apellido[0]}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="font-black text-slate-900 uppercase text-sm">{p.nombre} {p.apellido}</p>
+                                                                {p.is_active === false && (
+                                                                    <span className="bg-red-50 text-red-500 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border border-red-100">Suspendido</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <IdCard size={12} className="text-slate-300" />
+                                                                <p className="text-[11px] font-bold text-slate-400">{p.cedula}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${p.rol === 'ADMIN' ? 'bg-slate-900 border-slate-900 text-white' :
+                                                        p.rol === 'JEFE' ? 'bg-amber-50 border-amber-200 text-amber-600' :
+                                                            'bg-blue-50 border-blue-200 text-[#007AFF]'
+                                                        }`}>
+                                                        {p.rol === 'ADMIN' ? <ShieldAlert size={12} /> : p.rol === 'JEFE' ? <ShieldCheck size={12} /> : <UserPlus size={12} />}
+                                                        <span className="text-[10px] font-black uppercase tracking-widest">{p.rol}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <p className="text-xs font-bold text-slate-500 uppercase">{p.estado || 'No Asignado'}</p>
+                                                    <p className="text-[10px] text-slate-300 font-medium mt-1">Región de Operación</p>
+                                                </td>
+                                                <td className="px-8 py-6 text-right relative">
+                                                    <div className="flex justify-end gap-3 transition-all">
+                                                        {/* Selector de Rol */}
+                                                        <div className="relative">
+                                                            <button
+                                                                disabled={p.id === currentUser?.id}
+                                                                onClick={() => {
+                                                                    setShowRoleMenu(showRoleMenu === p.id ? null : p.id);
+                                                                    setShowActionMenu(null);
+                                                                }}
+                                                                title="Cambiar Rol Administrativo"
+                                                                className={`p-3 border rounded-xl transition-all ${showRoleMenu === p.id ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200'}`}
+                                                            >
+                                                                <Shield size={18} />
+                                                            </button>
+
+                                                            {showRoleMenu === p.id && (
+                                                                <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[2000] py-3 animate-in fade-in zoom-in-95 duration-200">
+                                                                    <p className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-2">Asignar Nuevo Rol</p>
+                                                                    {(['INSPECTOR', 'JEFE', 'ADMIN'] as const).map((role) => (
+                                                                        <button
+                                                                            key={role}
+                                                                            onClick={() => changeUserRole(p.id, role)}
+                                                                            className={`w-full text-left px-5 py-2.5 text-xs font-black uppercase tracking-tight transition-all ${p.rol === role ? 'text-blue-600 bg-blue-50' : 'text-slate-600 hover:bg-slate-50'}`}
+                                                                        >
+                                                                            <div className="flex items-center justify-between">
+                                                                                {role}
+                                                                                {p.rol === role && <ShieldCheck size={14} />}
+                                                                            </div>
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Menú de Acciones (3 puntos) */}
+                                                        <div className="relative">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setShowActionMenu(showActionMenu === p.id ? null : p.id);
+                                                                    setShowRoleMenu(null);
+                                                                }}
+                                                                className={`p-3 border rounded-xl transition-all ${showActionMenu === p.id ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-900 hover:border-slate-400'}`}
+                                                            >
+                                                                <MoreVertical size={18} />
+                                                            </button>
+
+                                                            {showActionMenu === p.id && (
+                                                                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[2000] py-3 animate-in fade-in zoom-in-95 duration-200">
+                                                                    <p className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-2">Acciones de Cuenta</p>
+                                                                    <button
+                                                                        onClick={() => openEditModal(p)}
+                                                                        className="w-full text-left px-5 py-3 text-[11px] font-black text-slate-600 uppercase hover:bg-slate-50 transition-all flex items-center gap-3"
+                                                                    >
+                                                                        <UserPlus size={14} className="text-blue-500" /> Editar e Info
+                                                                    </button>
+                                                                    <div className="h-px bg-slate-50 my-2"></div>
+                                                                    <button
+                                                                        onClick={() => toggleUserStatus(p.id, p.is_active !== false)}
+                                                                        className={`w-full text-left px-5 py-3 text-[11px] font-black uppercase hover:bg-red-50 transition-all flex items-center gap-3 ${p.is_active === false ? 'text-emerald-600' : 'text-red-500'}`}
+                                                                    >
+                                                                        {p.is_active === false ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
+                                                                        {p.is_active === false ? 'Activar Usuario' : 'Suspender Acceso'}
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {filteredProfiles.length === 0 && !loading && (
+                                            <tr>
+                                                <td colSpan={4} className="px-8 py-20 text-center">
+                                                    <div className="max-w-xs mx-auto space-y-4">
+                                                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-200">
+                                                            <Search size={32} />
+                                                        </div>
+                                                        <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest">No se encontraron usuarios con esos criterios.</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VISTA: CATALOG (Control de Catálogos) */}
+                    {view === 'catalog' && (
+                        <div className="space-y-8 animate-in fade-in duration-500">
+                            {/* Selector de Tipo de Catálogo */}
+                            <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-2">
+                                {[
+                                    { id: 'RUBRO', label: 'Rubros', icon: Tag },
+                                    { id: 'ARTICULO', label: 'Artículos', icon: Box },
+                                    { id: 'ENTE', label: 'Entes', icon: Briefcase },
+                                    { id: 'ESTADO', label: 'Estados', icon: MapIcon },
+                                    { id: 'ACTIVIDAD', label: 'Actividades', icon: Box },
+                                    { id: 'MEDIDA', label: 'Medidas', icon: Ruler },
+                                    { id: 'MINPPAL', label: 'Empresas MINPPAL', icon: Briefcase }
+                                ].map(type => (
+                                    <button
+                                        key={type.id}
+                                        onClick={() => setCatalogType(type.id as any)}
+                                        className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${catalogType === type.id ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                    >
+                                        <type.icon size={16} />
+                                        {type.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Formulario para Agregar Nuevo Elemento */}
+                            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                                    <div className="space-y-2 w-full">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                            Nombre del {catalogType.toLowerCase()}
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                value={newCatalogName}
+                                                onChange={e => setNewCatalogName(e.target.value)}
+                                                onKeyDown={e => e.key === 'Enter' && addCatalogItem()}
+                                                placeholder={`EJ: ${catalogType === 'RUBRO' ? 'CARNE' : catalogType === 'ARTICULO' ? 'ACEITE' : 'NUEVO ITEM'}`}
+                                                className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-100 transition-all uppercase"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {catalogType === 'ARTICULO' && (
+                                        <div className="space-y-2 w-full">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                                Vincular a Rubro (Opcional)
+                                            </label>
+                                            <div className="relative">
+                                                <select
+                                                    value={selectedParentId}
+                                                    onChange={e => setSelectedParentId(e.target.value)}
+                                                    className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-100 transition-all appearance-none"
+                                                >
+                                                    <option value="">-- Sin Vincular --</option>
+                                                    {rubrosForSelect.map(r => (
+                                                        <option key={r.id} value={r.id}>{r.name}</option>
+                                                    ))}
+                                                </select>
+                                                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={addCatalogItem}
+                                    className="h-[60px] px-8 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-blue-500/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2 w-full justify-center"
+                                >
+                                    <Plus size={18} /> AGREGAR AL CATÁLOGO
+                                </button>
+                            </div>
+
+                            {/* Lista de Elementos */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {loadingCatalog ? (
+                                    <div className="col-span-full py-20 text-center space-y-4">
+                                        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sincronizando Catálogo...</p>
+                                    </div>
+                                ) : catalogItems.length > 0 ? (
+                                    catalogItems.map(item => (
+                                        <div
+                                            key={item.id}
+                                            className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-blue-100 transition-all"
+                                        >
+                                            <div className="space-y-1">
+                                                <h4 className={`text-sm font-black uppercase tracking-tighter ${item.is_active ? 'text-slate-900' : 'text-slate-300 line-through'}`}>
+                                                    {item.name}
+                                                </h4>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
+                                                        CREADO: {new Date(item.created_at).toLocaleDateString()}
+                                                    </p>
+                                                    {item.parent && (
+                                                        <>
+                                                            <span className="text-slate-200">|</span>
+                                                            <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest">
+                                                                RUBRO: {item.parent.name}
+                                                            </p>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                <button
+                                                    onClick={() => toggleCatalogStatus(item.id, item.is_active)}
+                                                    className={`p-3 rounded-xl transition-all ${item.is_active ? 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'}`}
+                                                    title={item.is_active ? 'Desactivar' : 'Activar'}
+                                                >
+                                                    {item.is_active ? <ShieldAlert size={16} /> : <ShieldCheck size={16} />}
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteCatalogItem(item.id)}
+                                                    className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all"
+                                                    title="Eliminar"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="col-span-full py-20 bg-white rounded-[3rem] border border-dashed border-slate-200 text-center space-y-4">
+                                        <div className="w-16 h-16 bg-slate-50 text-slate-300 rounded-2xl flex items-center justify-center mx-auto">
+                                            <Tag size={32} />
+                                        </div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No hay elementos en esta categoría.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            </main>
+
+            {/* MODAL DE EDICIÓN */}
+            {editingUser && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[5000] flex items-center justify-center p-6 animate-in fade-in duration-300">
+                    <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-500">
+                        <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Editar Perfil</h3>
+                                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">ID: {editForm.cedula}</p>
+                            </div>
+                            <button onClick={() => setEditingUser(null)} className="p-2 hover:bg-white rounded-xl transition-all">
+                                <ArrowLeft size={20} className="text-slate-400" />
+                            </button>
+                        </div>
+
+                        <div className="p-8 space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre</label>
+                                    <input
+                                        value={editForm.nombre}
+                                        onChange={e => setEditForm({ ...editForm, nombre: e.target.value })}
+                                        className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-3 text-sm font-bold outline-none focus:border-blue-100 transition-all"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Apellido</label>
+                                    <input
+                                        value={editForm.apellido}
+                                        onChange={e => setEditForm({ ...editForm, apellido: e.target.value })}
+                                        className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-3 text-sm font-bold outline-none focus:border-blue-100 transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cédula de Identidad</label>
+                                <input
+                                    value={editForm.cedula}
+                                    onChange={e => setEditForm({ ...editForm, cedula: e.target.value })}
+                                    className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-3 text-sm font-bold outline-none focus:border-blue-100 transition-all"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
+                                <input
+                                    value={editForm.telefono}
+                                    onChange={e => setEditForm({ ...editForm, telefono: e.target.value })}
+                                    className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-3 text-sm font-bold outline-none focus:border-blue-100 transition-all"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Ubicación / Estado</label>
+                                <input
+                                    value={editForm.estado}
+                                    onChange={e => setEditForm({ ...editForm, estado: e.target.value })}
+                                    className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-3 text-sm font-bold outline-none focus:border-blue-100 transition-all"
+                                />
+                            </div>
+
+                            <div className="pt-4 border-t border-slate-50">
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="text-[10px] font-black text-amber-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                            <ShieldAlert size={12} /> Nueva Contraseña
+                                        </label>
+                                        <span className="text-[8px] font-bold text-slate-300 uppercase">Solo para cambios de emergencia</span>
+                                    </div>
+                                    <input
+                                        type="password"
+                                        value={editForm.newPassword}
+                                        onChange={e => setEditForm({ ...editForm, newPassword: e.target.value })}
+                                        placeholder="••••••••"
+                                        className="w-full bg-amber-50/30 border-2 border-amber-50 rounded-2xl px-5 py-3 text-sm font-bold outline-none focus:border-amber-200 transition-all"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-8 bg-slate-50/50 flex gap-4">
+                            <button
+                                onClick={() => setEditingUser(null)}
+                                className="flex-1 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest hover:bg-white rounded-2xl transition-all"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleUpdateUser}
+                                disabled={saving}
+                                className="flex-[2] py-4 bg-blue-600 text-white shadow-xl shadow-blue-600/20 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50"
+                            >
+                                {saving ? 'Guardando...' : 'Guardar Cambios'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
