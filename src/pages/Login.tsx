@@ -305,7 +305,7 @@ export default function Login() {
                         Módulo de Autenticación • CUSPAL
                     </p>
                     <p className="text-[9px] text-white/20 font-medium">
-                        App Desarrollada por @Antigravity - 2026. <br /> Todos los derechos reservados.
+                        App Desarrollada por @GHLUCENA - 2026. <br /> Todos los derechos reservados.
                     </p>
                 </div>
             </div>
