@@ -9,6 +9,9 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
+import ChatBox from '../components/Chat/ChatBox';
+import { MessageCircle } from 'lucide-react';
+import { ChatService } from '../services/ChatService';
 
 interface Profile {
     id: string;
@@ -43,6 +46,8 @@ export default function AdminPanel() {
     const [showRoleMenu, setShowRoleMenu] = useState<string | null>(null);
     const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [selectedUserForChat, setSelectedUserForChat] = useState<{ id: string, name: string } | null>(null);
+    const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
     // Estados para Edición de Usuario
     const [editingUser, setEditingUser] = useState<Profile | null>(null);
@@ -67,10 +72,43 @@ export default function AdminPanel() {
     useEffect(() => {
         if (view === 'users') {
             fetchProfiles();
+            fetchUnreadCounts();
         } else if (view === 'catalog') {
             fetchCatalogItems();
         }
     }, [view, catalogType]);
+
+    // Suscripción a notificaciones de nuevos mensajes
+    useEffect(() => {
+        if (!currentUser?.id) return;
+
+        const channel = ChatService.subscribeToMessages(currentUser.id, (msg) => {
+            // Incrementar conteo si el chat no está abierto con ese usuario
+            if (selectedUserForChat?.id !== msg.sender_id) {
+                setUnreadCounts(prev => ({
+                    ...prev,
+                    [msg.sender_id]: (prev[msg.sender_id] || 0) + 1
+                }));
+
+                // Opcional: Sonido de notificación
+                new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => { });
+            }
+        });
+
+        return () => {
+            channel.unsubscribe();
+        };
+    }, [currentUser?.id, selectedUserForChat?.id]);
+
+    async function fetchUnreadCounts() {
+        if (!currentUser?.id) return;
+        try {
+            const counts = await ChatService.getUnreadCounts(currentUser.id);
+            setUnreadCounts(counts);
+        } catch (err) {
+            console.error('Error al cargar conteos:', err);
+        }
+    }
 
     async function fetchProfiles() {
         try {
@@ -467,8 +505,15 @@ export default function AdminPanel() {
                                             <tr key={p.id} className="group hover:bg-slate-50/50 transition-all">
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-black text-xs">
-                                                            {p.nombre[0]}{p.apellido[0]}
+                                                        <div className="relative">
+                                                            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-black text-xs">
+                                                                {p.nombre[0]}{p.apellido[0]}
+                                                            </div>
+                                                            {unreadCounts[p.id] > 0 && (
+                                                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-black rounded-full border-2 border-white flex items-center justify-center animate-bounce">
+                                                                    {unreadCounts[p.id]}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div>
                                                             <div className="flex items-center gap-2">
@@ -539,14 +584,35 @@ export default function AdminPanel() {
                                                                     setShowActionMenu(showActionMenu === p.id ? null : p.id);
                                                                     setShowRoleMenu(null);
                                                                 }}
-                                                                className={`p-3 border rounded-xl transition-all ${showActionMenu === p.id ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-900 hover:border-slate-400'}`}
+                                                                className={`p-3 border rounded-xl transition-all relative ${showActionMenu === p.id ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-900 hover:border-slate-400'}`}
                                                             >
                                                                 <MoreVertical size={18} />
+                                                                {unreadCounts[p.id] > 0 && (
+                                                                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>
+                                                                )}
                                                             </button>
 
                                                             {showActionMenu === p.id && (
                                                                 <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[2000] py-3 animate-in fade-in zoom-in-95 duration-200">
                                                                     <p className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-2">Acciones de Cuenta</p>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setSelectedUserForChat({ id: p.id, name: `${p.nombre} ${p.apellido}` });
+                                                                            setUnreadCounts(prev => ({ ...prev, [p.id]: 0 })); // Limpiar localmente
+                                                                            setShowActionMenu(null);
+                                                                        }}
+                                                                        className="w-full text-left px-5 py-3 text-[11px] font-black text-slate-600 uppercase hover:bg-slate-50 transition-all flex items-center justify-between group/chat"
+                                                                    >
+                                                                        <div className="flex items-center gap-3">
+                                                                            <MessageCircle size={14} className="text-emerald-500" /> Chat Directo
+                                                                        </div>
+                                                                        {unreadCounts[p.id] > 0 && (
+                                                                            <span className="bg-red-500 text-white text-[9px] px-2 py-0.5 rounded-full">
+                                                                                {unreadCounts[p.id]}
+                                                                            </span>
+                                                                        )}
+                                                                    </button>
+                                                                    <div className="h-px bg-slate-50 my-2"></div>
                                                                     <button
                                                                         onClick={() => openEditModal(p)}
                                                                         className="w-full text-left px-5 py-3 text-[11px] font-black text-slate-600 uppercase hover:bg-slate-50 transition-all flex items-center gap-3"
@@ -818,6 +884,18 @@ export default function AdminPanel() {
                             </button>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* MODAL DE CHAT FLOTANTE */}
+            {selectedUserForChat && (
+                <div className="fixed bottom-6 right-6 z-[6000] animate-in slide-in-from-right-10 duration-500 w-full max-w-sm">
+                    <ChatBox
+                        receiverId={selectedUserForChat.id}
+                        receiverName={selectedUserForChat.name}
+                        onClose={() => setSelectedUserForChat(null)}
+                        isAdminView={true}
+                    />
                 </div>
             )}
         </div>

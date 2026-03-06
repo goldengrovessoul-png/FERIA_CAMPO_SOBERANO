@@ -3,6 +3,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, LogOut, ChevronRight, CheckCircle2, FileEdit, User, MapPin, Loader2, RefreshCw, Camera, Trash2, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
+import ChatBox from '../components/Chat/ChatBox';
+import { MessageCircle, X } from 'lucide-react';
+import { ChatService } from '../services/ChatService';
+import type { ChatMessage } from '../services/ChatService';
 
 interface Report {
     id: string;
@@ -26,6 +30,57 @@ export default function InspectorDashboard() {
     const [profileImage, setProfileImage] = useState<string | null>(localStorage.getItem(`profile_img_${profile?.id}`));
     const [hiddenReports, setHiddenReports] = useState<string[]>(JSON.parse(localStorage.getItem(`hidden_reports_${profile?.id}`) || '[]'));
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [adminInfo, setAdminInfo] = useState<{ id: string, name: string } | null>(null);
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    // Buscar primer administrador disponible para chatear
+    useEffect(() => {
+        async function getAdmin() {
+            try {
+                const { data } = await supabase
+                    .from('profiles')
+                    .select('id, nombre')
+                    .eq('rol', 'ADMIN')
+                    .limit(1)
+                    .maybeSingle();
+
+                if (data) {
+                    setAdminInfo({ id: data.id, name: `Admin ${data.nombre}` });
+                    fetchUnreadCount(data.id);
+                }
+            } catch (err) {
+                console.error('[InspectorDashboard] Error al buscar Admin para chat:', err);
+            }
+        }
+        getAdmin();
+    }, []);
+
+    async function fetchUnreadCount(admId: string) {
+        if (!profile?.id) return;
+        try {
+            const counts = await ChatService.getUnreadCounts(profile.id);
+            setUnreadCount(counts[admId] || 0);
+        } catch (err) {
+            console.error('Error al cargar unread count:', err);
+        }
+    }
+
+    // Suscripción Realtime para el Inspector
+    useEffect(() => {
+        if (!profile?.id || !adminInfo?.id) return;
+
+        const channel = ChatService.subscribeToMessages(profile.id, (msg: ChatMessage) => {
+            if (msg.sender_id === adminInfo.id && !isChatOpen) {
+                setUnreadCount(prev => prev + 1);
+                new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => { });
+            }
+        });
+
+        return () => {
+            channel.unsubscribe();
+        };
+    }, [profile?.id, adminInfo?.id, isChatOpen]);
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -283,6 +338,33 @@ export default function InspectorDashboard() {
                         )}
                     </div>
                 </section>
+            </div>
+
+            {/* BOTÓN FLOTANTE DE CHAT (WHATSAPP STYLE) */}
+            <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+                {isChatOpen && adminInfo && (
+                    <div className="mb-2 animate-in slide-in-from-bottom-5 duration-300 w-[90vw] max-w-sm">
+                        <ChatBox
+                            receiverId={adminInfo.id}
+                            receiverName={adminInfo.name}
+                            onClose={() => setIsChatOpen(false)}
+                        />
+                    </div>
+                )}
+                <button
+                    onClick={() => {
+                        setIsChatOpen(!isChatOpen);
+                        if (!isChatOpen) setUnreadCount(0); // Limpiar al abrir
+                    }}
+                    className={`w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all active:scale-90 relative ${isChatOpen ? 'bg-slate-800 text-white' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}
+                >
+                    {isChatOpen ? <X size={24} /> : <MessageCircle size={28} />}
+                    {!isChatOpen && unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-[10px] font-black rounded-full border-2 border-white flex items-center justify-center animate-bounce">
+                            {unreadCount}
+                        </span>
+                    )}
+                </button>
             </div>
         </div>
     );

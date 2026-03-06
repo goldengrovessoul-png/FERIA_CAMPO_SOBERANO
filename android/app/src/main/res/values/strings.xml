@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Feria Campo Soberano</string>
+    <string name="title_activity_main">Feria Campo Soberano</string>
+    <string name="package_name">com.feria.camposoberano</string>
+    <string name="custom_url_scheme">com.feria.camposoberano</string>
+</resources>
