@@ -42,7 +42,7 @@ export default function AdminPanel() {
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterRol, setFilterRol] = useState<'ALL' | 'INSPECTOR' | 'JEFE' | 'ADMIN'>('ALL');
+    const [filterRol, setFilterRol] = useState<'ALL' | 'INSPECTOR' | 'JEFE' | 'ADMIN' | 'SUSPENDIDO'>('ALL');
     const [showRoleMenu, setShowRoleMenu] = useState<string | null>(null);
     const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -132,12 +132,18 @@ export default function AdminPanel() {
         if (!window.confirm(`¿Estás seguro de cambiar el rol a ${newRole}?`)) return;
 
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('profiles')
                 .update({ rol: newRole })
-                .eq('id', userId);
+                .eq('id', userId)
+                .select('id');
 
             if (error) throw error;
+            if (!data || data.length === 0) {
+                alert('La asignación de rol falló (Posiblemente no tienes permisos de administrador para alterar roles).');
+                return;
+            }
+
             fetchProfiles();
             setShowRoleMenu(null);
         } catch (error) {
@@ -150,12 +156,18 @@ export default function AdminPanel() {
         if (!window.confirm(`¿Estás seguro de ${currentStatus ? 'SUSPENDER' : 'ACTIVAR'} a este usuario?`)) return;
 
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('profiles')
                 .update({ is_active: !currentStatus })
-                .eq('id', userId);
+                .eq('id', userId)
+                .select('id');
 
             if (error) throw error;
+            if (!data || data.length === 0) {
+                alert('La actualización falló silenciosamente (Posiblemente no tienes nivel de administrador/jefe en Base de Datos).');
+                return;
+            }
+
             fetchProfiles();
             setShowActionMenu(null);
         } catch (error) {
@@ -310,7 +322,12 @@ export default function AdminPanel() {
             p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
             p.apellido.toLowerCase().includes(searchTerm.toLowerCase()) ||
             p.cedula.includes(searchTerm);
-        const matchesRol = filterRol === 'ALL' || p.rol === filterRol;
+
+        let matchesRol = false;
+        if (filterRol === 'ALL') matchesRol = true;
+        else if (filterRol === 'SUSPENDIDO') matchesRol = p.is_active === false;
+        else matchesRol = p.rol === filterRol;
+
         return matchesSearch && matchesRol;
     });
 
@@ -478,10 +495,11 @@ export default function AdminPanel() {
                                         onChange={(e) => setFilterRol(e.target.value as any)}
                                         className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-100 transition-all appearance-none"
                                     >
-                                        <option value="ALL">TODOS LOS ROLES</option>
-                                        <option value="INSPECTOR">INSPECTORES</option>
-                                        <option value="JEFE">JEFES</option>
-                                        <option value="ADMIN">ADMINISTRADORES</option>
+                                        <option value="ALL">TODOS LOS ROLES // ACTIVOS Y SUSPENDIDOS</option>
+                                        <option value="INSPECTOR">SOLO INSPECTORES</option>
+                                        <option value="JEFE">SOLO JEFES</option>
+                                        <option value="ADMIN">SOLO ADMINISTRADORES</option>
+                                        <option value="SUSPENDIDO">⬛ CUENTAS SUSPENDIDAS</option>
                                     </select>
                                 </div>
                                 <button onClick={fetchProfiles} className="p-4 bg-slate-50 text-[#007AFF] rounded-2xl hover:bg-blue-50 transition-all">
@@ -502,7 +520,7 @@ export default function AdminPanel() {
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
                                         {filteredProfiles.map((p) => (
-                                            <tr key={p.id} className="group hover:bg-slate-50/50 transition-all">
+                                            <tr key={p.id} className={`group transition-all hover:bg-slate-50/50 ${p.is_active === false ? 'opacity-50 grayscale bg-red-50/10' : ''}`}>
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-4">
                                                         <div className="relative">

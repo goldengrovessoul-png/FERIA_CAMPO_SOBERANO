@@ -22,6 +22,13 @@ export default function Login() {
         return cNorm.replace(/^[VEJGvejg]-?/, ''); // Quita prefijo
     };
 
+    const withTimeout = (promise: PromiseLike<any> | Promise<any>, ms: number = 10000) => {
+        return Promise.race([
+            Promise.resolve(promise),
+            new Promise<'TIMEOUT'>((resolve) => setTimeout(() => resolve('TIMEOUT'), ms))
+        ]);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -45,18 +52,19 @@ export default function Login() {
         setLoading(true);
 
         try {
+            // Se envía la orden de limpieza al fondo sin "await" para que no bloquee eternamente el proceso
+            supabase.auth.signOut().catch(() => { });
+
             const cedulaPura = normalizarCedula(cedula);
-            // IMPORTANTE: Se usa .com para evitar errores de validación de Supabase Auth
             const emailForAuth = `${cedulaPura.toLowerCase()}@fcs.com`;
 
             if (isRegistering) {
                 // ---------- MODO REGISTRO ----------
-                // Determinar el rol basado en la cédula mágica
                 let rol = 'INSPECTOR';
                 if (cedulaPura === 'JEFE') rol = 'JEFE';
                 if (cedulaPura === 'ADMIN') rol = 'ADMIN';
 
-                const { data, error: registerError } = await supabase.auth.signUp({
+                const response = await withTimeout(supabase.auth.signUp({
                     email: emailForAuth,
                     password: pin.trim(),
                     options: {
@@ -67,7 +75,13 @@ export default function Login() {
                             rol: rol
                         }
                     }
-                });
+                }));
+
+                if (response === 'TIMEOUT') {
+                    throw new Error('Tiempo de espera agotado conectando al registro.');
+                }
+
+                const { data, error: registerError } = response;
 
                 if (registerError) {
                     if (registerError.message.includes('already registered')) {
@@ -81,20 +95,26 @@ export default function Login() {
 
                 if (data.user) {
                     setSuccess('¡Registro exitoso! Iniciando tu sesión...');
-                    // Fallthrough para hacer login o redirigir (Supabase auto-inicia sesión en registro)
                     setTimeout(() => window.location.reload(), 1500);
                 }
 
             } else {
                 // ---------- MODO LOGIN ----------
-                const { data, error: authError } = await supabase.auth.signInWithPassword({
+                console.log('Intentando inicio de sesión...', emailForAuth);
+                const response = await withTimeout(supabase.auth.signInWithPassword({
                     email: emailForAuth,
                     password: pin.trim(),
-                });
+                }));
+
+                if (response === 'TIMEOUT') {
+                    throw new Error('Tiempo de espera agotado intentando iniciar sesión. Revisa tu internet o la base de datos.');
+                }
+
+                const { data, error: authError } = response;
 
                 if (authError) {
                     if (authError.message.includes('Invalid login credentials')) {
-                        setError('Credenciales incorrectas. Verifícalas o regístrate si no tienes cuenta.');
+                        setError('Credenciales incorrectas o usuario no existe. Regístrate en la pestaña superior.');
                     } else {
                         setError(authError.message);
                     }
@@ -102,34 +122,47 @@ export default function Login() {
                     return;
                 }
 
-                if (!data.user) {
-                    setError('Respuesta vacía del servidor.');
+                if (!data?.user) {
+                    setError('Respuesta vacía del servidor, no hubo inicio de sesión.');
                     setLoading(false);
                     return;
                 }
 
-                // Obtener perfil para enrutamiento
-                const { data: profile, error: profileError } = await supabase
+                console.log('Sesión confirmada, cargando perfil...');
+                const profileRes = await withTimeout(supabase
                     .from('profiles')
-                    .select('rol')
+                    .select('rol, is_active')
                     .eq('id', data.user.id)
-                    .single();
+                    .single());
+
+                if (profileRes === 'TIMEOUT') throw new Error('Tiempo de espera agotado leyendo el perfil.');
+
+                const { data: profile, error: profileError } = profileRes;
 
                 if (profileError || !profile) {
-                    setError('Tu usuario existe pero no tiene un perfil asociado. Intenta registrarlo de nuevo.');
+                    setError('Tu usuario existe pero no tiene un perfil asociado. Inténtalo de nuevo.');
                     await supabase.auth.signOut();
                     setLoading(false);
                     return;
                 }
 
+                // VALIDACIÓN CRÍTICA: Bloquear usuarios suspendidos
+                if (profile.is_active === false) {
+                    setError('Tu cuenta ha sido SUSPENDIDA temporal o permanentemente por un Administrador.');
+                    await supabase.auth.signOut();
+                    setLoading(false);
+                    return;
+                }
+
+                console.log('Perfil verificado:', profile.rol);
                 if (profile.rol === 'ADMIN') navigate('/admin');
                 else if (profile.rol === 'JEFE') navigate('/dashboard');
                 else navigate('/app');
             }
 
-        } catch (err) {
-            console.error('Error de autenticación:', err);
-            setError('Error de conexión. Verifica tu internet e intenta de nuevo.');
+        } catch (err: any) {
+            console.error('Error de autenticación capturado:', err);
+            setError(err.message || 'Error grave de conexión o timeout. Verifica tu internet e intenta de nuevo.');
         } finally {
             if (!success) setLoading(false);
         }

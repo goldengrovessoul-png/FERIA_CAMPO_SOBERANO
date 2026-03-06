@@ -168,11 +168,20 @@ export default function JefeDashboard() {
             // Usar fetch nativo para evitar el queueing interno del SDK
 
 
-            // 1. Cargar Reportes usando el SDK
+            // 1. Cargar Reportes (Principal) pero limitando severamente la descarga de Megabytes
             setDebug('Descargando Reportes...');
-            const { data: reportsData, error: reportsError } = await supabase
+
+            // Reconstruimos el JSON de datos_formulario solo con lo útil (sin fotos, base64, que causan timeout)
+            const { data: rawReports, error: reportsError } = await supabase
                 .from('reports')
-                .select('*')
+                .select(`
+                    id, fecha, tipo_actividad, empresa, estado_geografico, municipio, 
+                    parroquia, personas, familias, comunas, total_proteina, total_frutas, 
+                    total_hortalizas, total_verduras, total_secos, latitud, longitud, 
+                    estado_reporte, inspector_id, 
+                    condiciones:datos_formulario->condiciones, 
+                    presenciaMinppal:datos_formulario->presenciaMinppal
+                `)
                 .eq('estado_reporte', 'enviado')
                 .order('fecha', { ascending: false })
                 .limit(200);
@@ -183,8 +192,17 @@ export default function JefeDashboard() {
                 throw reportsError;
             }
 
+            // Re-estructuramos el objeto para encajar con la interfaz \`Report\` del Dashboard sin romper código
+            const reportsData = (rawReports || []).map((r: any) => ({
+                ...r,
+                datos_formulario: {
+                    condiciones: r.condiciones,
+                    presenciaMinppal: r.presenciaMinppal
+                }
+            }));
+
             console.log("DEBUG: Reportes recibidos:", reportsData?.length);
-            setReports(reportsData || []);
+            setReports(reportsData);
 
             // 2. Cargar Catálogos usando el SDK
             setDebug('Cargando catálogos...');
@@ -867,15 +885,15 @@ export default function JefeDashboard() {
                                     <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-lg shadow-slate-900/20"><Users size={20} /></div>
                                     <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Productividad de Inspectores</h3>
                                 </div>
-                                <div className="h-[280px]">
+                                <div className="h-[600px]">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={inspectorReportData} margin={{ top: 20 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
-                                            <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} height={50} />
-                                            <YAxis tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                        <BarChart data={inspectorReportData} layout="vertical" margin={{ left: -10, right: 30, top: 20, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                            <XAxis type="number" hide />
+                                            <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
                                             <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                            <Bar dataKey="value" fill="url(#colorDark)" radius={[12, 12, 0, 0]} barSize={40}>
-                                                <LabelList dataKey="value" position="top" style={{ fontSize: 12, fontWeight: 900, fill: '#1e293b' }} />
+                                            <Bar dataKey="value" fill="url(#colorDark)" radius={[0, 10, 10, 0]} barSize={18}>
+                                                <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#1e293b' }} />
                                             </Bar>
                                         </BarChart>
                                     </ResponsiveContainer>
@@ -888,15 +906,15 @@ export default function JefeDashboard() {
                                     <div className="w-10 h-10 bg-[#007AFF] rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20"><Building2 size={20} /></div>
                                     <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Despliegue Ente MINPPAL</h3>
                                 </div>
-                                <div className="h-[280px]">
+                                <div className="h-[600px]">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={enteReportData} margin={{ top: 20 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
-                                            <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} height={50} />
-                                            <YAxis tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                        <BarChart data={enteReportData} layout="vertical" margin={{ left: -10, right: 30, top: 20, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                            <XAxis type="number" hide />
+                                            <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
                                             <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                            <Bar dataKey="value" fill="url(#colorBlue)" radius={[12, 12, 0, 0]} barSize={40}>
-                                                <LabelList dataKey="value" position="top" style={{ fontSize: 12, fontWeight: 900, fill: '#007AFF' }} />
+                                            <Bar dataKey="value" fill="url(#colorBlue)" radius={[0, 10, 10, 0]} barSize={18}>
+                                                <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#007AFF' }} />
                                             </Bar>
                                         </BarChart>
                                     </ResponsiveContainer>
