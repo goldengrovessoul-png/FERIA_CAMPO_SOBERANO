@@ -14,6 +14,8 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     LineChart, Line, PieChart, Pie, Cell, Legend, LabelList
 } from 'recharts';
+import * as XLSX from 'xlsx';
+import { FileDown } from 'lucide-react';
 
 // Fix for Leaflet default icon issues in React
 import L from 'leaflet';
@@ -518,6 +520,41 @@ export default function JefeDashboard() {
         }).sort((a, b) => b.count - a.count);
     }, [filteredReports, catalogos.minppal]);
 
+    const exportToExcel = () => {
+        // Preparar los datos para Excel
+        const dataToExport = filteredReports.map(report => {
+            return {
+                'ID': report.id,
+                'FECHA': new Date(report.fecha).toLocaleDateString('es-VE'),
+                'TIPO ACTIVIDAD': report.tipo_actividad,
+                'ENTE RESPONSABLE': report.empresa,
+                'ESTADO': report.estado_geografico,
+                'MUNICIPIO': report.municipio,
+                'PARROQUIA': report.parroquia,
+                'PERSONAS': report.personas,
+                'FAMILIAS': report.familias,
+                'COMUNAS': report.comunas,
+                'PROTEÍNA (TON)': report.total_proteina,
+                'FRUTAS (TON)': report.total_frutas,
+                'HORTALIZAS (TON)': report.total_hortalizas,
+                'VERDURAS (TON)': report.total_verduras,
+                'SECOS (TON)': report.total_secos,
+                'ESTADO REPORTE': report.estado_reporte
+            };
+        });
+
+        // Crear el libro y la hoja
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Reportes Filtrados");
+
+        // Generar nombre de archivo dinámico
+        const fileName = `Reporte_FCS_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+        // Descargar el archivo
+        XLSX.writeFile(workbook, fileName);
+    };
+
     return (
         <div className="min-h-screen bg-[#F2F2F7] text-slate-900 font-sans relative">
             <div className="fixed top-0 left-0 right-0 bg-black text-white p-1 z-[9999] text-[9px] font-mono text-center flex flex-wrap justify-center gap-4 opacity-80">
@@ -539,6 +576,14 @@ export default function JefeDashboard() {
                 </div>
 
                 <div className="flex items-center gap-3 w-full md:w-auto">
+                    <button
+                        onClick={exportToExcel}
+                        disabled={filteredReports.length === 0}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-5 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:grayscale"
+                        title="Exportar a Excel"
+                    >
+                        <FileDown size={18} /> Excel
+                    </button>
                     <button onClick={() => fetchData(session?.access_token)} className="flex-1 md:flex-none p-3 bg-slate-100 text-slate-600 hover:text-[#007AFF] hover:bg-blue-50 rounded-2xl transition-all border border-slate-200 flex justify-center">
                         <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
                     </button>

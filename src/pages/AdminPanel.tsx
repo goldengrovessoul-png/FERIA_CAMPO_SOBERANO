@@ -10,8 +10,9 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import ChatBox from '../components/Chat/ChatBox';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, FileDown } from 'lucide-react';
 import { ChatService } from '../services/ChatService';
+import * as XLSX from 'xlsx';
 
 interface Profile {
     id: string;
@@ -316,6 +317,24 @@ export default function AdminPanel() {
         }
     }
 
+    const exportUsersToExcel = () => {
+        const dataToExport = filteredProfiles.map(p => ({
+            'NOMBRE': p.nombre,
+            'APELLIDO': p.apellido,
+            'CÉDULA': p.cedula,
+            'ROL': p.rol,
+            'ESTADO': p.estado || 'NO ASIGNADO',
+            'TELÉFONO': p.telefono || 'N/A',
+            'FECHA CREACIÓN': new Date(p.fecha_creacion).toLocaleDateString('es-VE'),
+            'ESTATUS': p.is_active === false ? 'SUSPENDIDO' : 'ACTIVO'
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Usuarios");
+        XLSX.writeFile(workbook, `Usuarios_Sistema_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
 
     const filteredProfiles = profiles.filter(p => {
         const matchesSearch =
@@ -420,9 +439,20 @@ export default function AdminPanel() {
                                 {view === 'overview' ? 'Configuración global y métricas del sistema.' : view === 'users' ? 'Administración de accesos y roles de inspectores.' : 'Gestión de listas dinámicas del sistema.'}
                             </p>
                         </div>
-                        <button onClick={() => navigate('/dashboard')} className="w-full lg:w-auto px-6 md:px-8 py-4 bg-white border border-slate-200 rounded-2xl text-slate-900 font-black text-[10px] md:text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-slate-50 hover:shadow-lg transition-all active:scale-95 shadow-sm">
-                            <ArrowLeft size={18} className="text-blue-600" /> Dashboard Web
-                        </button>
+                        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                            {view === 'users' && (
+                                <button
+                                    onClick={exportUsersToExcel}
+                                    disabled={filteredProfiles.length === 0}
+                                    className="px-6 md:px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-emerald-700 transition-all active:scale-95 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                                >
+                                    <FileDown size={18} /> Exportar Excel
+                                </button>
+                            )}
+                            <button onClick={() => navigate('/dashboard')} className="px-6 md:px-8 py-4 bg-white border border-slate-200 rounded-2xl text-slate-900 font-black text-[10px] md:text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-slate-50 hover:shadow-lg transition-all active:scale-95 shadow-sm">
+                                <ArrowLeft size={18} className="text-blue-600" /> Dashboard Web
+                            </button>
+                        </div>
                     </div>
 
                     {/* VISTA: OVERVIEW */}
