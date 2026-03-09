@@ -760,7 +760,15 @@ export default function JefeDashboard() {
 
                     <div className="h-full w-full rounded-[3rem] overflow-hidden">
                         <MapContainer center={[7.0, -66.0] as L.LatLngExpression} zoom={6} style={{ height: '100%', width: '100%' }}>
-                            <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
+                            <TileLayer
+                                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                                attribution='&copy; <a href="https://www.esri.com/">Esri</a>, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
+                            />
+                            {/* Capa de etiquetas y fronteras de estados */}
+                            <TileLayer
+                                url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                                attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
+                            />
                             {filteredReports.filter(r => r.latitud && r.longitud).map(report => (
                                 <Marker
                                     key={report.id}
