@@ -186,7 +186,7 @@ export default function JefeDashboard() {
                 `)
                 .eq('estado_reporte', 'enviado')
                 .order('fecha', { ascending: false })
-                .limit(200);
+                .limit(500);
 
             if (reportsError) {
                 console.error("DEBUG: Error cargando reportes:", reportsError);
@@ -220,12 +220,15 @@ export default function JefeDashboard() {
             console.log("DEBUG: Catálogos recibidos:", catalogData?.length);
 
             if (catalogData && !catalogError) {
+                const normalize = (items: any[], type: string) =>
+                    Array.from(new Set(items.filter(i => i.type === type).map(i => i.name.trim().toUpperCase()))).sort() as string[];
+
                 setCatalogos({
-                    estados: Array.from(new Set(catalogData.filter((i: any) => i.type === 'ESTADO').map((i: any) => i.name))).sort() as string[],
-                    entes: Array.from(new Set(catalogData.filter((i: any) => i.type === 'ENTE').map((i: any) => i.name))).sort() as string[],
-                    articulos: Array.from(new Set(catalogData.filter((i: any) => i.type === 'ARTICULO').map((i: any) => i.name))).sort() as string[],
-                    actividades: Array.from(new Set(catalogData.filter((i: any) => i.type === 'ACTIVIDAD').map((i: any) => i.name))).sort() as string[],
-                    minppal: Array.from(new Set(catalogData.filter((i: any) => i.type === 'MINPPAL').map((i: any) => i.name))).sort() as string[]
+                    estados: normalize(catalogData, 'ESTADO'),
+                    entes: normalize(catalogData, 'ENTE'),
+                    articulos: normalize(catalogData, 'ARTICULO'),
+                    actividades: normalize(catalogData, 'ACTIVIDAD'),
+                    minppal: normalize(catalogData, 'MINPPAL')
                 });
             } else if (catalogError) {
                 console.warn('Error cargando catálogos:', catalogError.message);
@@ -238,11 +241,11 @@ export default function JefeDashboard() {
                 const reportIds = reportsData.map((r: any) => r.id);
 
 
-                // 3. Cargar datos secundarios usando el SDK
+                // 3. Cargar datos secundarios usando el SDK (Aumentado para cubrir todos los reportes cargados)
                 console.log('Fetching secondary data...');
                 const [itemsRes, paymentRes] = await Promise.all([
-                    supabase.from('report_items').select('report_id,rubro,cantidad').in('report_id', reportIds.slice(0, 50)),
-                    supabase.from('report_payment_methods').select('report_id,metodo').in('report_id', reportIds.slice(0, 50))
+                    supabase.from('report_items').select('report_id,rubro,cantidad').in('report_id', reportIds),
+                    supabase.from('report_payment_methods').select('report_id,metodo').in('report_id', reportIds)
                 ]);
 
                 if (itemsRes.data) setReportItems(itemsRes.data);
@@ -275,17 +278,26 @@ export default function JefeDashboard() {
 
     const filteredReports = useMemo(() => {
         return reports.filter(r => {
-            const matchesSearch = !searchTerm ||
-                (r.parroquia || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (r.municipio || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const cleanSearch = searchTerm.trim().toLowerCase();
+            const matchesSearch = !cleanSearch ||
+                (r.parroquia || '').toLowerCase().includes(cleanSearch) ||
+                (r.municipio || '').toLowerCase().includes(cleanSearch);
 
-            const matchesEstado = filterEstado === 'Todos' || r.estado_geografico === filterEstado;
-            const matchesTipo = filterTipo === 'Todos' || r.tipo_actividad === filterTipo;
-            const matchesEnte = filterEnte === 'Todos' || r.empresa === filterEnte;
+            const matchesEstado = filterEstado === 'Todos' ||
+                (r.estado_geografico || '').trim().toUpperCase() === filterEstado.trim().toUpperCase();
+
+            const matchesTipo = filterTipo === 'Todos' ||
+                (r.tipo_actividad || '').trim().toUpperCase() === filterTipo.trim().toUpperCase();
+
+            const matchesEnte = filterEnte === 'Todos' ||
+                (r.empresa || '').trim().toUpperCase() === filterEnte.trim().toUpperCase();
 
             let matchesRubro = true;
             if (filterRubro !== 'Todos') {
-                matchesRubro = reportItems.some(item => item.report_id === r.id && item.rubro === filterRubro);
+                const targetRubro = filterRubro.trim().toUpperCase();
+                matchesRubro = reportItems.some(item =>
+                    item.report_id === r.id && (item.rubro || '').trim().toUpperCase() === targetRubro
+                );
             }
 
             const reportDate = new Date(r.fecha);
@@ -333,8 +345,10 @@ export default function JefeDashboard() {
         const counts: Record<string, number> = {};
         paymentMethods.forEach(p => {
             if (filteredReportIds.has(p.report_id)) {
-                const label = p.metodo.replace(/\[.*\]/, '').trim();
-                counts[label] = (counts[label] || 0) + 1;
+                const label = (p.metodo || '').replace(/\[.*\]/, '').trim().toUpperCase();
+                if (label) {
+                    counts[label] = (counts[label] || 0) + 1;
+                }
             }
         });
         return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -352,7 +366,8 @@ export default function JefeDashboard() {
     const stateData = useMemo(() => {
         const counts: Record<string, number> = {};
         filteredReports.forEach(r => {
-            counts[r.estado_geografico] = (counts[r.estado_geografico] || 0) + 1;
+            const label = (r.estado_geografico || 'DESCONOCIDO').trim().toUpperCase();
+            counts[label] = (counts[label] || 0) + 1;
         });
         return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     }, [filteredReports]);
@@ -360,7 +375,8 @@ export default function JefeDashboard() {
     const activityTypeData = useMemo(() => {
         const counts: Record<string, number> = {};
         filteredReports.forEach(r => {
-            counts[r.tipo_actividad] = (counts[r.tipo_actividad] || 0) + 1;
+            const label = (r.tipo_actividad || 'OTRO').trim().toUpperCase();
+            counts[label] = (counts[label] || 0) + 1;
         });
         return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     }, [filteredReports]);
@@ -427,14 +443,15 @@ export default function JefeDashboard() {
     const inspectorReportData = useMemo(() => {
         const counts: Record<string, number> = {};
         filteredReports.forEach(r => {
-            let name = 'Desconocido';
+            let name = 'DESCONOCIDO';
             if (r.inspector_id && inspectors[r.inspector_id]) {
                 const p = inspectors[r.inspector_id];
                 name = `${p.nombre} ${p.apellido}`;
             } else if (r.profiles) {
                 name = `${r.profiles.nombre} ${r.profiles.apellido}`;
             }
-            counts[name] = (counts[name] || 0) + 1;
+            const normalizedName = name.trim().toUpperCase();
+            counts[normalizedName] = (counts[normalizedName] || 0) + 1;
         });
         return Object.entries(counts)
             .map(([name, value]) => ({ name, value }))
@@ -444,7 +461,7 @@ export default function JefeDashboard() {
     const enteReportData = useMemo(() => {
         const counts: Record<string, number> = {};
         filteredReports.forEach(r => {
-            const ente = r.empresa || 'Desconocido';
+            const ente = (r.empresa || 'DESCONOCIDO').trim().toUpperCase();
             counts[ente] = (counts[ente] || 0) + 1;
         });
         return Object.entries(counts)
