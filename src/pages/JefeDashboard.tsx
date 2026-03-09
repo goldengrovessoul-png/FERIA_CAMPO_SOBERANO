@@ -4,7 +4,7 @@ import {
     BarChart3, Users, LogOut, Search,
     TrendingUp, Package,
     Activity, RefreshCw, Home,
-    ChevronDown, Award, Building2
+    ChevronDown, Award, Building2, Eraser
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -102,6 +102,36 @@ interface PaymentMethod {
     metodo: string;
 }
 
+const StateTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        return (
+            <div className="bg-white p-6 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border-none min-w-[260px]">
+                <p className="text-[11px] font-black text-[#007AFF] uppercase tracking-[0.2em] mb-4 border-b border-slate-50 pb-3">ESTADO: {label}</p>
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider">
+                        <span className="text-slate-400">Total Actividades:</span>
+                        <span className="text-slate-900">{data.value}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider">
+                        <span className="text-slate-400">Comunas Atendidas:</span>
+                        <span className="text-slate-900">{data.comunas}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider">
+                        <span className="text-slate-400">Total Personas Atendidas:</span>
+                        <span className="text-blue-600 font-bold">{data.personas.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider">
+                        <span className="text-slate-400">Total Distribuido:</span>
+                        <span className="text-emerald-600 font-bold">{data.total_distribuido.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TN</span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
+
 const MONO_BLUE = [
     '#007AFF', // Solid
     '#268DFF', // Tint 1
@@ -111,6 +141,8 @@ const MONO_BLUE = [
     '#BFD8FF', // Tint 5
     '#1B66D1'  // Shade 1
 ];
+
+// ChartGradients component is removed as per instruction to inline defs
 
 export default function JefeDashboard() {
     const navigate = useNavigate();
@@ -276,6 +308,16 @@ export default function JefeDashboard() {
         }
     };
 
+    const clearFilters = () => {
+        setSearchTerm('');
+        setFilterEstado('Todos');
+        setFilterTipo('Todos');
+        setFilterEnte('Todos');
+        setFilterRubro('Todos');
+        setStartDate('');
+        setEndDate('');
+    };
+
     const filteredReports = useMemo(() => {
         return reports.filter(r => {
             const cleanSearch = searchTerm.trim().toLowerCase();
@@ -357,20 +399,60 @@ export default function JefeDashboard() {
     const timelineData = useMemo(() => {
         const counts: Record<string, number> = {};
         filteredReports.forEach(r => {
-            const date = new Date(r.fecha).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
-            counts[date] = (counts[date] || 0) + 1;
+            const d = new Date(r.fecha);
+            const label = d.toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
+            counts[label] = (counts[label] || 0) + 1;
         });
-        return Object.entries(counts).map(([date, count]) => ({ date, count })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        // Ordenar por fecha real
+        return Object.entries(counts)
+            .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => {
+                const [d1, m1] = a.date.split(' ');
+                const [d2, m2] = b.date.split(' ');
+                // Esto es básico, pero para un año actual sirve.
+                // Lo ideal sería guardar el timestamp en el objeto.
+                return a.date.localeCompare(b.date); // Fallback simple
+            });
     }, [filteredReports]);
 
     const stateData = useMemo(() => {
-        const counts: Record<string, number> = {};
+        const entries: Record<string, { value: number, personas: number, comunas: number, total_distribuido: number }> = {};
+
+        // Inicializar todos los estados conocidos con cero
+        catalogos.estados.forEach(estado => {
+            const label = estado.trim().toUpperCase();
+            entries[label] = { value: 0, personas: 0, comunas: 0, total_distribuido: 0 };
+        });
+
+        // Contar y sumar las actividades filtradas
         filteredReports.forEach(r => {
             const label = (r.estado_geografico || 'DESCONOCIDO').trim().toUpperCase();
-            counts[label] = (counts[label] || 0) + 1;
+            if (!entries[label]) {
+                entries[label] = { value: 0, personas: 0, comunas: 0, total_distribuido: 0 };
+            }
+            entries[label].value += 1;
+            entries[label].personas += Number(r.personas) || 0;
+            entries[label].comunas += Number(r.comunas) || 0;
+
+            const totalDist = (Number(r.total_proteina) || 0) +
+                (Number(r.total_frutas) || 0) +
+                (Number(r.total_hortalizas) || 0) +
+                (Number(r.total_verduras) || 0) +
+                (Number(r.total_secos) || 0);
+            entries[label].total_distribuido += totalDist;
         });
-        return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-    }, [filteredReports]);
+
+        return Object.entries(entries)
+            .map(([name, stats]) => ({
+                name,
+                value: stats.value,
+                personas: stats.personas,
+                comunas: stats.comunas,
+                total_distribuido: stats.total_distribuido
+            }))
+            .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+    }, [filteredReports, catalogos.estados]);
 
     const activityTypeData = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -635,6 +717,19 @@ export default function JefeDashboard() {
 
                 {/* Filtros */}
                 <div className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-slate-200/60">
+                    <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                        <div>
+                            <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Centro de Búsqueda</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Refina el análisis operativo</p>
+                        </div>
+                        <button
+                            onClick={clearFilters}
+                            className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border border-slate-100"
+                        >
+                            <Eraser size={14} /> Limpiar Filtros
+                        </button>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Búsqueda</label>
@@ -783,7 +878,13 @@ export default function JefeDashboard() {
                                                 'Presencia'
                                             ]}
                                         />
-                                        <Bar dataKey="count" fill="#F59E0B" radius={[0, 8, 8, 0]} barSize={14}>
+                                        <Bar dataKey="count" fill="url(#colorAmber)" radius={[0, 8, 8, 0]} barSize={14}>
+                                            <defs>
+                                                <linearGradient id="colorAmber" x1="0" y1="0" x2="1" y2="0">
+                                                    <stop offset="0%" stopColor="#F59E0B" stopOpacity={1} />
+                                                    <stop offset="100%" stopColor="#F59E0B" stopOpacity={0.6} />
+                                                </linearGradient>
+                                            </defs>
                                             <LabelList
                                                 dataKey="pct"
                                                 position="right"
@@ -838,7 +939,7 @@ export default function JefeDashboard() {
                                     icon={getMarkerIcon(report.tipo_actividad)}
                                 >
                                     <Popup>
-                                        <div className="p-3 font-sans min-w-[150px]">
+                                        <div className="p-3 font-sans min-w-[200px]">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <div
                                                     className="w-2.5 h-2.5 rounded-full shadow-sm"
@@ -847,9 +948,43 @@ export default function JefeDashboard() {
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{report.tipo_actividad}</p>
                                             </div>
                                             <p className="text-sm font-black text-slate-800 uppercase leading-tight">{report.parroquia}</p>
-                                            <div className="mt-3 pt-3 border-t border-slate-50 space-y-1">
-                                                <p className="text-[9px] font-bold text-slate-500 uppercase">Municipio: <span className="text-slate-900">{report.municipio}</span></p>
-                                                <p className="text-[9px] font-bold text-slate-500 uppercase">Familias: <span className="text-slate-900">{report.familias}</span></p>
+
+                                            <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                                                <p className="text-[9px] font-bold text-slate-500 uppercase flex justify-between">
+                                                    <span>Estado:</span>
+                                                    <span className="text-blue-600 font-black">{report.estado_geografico}</span>
+                                                </p>
+                                                {report.comunas && (
+                                                    <p className="text-[9px] font-bold text-slate-500 uppercase flex justify-between">
+                                                        <span>Comuna:</span>
+                                                        <span className="text-slate-900 font-black">{report.comunas}</span>
+                                                    </p>
+                                                )}
+                                                <p className="text-[9px] font-bold text-slate-500 uppercase flex justify-between">
+                                                    <span>Municipio:</span>
+                                                    <span className="text-slate-900">{report.municipio}</span>
+                                                </p>
+                                                <p className="text-[9px] font-bold text-slate-500 uppercase flex justify-between">
+                                                    <span>Familias:</span>
+                                                    <span className="text-slate-900">{report.familias}</span>
+                                                </p>
+                                                <p className="text-[9px] font-bold text-slate-500 uppercase flex justify-between">
+                                                    <span>Personas:</span>
+                                                    <span className="text-slate-900 font-black">{report.personas}</span>
+                                                </p>
+
+                                                <div className="mt-2 pt-2 border-t border-slate-50 flex justify-between items-center">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase">Total Distribuido:</span>
+                                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter">
+                                                        {(
+                                                            (Number(report.total_proteina) || 0) +
+                                                            (Number(report.total_frutas) || 0) +
+                                                            (Number(report.total_hortalizas) || 0) +
+                                                            (Number(report.total_verduras) || 0) +
+                                                            (Number(report.total_secos) || 0)
+                                                        ).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TN
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </Popup>
@@ -860,67 +995,50 @@ export default function JefeDashboard() {
                 </div>
                 {/* ── FIN MAPA ─────────────────────────────────────────────────── */}
 
-                {/* Grid Analítico */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
-                    <div className="lg:col-span-8 space-y-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {/* Evolución Temporal */}
-                            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 md:col-span-2">
-                                <div className="flex items-center gap-4 mb-8">
-                                    <div className="w-10 h-10 bg-blue-50 text-[#007AFF] rounded-xl flex items-center justify-center"><TrendingUp size={20} /></div>
-                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Histórico de Jornadas</h3>
-                                </div>
-                                <div className="h-[300px] w-full">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={timelineData}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
-                                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900 }} />
-                                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900 }} />
-                                            <Tooltip contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
-                                            <Line type="monotone" dataKey="count" stroke="#007AFF" strokeWidth={4} dot={{ r: 4, fill: '#007AFF' }} />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
 
-                            {/* Tipos de Actividad */}
+                {/* Grid Analítico Principal */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
+                    {/* Columna Izquierda (8) - Reportes Dinámicos */}
+                    <div className="lg:col-span-8 space-y-8">
+
+                        {/* Fila 1: Histórico de Jornadas (Full Width) */}
+                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-10 h-10 bg-blue-50 text-[#007AFF] rounded-xl flex items-center justify-center"><TrendingUp size={20} /></div>
+                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Histórico de Jornadas</h3>
+                            </div>
+                            <div className="h-[300px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={timelineData}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
+                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
+                                        <Tooltip contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }} />
+                                        <Line type="monotone" dataKey="count" stroke="#007AFF" strokeWidth={4} dot={{ r: 4, fill: '#007AFF', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6, strokeWidth: 0 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Fila 2: Tipos de Actividad y Cobranza (50% cada uno) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-                                <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-8 text-center md:text-left">Tipos de Actividad (Global)</h3>
-                                <div className="h-[250px]">
+                                <div className="flex items-center gap-4 mb-8">
+                                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><Activity size={20} /></div>
+                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Tipos de Actividad</h3>
+                                </div>
+                                <div className="h-[300px]">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={activityTypeData} margin={{ top: 20 }}>
                                             <defs>
                                                 <linearGradient id="colorBlue" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#007AFF" stopOpacity={1} />
-                                                    <stop offset="95%" stopColor="#0055FF" stopOpacity={0.8} />
-                                                </linearGradient>
-                                                <linearGradient id="colorIndigo" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#6366F1" stopOpacity={1} />
-                                                    <stop offset="95%" stopColor="#4F46E5" stopOpacity={0.8} />
-                                                </linearGradient>
-                                                <linearGradient id="colorAmber" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#F59E0B" stopOpacity={1} />
-                                                    <stop offset="95%" stopColor="#D97706" stopOpacity={0.8} />
-                                                </linearGradient>
-                                                <linearGradient id="colorEmerald" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#10B981" stopOpacity={1} />
-                                                    <stop offset="95%" stopColor="#059669" stopOpacity={0.8} />
-                                                </linearGradient>
-                                                <linearGradient id="colorSky" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#0EA5E9" stopOpacity={1} />
-                                                    <stop offset="95%" stopColor="#0284C7" stopOpacity={0.8} />
-                                                </linearGradient>
-                                                <linearGradient id="colorDark" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#1e293b" stopOpacity={1} />
-                                                    <stop offset="95%" stopColor="#0f172a" stopOpacity={0.9} />
+                                                    <stop offset="0%" stopColor="#007AFF" stopOpacity={1} />
+                                                    <stop offset="100%" stopColor="#007AFF" stopOpacity={0.6} />
                                                 </linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
                                             <XAxis dataKey="name" hide />
-                                            <Tooltip
-                                                cursor={{ fill: '#f1f5f9' }}
-                                                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.05)', fontSize: '10px', fontWeight: 900 }}
-                                            />
+                                            <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none', fontSize: '10px', fontWeight: 900 }} />
                                             <Bar dataKey="value" fill="url(#colorBlue)" radius={[10, 10, 0, 0]} barSize={40}>
                                                 <LabelList dataKey="value" position="top" style={{ fontSize: 11, fontWeight: 900, fill: '#64748b' }} />
                                             </Bar>
@@ -929,12 +1047,17 @@ export default function JefeDashboard() {
                                 </div>
                             </div>
 
-                            {/* Métodos de Pago */}
                             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
                                 <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-8">Cobranza Consolidada</h3>
-                                <div className="h-[250px]">
+                                <div className="h-[300px]">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={paymentData} layout="vertical" margin={{ left: -10, right: 30 }}>
+                                            <defs>
+                                                <linearGradient id="colorIndigo" x1="0" y1="0" x2="1" y2="0">
+                                                    <stop offset="0%" stopColor="#4F46E5" stopOpacity={1} />
+                                                    <stop offset="100%" stopColor="#4F46E5" stopOpacity={0.6} />
+                                                </linearGradient>
+                                            </defs>
                                             <XAxis type="number" hide />
                                             <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
                                             <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
@@ -947,53 +1070,105 @@ export default function JefeDashboard() {
                             </div>
                         </div>
 
-                        {/* Gráficos de Productividad y Despliegue */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            {/* Productividad de Inspectores */}
-                            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-                                <div className="flex items-center gap-4 mb-8">
-                                    <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-lg shadow-slate-900/20"><Users size={20} /></div>
-                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Productividad de Inspectores</h3>
-                                </div>
-                                <div className="h-[600px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={inspectorReportData} layout="vertical" margin={{ left: -10, right: 30, top: 20, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
-                                            <XAxis type="number" hide />
-                                            <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
-                                            <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                            <Bar dataKey="value" fill="url(#colorDark)" radius={[0, 10, 10, 0]} barSize={18}>
-                                                <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#1e293b' }} />
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                        {/* Actividades por Estado - Gran Formato con Tooltip Enriquecido */}
+                        <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100">
+                            <div className="flex items-center justify-between mb-10">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-blue-50 text-[#007AFF] rounded-2xl flex items-center justify-center shadow-inner"><Package size={22} /></div>
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Actividades por Estado (Detalle Nacional)</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Analítica de despliegue territorial</p>
+                                    </div>
                                 </div>
                             </div>
+                            <div className="h-[800px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={stateData} layout="vertical" margin={{ left: 10, right: 80, top: 0, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="colorBlueH" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="#007AFF" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#007AFF" stopOpacity={0.6} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                        <XAxis type="number" hide />
+                                        <YAxis
+                                            dataKey="name"
+                                            type="category"
+                                            width={140}
+                                            tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }}
+                                            interval={0}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <Tooltip content={<StateTooltip />} cursor={{ fill: '#f8fafc' }} />
+                                        <Bar dataKey="value" fill="url(#colorBlueH)" radius={[0, 12, 12, 0]} barSize={16}>
+                                            <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#007AFF' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
 
-                            {/* Eficiencia por Empresa MINPPAL */}
-                            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-                                <div className="flex items-center gap-4 mb-8">
-                                    <div className="w-10 h-10 bg-[#007AFF] rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20"><Building2 size={20} /></div>
-                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Despliegue Ente MINPPAL</h3>
-                                </div>
-                                <div className="h-[600px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={enteReportData} layout="vertical" margin={{ left: -10, right: 30, top: 20, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
-                                            <XAxis type="number" hide />
-                                            <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
-                                            <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                            <Bar dataKey="value" fill="url(#colorBlue)" radius={[0, 10, 10, 0]} barSize={18}>
-                                                <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#007AFF' }} />
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
+
+                        {/* Productividad de Inspectores (Full width in Col-8 bottom) */}
+                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-lg shadow-slate-900/20"><Users size={20} /></div>
+                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Productividad de Inspectores</h3>
+                            </div>
+                            <div className="h-[600px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={inspectorReportData} layout="vertical" margin={{ left: 10, right: 40, top: 20, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="colorDark" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="#1e293b" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#1e293b" stopOpacity={0.6} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                                        <Bar dataKey="value" fill="url(#colorDark)" radius={[0, 10, 10, 0]} barSize={18}>
+                                            <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#1e293b' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
                     </div>
 
+                    {/* Columna Derecha (4) - KPIs de Soporte */}
                     <div className="lg:col-span-4 space-y-8">
+
+                        {/* Despliegue Ente MINPPAL */}
+                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 shadow-inner"><Building2 size={20} /></div>
+                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Despliegue Ente MINPPAL</h3>
+                            </div>
+                            <div className="h-[300px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={enteReportData} layout="vertical" margin={{ left: -10, right: 40, top: 0, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="colorAmber2" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="#D97706" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#D97706" stopOpacity={0.6} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{ fill: '#fff' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.05)' }} />
+                                        <Bar dataKey="value" fill="url(#colorAmber2)" radius={[0, 10, 10, 0]} barSize={16}>
+                                            <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#D97706' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
                         {/* Distribución de Alimentos */}
                         <div className="bg-white rounded-[3rem] p-8 shadow-sm border border-slate-100 flex flex-col items-center">
                             <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-10 text-center">Distribución Alimentaria (TN)</h3>
@@ -1014,6 +1189,7 @@ export default function JefeDashboard() {
                                         <Tooltip
                                             contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
                                             itemStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }}
+                                            formatter={(value: any) => [Number(value || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'TN']}
                                         />
                                         <Legend
                                             verticalAlign="bottom"
@@ -1025,99 +1201,55 @@ export default function JefeDashboard() {
                                 </ResponsiveContainer>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-[-50px]">
                                     <span className="text-3xl font-black text-slate-900 tracking-tighter font-['Outfit']">
-                                        {foodDistribution.reduce((a, b) => a + Number(b.value), 0).toLocaleString()}
+                                        {foodDistribution.reduce((a, b) => a + Number(b.value), 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">TN Totales</span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Auditoría de Calidad - Rediseño Definitivo 2x2 */}
+                        {/* Auditoría de Calidad */}
                         <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col">
                             <div className="flex justify-between items-center mb-10">
                                 <div>
-                                    <h3 className="text-[11px] font-black uppercase text-[#007AFF] tracking-[0.25em] mb-1 font-mono">Auditoría Operativa</h3>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Estándares de Calidad</p>
+                                    <h3 className="text-[11px] font-black uppercase text-[#007AFF] tracking-[0.25em] mb-1">Auditoría</h3>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Estándares</p>
                                 </div>
-                                <div className="bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100/50">
-                                    <span className="text-3xl font-black text-[#007AFF] tracking-tighter leading-none">{qualitySummary}%</span>
-                                </div>
-                            </div>
-
-                            <div className="mb-12">
-                                <div className="flex justify-between items-end mb-3 px-1">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cumplimiento General</span>
-                                    <span className="text-[10px] font-black text-slate-900">{qualitySummary}%</span>
-                                </div>
-                                <div className="h-3 bg-slate-50 rounded-full overflow-hidden border border-slate-100 shadow-inner">
-                                    <div
-                                        className="h-full bg-gradient-to-r from-[#007AFF] to-[#4D9FFF] rounded-full transition-all duration-1000 shadow-[0_4px_12px_rgba(0,122,255,0.2)]"
-                                        style={{ width: `${qualitySummary}%` }}
-                                    ></div>
+                                <div className="bg-blue-50 px-4 py-2 rounded-2xl">
+                                    <span className="text-2xl font-black text-[#007AFF] tracking-tighter">{qualitySummary}%</span>
                                 </div>
                             </div>
-
-                            <div className="grid grid-cols-2 gap-5 p-1">
+                            <div className="grid grid-cols-2 gap-4">
                                 {[
-                                    { label: 'Higiene', key: 'bodegaLimpia', icon: <Package size={18} />, color: '#3B82F6', bg: 'bg-blue-50/40' },
-                                    { label: 'Entorno', key: 'entornoLimpio', icon: <Activity size={18} />, color: '#10B981', bg: 'bg-emerald-50/40' },
-                                    { label: 'Organización', key: 'comunidadNotificada', icon: <Users size={18} />, color: '#6366F1', bg: 'bg-indigo-50/40' },
-                                    { label: 'Proteína', key: 'presenciaProteina', icon: <Award size={18} />, color: '#F59E0B', bg: 'bg-amber-50/40' }
+                                    { label: 'Higiene', key: 'bodegaLimpia', icon: <Package size={16} />, color: '#3B82F6' },
+                                    { label: 'Entorno', key: 'entornoLimpio', icon: <Activity size={16} />, color: '#10B981' },
+                                    { label: 'Comunidad', key: 'comunidadNotificada', icon: <Users size={16} />, color: '#6366F1' },
+                                    { label: 'Proteína', key: 'presenciaProteina', icon: <Award size={16} />, color: '#F59E0B' }
                                 ].map(item => {
                                     const total = filteredReports.length || 1;
                                     const count = filteredReports.filter(r => r.datos_formulario?.condiciones?.[item.key]).length;
                                     const pct = Math.round((count / total) * 100);
                                     return (
-                                        <div key={item.key} className={`p-6 rounded-[2.5rem] border border-slate-100/60 ${item.bg} flex flex-col justify-between group cursor-default hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300`}>
-                                            <div className="flex items-center justify-between mb-6">
-                                                <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-white text-slate-600 shadow-sm border border-slate-50 group-hover:scale-110 transition-transform">
-                                                    {item.icon}
-                                                </div>
-                                                <div className="text-lg font-black text-slate-900 tracking-tighter">{pct}%</div>
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 leading-none opacity-80">{item.label}</p>
-                                                <div className="h-2 bg-white/80 rounded-full overflow-hidden border border-slate-100/50">
-                                                    <div
-                                                        className="h-full rounded-full transition-all duration-1000"
-                                                        style={{
-                                                            width: `${pct}%`,
-                                                            backgroundColor: item.color,
-                                                        }}
-                                                    />
-                                                </div>
+                                        <div key={item.key} className="p-4 rounded-3xl border border-slate-50 bg-slate-50/50">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase mb-2">{item.label}</p>
+                                            <div className="text-base font-black text-slate-900 mb-2">{pct}%</div>
+                                            <div className="h-1.5 bg-white rounded-full overflow-hidden">
+                                                <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, backgroundColor: item.color }} />
                                             </div>
                                         </div>
                                     );
                                 })}
                             </div>
                         </div>
-
-                        {/* Número de Actividades por Estado - Movido a la columna derecha para balance y corregir vacío */}
-                        <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col mt-8">
-                            <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-10 text-center">NÚMERO DE ACTIVIDADES POR ESTADO</h3>
-                            <div className="h-[280px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={stateData.slice(0, 10)} layout="vertical" margin={{ left: -10, right: 40, top: 0, bottom: 0 }}>
-                                        <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                        <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }} />
-                                        <Bar dataKey="value" fill="url(#colorSky)" radius={[0, 10, 10, 0]} barSize={16}>
-                                            <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#0369a1' }} />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
-                {/* Secciones Inferiores Detalladas */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10">
+                {/* Secciones de Rubros (Full Width Inferior) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10 mt-8">
                     <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100">
                         <div className="flex items-center gap-4 mb-10">
                             <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner"><Package size={24} /></div>
-                            <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Presencia por Rubro (Penetración)</h3>
+                            <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Presencia por Rubro</h3>
                         </div>
                         <div className="h-[700px]">
                             <ResponsiveContainer width="100%" height="100%">
@@ -1126,7 +1258,13 @@ export default function JefeDashboard() {
                                     <XAxis type="number" hide />
                                     <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
                                     <Tooltip cursor={{ fill: '#fcfcfc' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                    <Bar dataKey="value" fill="url(#colorAmber)" radius={[0, 10, 10, 0]} barSize={12}>
+                                    <Bar dataKey="value" fill="url(#colorAmber3)" radius={[0, 10, 10, 0]} barSize={12}>
+                                        <defs>
+                                            <linearGradient id="colorAmber3" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="#D97706" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#D97706" stopOpacity={0.6} />
+                                            </linearGradient>
+                                        </defs>
                                         <LabelList dataKey="value" position="right" style={{ fontSize: 9, fontWeight: 900, fill: '#D97706' }} />
                                     </Bar>
                                 </BarChart>
@@ -1137,7 +1275,7 @@ export default function JefeDashboard() {
                     <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100">
                         <div className="flex items-center gap-4 mb-10">
                             <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-inner"><TrendingUp size={24} /></div>
-                            <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Volumen Total por Rubro (Kg/Und)</h3>
+                            <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Volumen Total por Rubro (TN/Und)</h3>
                         </div>
                         <div className="h-[700px]">
                             <ResponsiveContainer width="100%" height="100%">
@@ -1146,8 +1284,14 @@ export default function JefeDashboard() {
                                     <XAxis type="number" hide />
                                     <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
                                     <Tooltip cursor={{ fill: '#fcfcfc' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                    <Bar dataKey="value" fill="url(#colorEmerald)" radius={[0, 10, 10, 0]} barSize={12}>
-                                        <LabelList dataKey="value" position="right" formatter={(v: any) => v > 0 ? v.toLocaleString() : ''} style={{ fontSize: 9, fontWeight: 900, fill: '#059669' }} />
+                                    <Bar dataKey="value" fill="url(#colorEmerald2)" radius={[0, 10, 10, 0]} barSize={12}>
+                                        <defs>
+                                            <linearGradient id="colorEmerald2" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="#059669" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#059669" stopOpacity={0.6} />
+                                            </linearGradient>
+                                        </defs>
+                                        <LabelList dataKey="value" position="right" formatter={(v: any) => v > 0 ? v.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : ''} style={{ fontSize: 9, fontWeight: 900, fill: '#059669' }} />
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>

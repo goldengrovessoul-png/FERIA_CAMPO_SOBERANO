@@ -335,6 +335,23 @@ export default function AdminPanel() {
         XLSX.writeFile(workbook, `Usuarios_Sistema_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
+    const exportCatalogToExcel = () => {
+        if (!catalogItems.length) return;
+
+        const dataToExport = catalogItems.map(item => ({
+            'TIPO': item.type,
+            'NOMBRE': item.name,
+            'ESTATUS': item.is_active ? 'ACTIVO' : 'INACTIVO',
+            'VINCULADO A': item.parent ? item.parent.name : 'N/A',
+            'FECHA CREACIÓN': new Date(item.created_at).toLocaleDateString('es-VE')
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, `Catalogo_${catalogType}`);
+        XLSX.writeFile(workbook, `Catalogo_${catalogType}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
 
     const filteredProfiles = profiles.filter(p => {
         const matchesSearch =
@@ -723,6 +740,14 @@ export default function AdminPanel() {
                                         {type.label}
                                     </button>
                                 ))}
+                                <button
+                                    onClick={exportCatalogToExcel}
+                                    disabled={catalogItems.length === 0}
+                                    className="px-6 py-3 bg-emerald-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
+                                    title="Exportar Catálogo a Excel"
+                                >
+                                    <FileDown size={16} /> Exportar
+                                </button>
                             </div>
 
                             {/* Formulario para Agregar Nuevo Elemento */}
