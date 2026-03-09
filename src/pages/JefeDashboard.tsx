@@ -4,7 +4,7 @@ import {
     BarChart3, Users, LogOut, Search,
     TrendingUp, Package,
     Activity, RefreshCw, Home,
-    ChevronDown, Award, Building2, Eraser
+    ChevronDown, Award, Building2, Eraser, MessageSquare, Clock
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -214,7 +214,10 @@ export default function JefeDashboard() {
                     total_hortalizas, total_verduras, total_secos, latitud, longitud, 
                     estado_reporte, inspector_id, 
                     condiciones:datos_formulario->condiciones, 
-                    presenciaMinppal:datos_formulario->presenciaMinppal
+                    presenciaMinppal:datos_formulario->presenciaMinppal,
+                    obs_main:datos_formulario->>observaciones_rubros,
+                    obs_alt1:datos_formulario->>comentarios,
+                    obs_alt2:datos_formulario->>observaciones
                 `)
                 .eq('estado_reporte', 'enviado')
                 .order('fecha', { ascending: false })
@@ -231,7 +234,8 @@ export default function JefeDashboard() {
                 ...r,
                 datos_formulario: {
                     condiciones: r.condiciones,
-                    presenciaMinppal: r.presenciaMinppal
+                    presenciaMinppal: r.presenciaMinppal,
+                    observaciones_rubros: (r.obs_main || r.obs_alt1 || r.obs_alt2 || '').trim()
                 }
             }));
 
@@ -301,7 +305,7 @@ export default function JefeDashboard() {
             }
         } catch (error: any) {
             console.error('Error fetching dashboard data:', error);
-            setDebug(`Error general: ${error.message || 'Desconocido'}`);
+            setDebug(`Error general: ${error.message || 'Desconocido'} `);
         } finally {
             setLoading(false);
             console.log('fetchData completed.');
@@ -408,10 +412,6 @@ export default function JefeDashboard() {
         return Object.entries(counts)
             .map(([date, count]) => ({ date, count }))
             .sort((a, b) => {
-                const [d1, m1] = a.date.split(' ');
-                const [d2, m2] = b.date.split(' ');
-                // Esto es básico, pero para un año actual sirve.
-                // Lo ideal sería guardar el timestamp en el objeto.
                 return a.date.localeCompare(b.date); // Fallback simple
             });
     }, [filteredReports]);
@@ -528,9 +528,9 @@ export default function JefeDashboard() {
             let name = 'DESCONOCIDO';
             if (r.inspector_id && inspectors[r.inspector_id]) {
                 const p = inspectors[r.inspector_id];
-                name = `${p.nombre} ${p.apellido}`;
+                name = `${p.nombre} ${p.apellido} `;
             } else if (r.profiles) {
-                name = `${r.profiles.nombre} ${r.profiles.apellido}`;
+                name = `${r.profiles.nombre} ${r.profiles.apellido} `;
             }
             const normalizedName = name.trim().toUpperCase();
             counts[normalizedName] = (counts[normalizedName] || 0) + 1;
@@ -795,7 +795,7 @@ export default function JefeDashboard() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
                     {[
                         { label: 'Jornadas Ejecutadas', value: filteredReports.length, icon: <Activity size={20} />, color: 'text-[#007AFF]', bg: 'bg-blue-50' },
-                        { label: 'Presencia MINPPAL', value: `${minppalPresenceSummary}%`, icon: <Award size={20} />, color: 'text-amber-600', bg: 'bg-amber-50' },
+                        { label: 'Presencia MINPPAL', value: `${minppalPresenceSummary}% `, icon: <Award size={20} />, color: 'text-amber-600', bg: 'bg-amber-50' },
                         { label: 'Familias Beneficiadas', value: filteredReports.reduce((acc, r) => acc + (r.familias || 0), 0).toLocaleString(), icon: <Home size={20} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
                         { label: 'Habitantes Atendidos', value: filteredReports.reduce((acc, r) => acc + (r.personas || 0), 0).toLocaleString(), icon: <Users size={20} />, color: 'text-sky-600', bg: 'bg-sky-50' },
                     ].map((kpi) => (
@@ -804,7 +804,7 @@ export default function JefeDashboard() {
                                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 leading-none">{kpi.label}</p>
                                 <p className="text-3xl font-black text-slate-900 tracking-tighter">{kpi.value.toString()}</p>
                             </div>
-                            <div className={`w-14 h-14 ${kpi.bg} ${kpi.color} rounded-2xl flex items-center justify-center shadow-inner`}>{kpi.icon}</div>
+                            <div className={`w - 14 h - 14 ${kpi.bg} ${kpi.color} rounded - 2xl flex items - center justify - center shadow - inner`}>{kpi.icon}</div>
                         </div>
                     ))}
                 </div>
@@ -874,7 +874,7 @@ export default function JefeDashboard() {
                                         <Tooltip
                                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
                                             formatter={(value: any, _name: any, props: any) => [
-                                                `${value} jornadas (${props.payload.pct}%)`,
+                                                `${value} jornadas(${props.payload.pct} %)`,
                                                 'Presencia'
                                             ]}
                                         />
@@ -888,7 +888,7 @@ export default function JefeDashboard() {
                                             <LabelList
                                                 dataKey="pct"
                                                 position="right"
-                                                formatter={(v: any) => `${v}%`}
+                                                formatter={(v: any) => `${v}% `}
                                                 style={{ fontSize: 9, fontWeight: 900, fill: '#92400e' }}
                                             />
                                         </Bar>
@@ -1184,7 +1184,7 @@ export default function JefeDashboard() {
                                             stroke="none"
                                             cornerRadius={8}
                                         >
-                                            {foodDistribution.map((_, index) => <Cell key={`cell-${index}`} fill={MONO_BLUE[index % MONO_BLUE.length]} />)}
+                                            {foodDistribution.map((_, index) => <Cell key={`cell - ${index} `} fill={MONO_BLUE[index % MONO_BLUE.length]} />)}
                                         </Pie>
                                         <Tooltip
                                             contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
@@ -1234,7 +1234,7 @@ export default function JefeDashboard() {
                                             <p className="text-[9px] font-black text-slate-400 uppercase mb-2">{item.label}</p>
                                             <div className="text-base font-black text-slate-900 mb-2">{pct}%</div>
                                             <div className="h-1.5 bg-white rounded-full overflow-hidden">
-                                                <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, backgroundColor: item.color }} />
+                                                <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}% `, backgroundColor: item.color }} />
                                             </div>
                                         </div>
                                     );
@@ -1296,6 +1296,86 @@ export default function JefeDashboard() {
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
+                    </div>
+                </div>
+
+                {/* NOVEDADES DEL TERRENO: El toque humano de la gestión */}
+                <div className="mt-8 bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 mb-12">
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner"><MessageSquare size={24} /></div>
+                            <div>
+                                <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Novedades del Terreno</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Observaciones directas de los inspectores en campo</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredReports
+                            .filter(r => {
+                                const obs = r.datos_formulario?.observaciones_rubros;
+                                return typeof obs === 'string' && obs.length > 0 && obs.toLowerCase() !== 'null';
+                            })
+                            .slice(0, 12)
+                            .map((r, idx) => {
+                                const inspector = r.inspector_id ? inspectors[r.inspector_id] : null;
+                                const fecha = new Date(r.fecha).toLocaleDateString('es-VE', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                });
+
+                                return (
+                                    <div key={r.id || idx} className="group relative bg-slate-50/50 hover:bg-white rounded-3xl p-6 border border-slate-100 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1 overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                            <MessageSquare size={40} />
+                                        </div>
+
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-xs font-black text-indigo-600 border border-slate-100 shadow-sm">
+                                                {inspector ? `${inspector.nombre[0]}${inspector.apellido[0]} ` : <Users size={16} />}
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-black text-slate-900 leading-tight">
+                                                    {inspector ? `${inspector.nombre} ${inspector.apellido} ` : 'Inspector Desconocido'}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider bg-indigo-50 px-2 py-0.5 rounded-full">{r.estado_geografico}</span>
+                                                    <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase">
+                                                        <Clock size={10} />
+                                                        {fecha}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <p className="text-sm font-semibold text-slate-600 italic leading-relaxed line-clamp-4 relative z-10">
+                                            "{r.datos_formulario.observaciones_rubros}"
+                                        </p>
+
+                                        <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase">{r.tipo_actividad}</span>
+                                            <button
+                                                onClick={() => navigate(`/ver-reporte/${r.id}`)}
+                                                className="text-[10px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-tighter"
+                                            >
+                                                Ver Detalle →
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        {filteredReports.filter(r => {
+                            const obs = r.datos_formulario?.observaciones_rubros;
+                            return typeof obs === 'string' && obs.length > 0 && obs.toLowerCase() !== 'null';
+                        }).length === 0 && (
+                                <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+                                    <Activity size={48} className="opacity-20 mb-4" />
+                                    <p className="text-xs font-black uppercase tracking-widest">No hay novedades registradas con los filtros actuales</p>
+                                </div>
+                            )}
                     </div>
                 </div>
             </main>
