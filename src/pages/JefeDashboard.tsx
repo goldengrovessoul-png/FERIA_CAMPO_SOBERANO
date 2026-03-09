@@ -401,19 +401,23 @@ export default function JefeDashboard() {
     }, [paymentMethods, filteredReportIds]);
 
     const timelineData = useMemo(() => {
-        const counts: Record<string, number> = {};
+        const counts: Record<string, { count: number, timestamp: number }> = {};
         filteredReports.forEach(r => {
             const d = new Date(r.fecha);
             const label = d.toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
-            counts[label] = (counts[label] || 0) + 1;
+            if (!counts[label]) {
+                const sortDate = new Date(d);
+                sortDate.setHours(0, 0, 0, 0);
+                counts[label] = { count: 0, timestamp: sortDate.getTime() };
+            }
+            counts[label].count += 1;
         });
 
-        // Ordenar por fecha real
+        // Ordenar cronológicamente usando el timestamp
         return Object.entries(counts)
-            .map(([date, count]) => ({ date, count }))
-            .sort((a, b) => {
-                return a.date.localeCompare(b.date); // Fallback simple
-            });
+            .map(([date, data]) => ({ date, count: data.count, timestamp: data.timestamp }))
+            .sort((a, b) => a.timestamp - b.timestamp)
+            .map(({ date, count }) => ({ date, count }));
     }, [filteredReports]);
 
     const stateData = useMemo(() => {
