@@ -110,11 +110,13 @@ export default function InspectorDashboard() {
     };
 
     const fetchReports = useCallback(async () => {
+        if (!profile?.id) return;
         try {
             setLoading(true);
             const { data, error } = await supabase
                 .from('reports')
                 .select('id, tipo_actividad, parroquia, fecha, estado_reporte')
+                .eq('inspector_id', profile.id)
                 .order('fecha', { ascending: false })
                 .limit(20);
 
@@ -125,7 +127,7 @@ export default function InspectorDashboard() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [profile?.id]);
 
     useEffect(() => {
         if (navigator.geolocation) {
@@ -145,10 +147,17 @@ export default function InspectorDashboard() {
 
     const visibleReports = reports.filter(r => !hiddenReports.includes(r.id));
 
+    const isReportFromToday = (fechaString: string) => {
+        if (!fechaString) return false;
+        // Reemplazar espacio por T para compatibilidad con Safari/iOS
+        const safeDateString = fechaString.replace(' ', 'T');
+        return new Date(safeDateString).toDateString() === new Date().toDateString();
+    };
+
     const stats = {
-        total: visibleReports.filter(r => new Date(r.fecha).toDateString() === new Date().toDateString()).length,
-        enviados: visibleReports.filter(r => r.estado_reporte === 'enviado' && new Date(r.fecha).toDateString() === new Date().toDateString()).length,
-        borradores: visibleReports.filter(r => r.estado_reporte === 'borrador' && new Date(r.fecha).toDateString() === new Date().toDateString()).length
+        total: visibleReports.filter(r => isReportFromToday(r.fecha)).length,
+        enviados: visibleReports.filter(r => r.estado_reporte === 'enviado' && isReportFromToday(r.fecha)).length,
+        borradores: visibleReports.filter(r => r.estado_reporte === 'borrador' && isReportFromToday(r.fecha)).length
     };
 
     return (
@@ -298,7 +307,7 @@ export default function InspectorDashboard() {
                                         <div className="flex justify-between items-center mb-1">
                                             <h4 className="font-black text-slate-800 text-base truncate pr-2 uppercase tracking-tighter group-hover:text-blue-600 transition-colors">{report.tipo_actividad}</h4>
                                             <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">
-                                                {new Date(report.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                {new Date((report.fecha || '').replace(' ', 'T')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-1.5 mb-2">

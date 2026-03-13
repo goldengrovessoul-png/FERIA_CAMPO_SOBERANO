@@ -36,10 +36,22 @@ interface CatalogItem {
     parent?: { name: string };
 }
 
+interface VulnerabilityData {
+    id: string;
+    estado: string;
+    municipio: string;
+    parroquia: string;
+    nivel_prioridad: number;
+    descripcion_problema: string;
+    latitud: number;
+    longitud: number;
+    fecha_registro: string;
+}
+
 export default function AdminPanel() {
     const navigate = useNavigate();
     const { profile: currentUser, fetchProfile } = useAuth();
-    const [view, setView] = useState<'overview' | 'users' | 'catalog'>('overview');
+    const [view, setView] = useState<'overview' | 'users' | 'catalog' | 'vulnerability'>('overview');
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -70,12 +82,28 @@ export default function AdminPanel() {
     const [newCatalogName, setNewCatalogName] = useState('');
     const [selectedParentId, setSelectedParentId] = useState('');
 
+    // Estados para Vulnerabilidad
+    const [vulnerabilities, setVulnerabilities] = useState<VulnerabilityData[]>([]);
+    const [loadingVulnerability, setLoadingVulnerability] = useState(false);
+    const [newVulnerability, setNewVulnerability] = useState({
+        estado: '',
+        municipio: '',
+        parroquia: '',
+        nivel_prioridad: 3,
+        descripcion_problema: '',
+        latitud: '',
+        longitud: ''
+    });
+    const [editingVulnerabilityId, setEditingVulnerabilityId] = useState<string | null>(null);
+
     useEffect(() => {
         if (view === 'users') {
             fetchProfiles();
             fetchUnreadCounts();
         } else if (view === 'catalog') {
             fetchCatalogItems();
+        } else if (view === 'vulnerability') {
+            fetchVulnerabilities();
         }
     }, [view, catalogType]);
 
@@ -317,6 +345,105 @@ export default function AdminPanel() {
         }
     }
 
+    // --- FUNCIONES DE VULNERABILIDAD ---
+    async function fetchVulnerabilities() {
+        try {
+            setLoadingVulnerability(true);
+            const { data, error } = await supabase
+                .from('vulnerability_data')
+                .select('*')
+                .order('fecha_registro', { ascending: false });
+
+            if (error) throw error;
+            setVulnerabilities(data || []);
+        } catch (error) {
+            console.error('Error fetching vulnerabilities:', error);
+        } finally {
+            setLoadingVulnerability(false);
+        }
+    }
+
+    async function addVulnerability() {
+        const { estado, latitud, longitud } = newVulnerability;
+        if (!estado || !latitud || !longitud) {
+            alert('Estado, Latitud y Longitud son campos obligatorios.');
+            return;
+        }
+
+        try {
+            if (editingVulnerabilityId) {
+                // Modo Edición
+                const { error } = await supabase
+                    .from('vulnerability_data')
+                    .update({
+                        ...newVulnerability,
+                        latitud: parseFloat(newVulnerability.latitud),
+                        longitud: parseFloat(newVulnerability.longitud)
+                    })
+                    .eq('id', editingVulnerabilityId);
+
+                if (error) throw error;
+                alert('Punto actualizado correctamente.');
+            } else {
+                // Modo Creación
+                const { error } = await supabase
+                    .from('vulnerability_data')
+                    .insert([{
+                        ...newVulnerability,
+                        latitud: parseFloat(newVulnerability.latitud),
+                        longitud: parseFloat(newVulnerability.longitud)
+                    }]);
+
+                if (error) throw error;
+                alert('Punto registrado correctamente.');
+            }
+
+            setNewVulnerability({
+                estado: '',
+                municipio: '',
+                parroquia: '',
+                nivel_prioridad: 3,
+                descripcion_problema: '',
+                latitud: '',
+                longitud: ''
+            });
+            setEditingVulnerabilityId(null);
+            fetchVulnerabilities();
+        } catch (error) {
+            console.error('Error in addVulnerability:', error);
+            alert('Error al procesar la operación.');
+        }
+    }
+
+    function handleEditVulnerability(v: VulnerabilityData) {
+        setEditingVulnerabilityId(v.id);
+        setNewVulnerability({
+            estado: v.estado,
+            municipio: v.municipio,
+            parroquia: v.parroquia,
+            nivel_prioridad: v.nivel_prioridad,
+            descripcion_problema: v.descripcion_problema,
+            latitud: v.latitud.toString(),
+            longitud: v.longitud.toString()
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function deleteVulnerability(id: string) {
+        if (!window.confirm('¿Desea eliminar este punto de vulnerabilidad?')) return;
+        try {
+            const { error } = await supabase
+                .from('vulnerability_data')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            fetchVulnerabilities();
+        } catch (error) {
+            alert('Error al eliminar el punto.');
+        }
+    }
+
     const exportUsersToExcel = () => {
         const dataToExport = filteredProfiles.map(p => ({
             'NOMBRE': p.nombre,
@@ -398,6 +525,7 @@ export default function AdminPanel() {
                         { id: 'overview', label: 'Panel General', icon: <Settings size={20} /> },
                         { id: 'users', label: 'Gestión de Usuarios', icon: <UserPlus size={20} /> },
                         { id: 'catalog', label: 'Control de Catálogos', icon: <FileText size={20} /> },
+                        { id: 'vulnerability', label: 'Mapa Vulnerabilidad', icon: <ShieldAlert size={20} /> },
                     ].map((item) => (
                         <button
                             key={item.id}
@@ -446,14 +574,14 @@ export default function AdminPanel() {
                         <div>
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="px-3 py-1 bg-blue-50 text-[#007AFF] text-[10px] font-black rounded-full uppercase tracking-widest border border-blue-100">
-                                    {view === 'overview' ? 'DASHBOARD' : view === 'users' ? 'SEGURIDAD' : 'CATÁLOGOS'}
+                                    {view === 'overview' ? 'DASHBOARD' : view === 'users' ? 'SEGURIDAD' : view === 'catalog' ? 'CATÁLOGOS' : 'ALERTAS'}
                                 </div>
                             </div>
                             <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase leading-none">
-                                {view === 'overview' ? 'Panel Control' : view === 'users' ? 'Gestión Usuarios' : 'Catálogos Sistema'}
+                                {view === 'overview' ? 'Panel Control' : view === 'users' ? 'Gestión Usuarios' : view === 'catalog' ? 'Catálogos Sistema' : 'Vulnerabilidad Geográfica'}
                             </h2>
                             <p className="text-slate-400 font-bold uppercase text-[9px] md:text-[11px] tracking-widest mt-3">
-                                {view === 'overview' ? 'Configuración global y métricas del sistema.' : view === 'users' ? 'Administración de accesos y roles de inspectores.' : 'Gestión de listas dinámicas del sistema.'}
+                                {view === 'overview' ? 'Configuración global y métricas del sistema.' : view === 'users' ? 'Administración de accesos y roles de inspectores.' : view === 'catalog' ? 'Gestión de listas dinámicas del sistema.' : 'Carga de puntos estratégicos de vulnerabilidad para contraste operativo.'}
                             </p>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -852,6 +980,173 @@ export default function AdminPanel() {
                                             <Tag size={32} />
                                         </div>
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No hay elementos en esta categoría.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VISTA: VULNERABILITY (Mapa de Vulnerabilidad) */}
+                    {view === 'vulnerability' && (
+                        <div className="space-y-8 animate-in fade-in duration-500">
+                            {/* Formulario de Carga de Vulnerabilidad */}
+                            <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm space-y-8">
+                                <div className="flex items-center gap-4 border-b border-slate-50 pb-6">
+                                    <div className="w-12 h-12 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
+                                        {editingVulnerabilityId ? <RefreshCw size={24} className="animate-spin-slow" /> : <ShieldAlert size={24} />}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">
+                                            {editingVulnerabilityId ? 'Editando Punto Crítico' : 'Registrar Punto Crítico'}
+                                        </h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            {editingVulnerabilityId ? 'Modificando datos georeferenciados' : 'Añadir zona de alta prioridad en el mapa'}
+                                        </p>
+                                    </div>
+                                    {editingVulnerabilityId && (
+                                        <button 
+                                            onClick={() => {
+                                                setEditingVulnerabilityId(null);
+                                                setNewVulnerability({
+                                                    estado: '', municipio: '', parroquia: '',
+                                                    nivel_prioridad: 3, descripcion_problema: '',
+                                                    latitud: '', longitud: ''
+                                                });
+                                            }}
+                                            className="ml-auto px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-[9px] font-black uppercase hover:bg-slate-200"
+                                        >
+                                            Cancelar Edición
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado / Región</label>
+                                        <input
+                                            value={newVulnerability.estado}
+                                            onChange={e => setNewVulnerability({ ...newVulnerability, estado: e.target.value.toUpperCase() })}
+                                            placeholder="EJ: ZULIA"
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-red-100 transition-all uppercase"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Municipio / Parroquia</label>
+                                        <input
+                                            value={newVulnerability.municipio}
+                                            onChange={e => setNewVulnerability({ ...newVulnerability, municipio: e.target.value.toUpperCase(), parroquia: e.target.value.toUpperCase() })}
+                                            placeholder="EJ: MARACAIBO"
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-red-100 transition-all uppercase"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nivel de Prioridad (1-5)</label>
+                                        <select
+                                            value={newVulnerability.nivel_prioridad}
+                                            onChange={e => setNewVulnerability({ ...newVulnerability, nivel_prioridad: parseInt(e.target.value) })}
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-red-100 transition-all appearance-none"
+                                        >
+                                            <option value="1">1 - ESTABLE (VERDE)</option>
+                                            <option value="2">2 - BAJA (AMARILLO)</option>
+                                            <option value="3">3 - MEDIA (NARANJA)</option>
+                                            <option value="4">4 - ALTA (ROJO)</option>
+                                            <option value="5">5 - CRÍTICA (ROJO OSCURO)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Coordenada Latitud</label>
+                                        <input
+                                            value={newVulnerability.latitud}
+                                            onChange={e => setNewVulnerability({ ...newVulnerability, latitud: e.target.value })}
+                                            placeholder="EJ: 10.7167"
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-red-100 transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Coordenada Longitud</label>
+                                        <input
+                                            value={newVulnerability.longitud}
+                                            onChange={e => setNewVulnerability({ ...newVulnerability, longitud: e.target.value })}
+                                            placeholder="EJ: -71.6667"
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-red-100 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Descripción de la Vulnerabilidad</label>
+                                    <textarea
+                                        value={newVulnerability.descripcion_problema}
+                                        onChange={e => setNewVulnerability({ ...newVulnerability, descripcion_problema: e.target.value })}
+                                        placeholder="Describa brevemente la situación socio-alimentaria de la zona..."
+                                        rows={3}
+                                        className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-red-100 transition-all resize-none"
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={addVulnerability}
+                                    className={`h-[65px] px-8 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl transition-all flex items-center gap-3 w-full justify-center active:scale-95 ${
+                                        editingVulnerabilityId ? 'bg-blue-600 shadow-blue-500/20' : 'bg-slate-900 shadow-slate-900/20'
+                                    }`}
+                                >
+                                    {editingVulnerabilityId ? <RefreshCw size={20} /> : <Plus size={20} />}
+                                    {editingVulnerabilityId ? 'ACTUALIZAR PUNTO CRÍTICO' : 'GUARDAR PUNTO CRÍTICO'}
+                                </button>
+                            </div>
+
+                            {/* Lista de Puntos Críticos */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {loadingVulnerability ? (
+                                    <div className="col-span-full py-20 text-center">
+                                        <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                                    </div>
+                                ) : vulnerabilities.length > 0 ? (
+                                    vulnerabilities.map(v => (
+                                        <div key={v.id} className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-50 shadow-sm hover:shadow-lg transition-all relative group">
+                                            <div className="flex gap-6">
+                                                <div className={`w-14 h-14 rounded-2xl flex-shrink-0 flex items-center justify-center font-black text-xl text-white shadow-lg ${
+                                                    v.nivel_prioridad === 5 ? 'bg-red-900 shadow-red-900/20' :
+                                                    v.nivel_prioridad >= 4 ? 'bg-red-600 shadow-red-600/20' :
+                                                    v.nivel_prioridad === 3 ? 'bg-amber-500 shadow-amber-500/20' :
+                                                    'bg-emerald-500 shadow-emerald-500/20'
+                                                }`}>
+                                                    {v.nivel_prioridad}
+                                                </div>
+                                                <div className="flex-1 space-y-1">
+                                                    <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{v.estado}</h4>
+                                                    <p className="font-black text-slate-900 uppercase text-lg leading-tight tracking-tighter">{v.parroquia || v.municipio}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold mt-2">LAT: {v.latitud} | LON: {v.longitud}</p>
+                                                    <p className="text-[11px] text-slate-600 mt-4 leading-relaxed line-clamp-2">
+                                                        "{v.descripcion_problema || 'Sin descripción'}"
+                                                    </p>
+                                                </div>
+                                                <div className="absolute top-6 right-6 flex gap-2">
+                                                    <button
+                                                        onClick={() => handleEditVulnerability(v)}
+                                                        className="p-3 bg-blue-50 text-blue-500 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-blue-500 hover:text-white"
+                                                        title="Editar punto"
+                                                    >
+                                                        <FileText size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteVulnerability(v.id)}
+                                                        className="p-3 bg-red-50 text-red-500 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white"
+                                                        title="Eliminar punto"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="col-span-full py-20 bg-white rounded-[3rem] border border-dashed border-slate-200 text-center space-y-4">
+                                        <ShieldAlert size={48} className="mx-auto text-slate-100" />
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No hay puntos de vulnerabilidad registrados</p>
                                     </div>
                                 )}
                             </div>

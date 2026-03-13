@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, LayersControl, LayerGroup, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -84,10 +84,22 @@ interface Report {
     datos_formulario: any;
     estado_reporte: string;
     inspector_id?: string;
+    guia_sica_estado?: string | null;
     profiles?: {
         nombre: string;
         apellido: string;
     } | null;
+}
+
+interface VulnerabilityData {
+    id: string;
+    estado: string;
+    municipio: string;
+    parroquia: string;
+    nivel_prioridad: number;
+    descripcion_problema: string;
+    latitud: number;
+    longitud: number;
 }
 
 interface ReportItem {
@@ -153,6 +165,7 @@ export default function JefeDashboard() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [inspectors, setInspectors] = useState<Record<string, { nombre: string; apellido: string }>>({});
+    const [vulnerabilityData, setVulnerabilityData] = useState<VulnerabilityData[]>([]);
 
     // Filtros
     const [filterEstado, setFilterEstado] = useState('Todos');
@@ -202,60 +215,42 @@ export default function JefeDashboard() {
             // Usar fetch nativo para evitar el queueing interno del SDK
 
 
-            // 1. Cargar Reportes (Principal) pero limitando severamente la descarga de Megabytes
-            setDebug('Descargando Reportes...');
+            // 1. Cargar Reportes (Principal) - Modo Ultra-Lite
+            setDebug('Estableciendo conexión mínima (50 reportes)...');
 
-            // Reconstruimos el JSON de datos_formulario solo con lo útil (sin fotos, base64, que causan timeout)
             const { data: rawReports, error: reportsError } = await supabase
                 .from('reports')
                 .select(`
                     id, fecha, tipo_actividad, empresa, estado_geografico, municipio, 
                     parroquia, personas, familias, comunas, total_proteina, total_frutas, 
                     total_hortalizas, total_verduras, total_secos, latitud, longitud, 
-                    estado_reporte, inspector_id, 
-                    condiciones:datos_formulario->condiciones, 
-                    presenciaMinppal:datos_formulario->presenciaMinppal,
-                    obs_main:datos_formulario->>observaciones_rubros,
-                    obs_alt1:datos_formulario->>comentarios,
-                    obs_alt2:datos_formulario->>observaciones
+                    estado_reporte, inspector_id, guia_sica_estado
                 `)
                 .eq('estado_reporte', 'enviado')
                 .order('fecha', { ascending: false })
-                .limit(500);
+                .limit(1000);
 
             if (reportsError) {
                 console.error("DEBUG: Error cargando reportes:", reportsError);
-                setDebug(`Error SDK (Reportes): ${reportsError.message}`);
+                setDebug(`Error Base Datos: ${reportsError.message}`);
                 throw reportsError;
             }
 
-            // Re-estructuramos el objeto para encajar con la interfaz \`Report\` del Dashboard sin romper código
             const reportsData = (rawReports || []).map((r: any) => ({
                 ...r,
-                datos_formulario: {
-                    condiciones: r.condiciones,
-                    presenciaMinppal: r.presenciaMinppal,
-                    observaciones_rubros: (r.obs_main || r.obs_alt1 || r.obs_alt2 || '').trim()
-                }
+                datos_formulario: { condiciones: {}, presenciaMinppal: {}, observaciones_rubros: '' }
             }));
 
-            console.log("DEBUG: Reportes recibidos:", reportsData?.length);
             setReports(reportsData);
 
-            // 2. Cargar Catálogos usando el SDK
-            setDebug('Cargando catálogos...');
-            const { data: catalogData, error: catalogError } = await supabase
+            // 2. Cargar Catálogos (Básico para filtros)
+            setDebug('Sincronizando catálogos...');
+            const { data: catalogData } = await supabase
                 .from('catalog_items')
                 .select('type,name')
                 .eq('is_active', true);
 
-            if (catalogError) {
-                console.error("DEBUG: Error cargando catálogos:", catalogError);
-            }
-
-            console.log("DEBUG: Catálogos recibidos:", catalogData?.length);
-
-            if (catalogData && !catalogError) {
+            if (catalogData) {
                 const normalize = (items: any[], type: string) =>
                     Array.from(new Set(items.filter(i => i.type === type).map(i => i.name.trim().toUpperCase()))).sort() as string[];
 
@@ -266,19 +261,15 @@ export default function JefeDashboard() {
                     actividades: normalize(catalogData, 'ACTIVIDAD'),
                     minppal: normalize(catalogData, 'MINPPAL')
                 });
-            } else if (catalogError) {
-                console.warn('Error cargando catálogos:', catalogError.message);
             }
 
-            setDebug(`OK: ${reportsData?.length || 0} reportes, ${catalogData?.length || 0} catálogos`);
+            setDebug(`Conexión OK (${reportsData?.length} jornadas)`);
 
-            // 3. Cargar datos secundarios
+            // 3. Cargar datos secundarios para esos 50 reportes (para que los gráficos no estén vacíos)
             if (reportsData && reportsData.length > 0) {
                 const reportIds = reportsData.map((r: any) => r.id);
-
-
-                // 3. Cargar datos secundarios usando el SDK (Aumentado para cubrir todos los reportes cargados)
-                console.log('Fetching secondary data...');
+                console.log('Cargando items de reportes...');
+                
                 const [itemsRes, paymentRes] = await Promise.all([
                     supabase.from('report_items').select('report_id,rubro,cantidad').in('report_id', reportIds),
                     supabase.from('report_payment_methods').select('report_id,metodo').in('report_id', reportIds)
@@ -287,7 +278,7 @@ export default function JefeDashboard() {
                 if (itemsRes.data) setReportItems(itemsRes.data);
                 if (paymentRes.data) setPaymentMethods(paymentRes.data);
 
-                // Perfiles
+                // Nombres de Inspectores
                 const inspectorIds = Array.from(new Set(reportsData.map((r: any) => r.inspector_id).filter((id: any) => id)));
                 if (inspectorIds.length > 0) {
                     const { data: profData } = await supabase
@@ -303,6 +294,13 @@ export default function JefeDashboard() {
                 }
                 console.log('All secondary data fetched');
             }
+
+            // 4. Cargar Datos de Vulnerabilidad
+            const { data: vData } = await supabase
+                .from('vulnerability_data')
+                .select('*');
+            if (vData) setVulnerabilityData(vData);
+
         } catch (error: any) {
             console.error('Error fetching dashboard data:', error);
             setDebug(`Error general: ${error.message || 'Desconocido'} `);
@@ -458,6 +456,7 @@ export default function JefeDashboard() {
             .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
     }, [filteredReports, catalogos.estados]);
 
+
     const activityTypeData = useMemo(() => {
         const counts: Record<string, number> = {};
         filteredReports.forEach(r => {
@@ -466,6 +465,52 @@ export default function JefeDashboard() {
         });
         return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     }, [filteredReports]);
+
+    const sicaData = useMemo(() => {
+        let totalSi = 0;
+        let totalNo = 0;
+        const byState: Record<string, { si: number, no: number }> = {};
+
+        catalogos.estados.forEach(estado => {
+            const label = estado.trim();
+            // Capitalizar la primera letra correcta, resto minúscula
+            const formalLabel = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+            byState[formalLabel] = { si: 0, no: 0 };
+        });
+
+        filteredReports.forEach(r => {
+            const estadoSica = r.guia_sica_estado;
+            const label = (r.estado_geografico || 'Desconocido').trim();
+            const formalLabel = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+            
+            if (!byState[formalLabel]) {
+                byState[formalLabel] = { si: 0, no: 0 };
+            }
+
+            if (estadoSica === 'Sí' || estadoSica === 'Si') {
+                totalSi++;
+                byState[formalLabel].si++;
+            } else if (estadoSica === 'No') {
+                totalNo++;
+                byState[formalLabel].no++;
+            }
+        });
+
+        const stateRows = Object.entries(byState)
+            .filter(([entidad, stats]) => catalogos.estados.some(e => e.trim().toLowerCase() === entidad.toLowerCase()) || stats.si > 0 || stats.no > 0)
+            .map(([entidad, stats]) => ({
+                entidad,
+                si: stats.si,
+                no: stats.no,
+            })).sort((a, b) => a.entidad.localeCompare(b.entidad));
+
+        return {
+            totalSi,
+            totalNo,
+            total: totalSi + totalNo,
+            stateRows
+        };
+    }, [filteredReports, catalogos.estados]);
 
 
     const rubroPresenceData = useMemo(() => {
@@ -927,74 +972,146 @@ export default function JefeDashboard() {
 
                     <div className="h-full w-full rounded-[3rem] overflow-hidden">
                         <MapContainer center={[7.0, -66.0] as L.LatLngExpression} zoom={6} style={{ height: '100%', width: '100%' }}>
-                            <TileLayer
-                                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                                attribution='&copy; <a href="https://www.esri.com/">Esri</a>, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
-                            />
-                            {/* Capa de etiquetas y fronteras de estados */}
-                            <TileLayer
-                                url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-                                attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
-                            />
-                            {filteredReports.filter(r => r.latitud && r.longitud).map(report => (
-                                <Marker
-                                    key={report.id}
-                                    position={[report.latitud, report.longitud]}
-                                    icon={getMarkerIcon(report.tipo_actividad)}
-                                >
-                                    <Popup>
-                                        <div className="p-3 font-sans min-w-[200px]">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <div
-                                                    className="w-2.5 h-2.5 rounded-full shadow-sm"
-                                                    style={{ backgroundColor: ACTIVITY_COLORS[report.tipo_actividad] || '#64748b' }}
-                                                ></div>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{report.tipo_actividad}</p>
-                                            </div>
-                                            <p className="text-sm font-black text-slate-800 uppercase leading-tight">{report.parroquia}</p>
+                            <LayersControl position="bottomright">
+                                <LayersControl.BaseLayer checked name="Satélite Premium">
+                                    <TileLayer
+                                        url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                                        attribution='&copy; Esri'
+                                    />
+                                </LayersControl.BaseLayer>
+                                <LayersControl.BaseLayer name="Mapa de Calles">
+                                    <TileLayer
+                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                        attribution='&copy; OpenStreetMap'
+                                    />
+                                </LayersControl.BaseLayer>
 
-                                            <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
-                                                <p className="text-[9px] font-bold text-slate-500 uppercase flex justify-between">
-                                                    <span>Estado:</span>
-                                                    <span className="text-blue-600 font-black">{report.estado_geografico}</span>
-                                                </p>
-                                                {report.comunas && (
-                                                    <p className="text-[9px] font-bold text-slate-500 uppercase flex justify-between">
-                                                        <span>Comuna:</span>
-                                                        <span className="text-slate-900 font-black">{report.comunas}</span>
-                                                    </p>
-                                                )}
-                                                <p className="text-[9px] font-bold text-slate-500 uppercase flex justify-between">
-                                                    <span>Municipio:</span>
-                                                    <span className="text-slate-900">{report.municipio}</span>
-                                                </p>
-                                                <p className="text-[9px] font-bold text-slate-500 uppercase flex justify-between">
-                                                    <span>Familias:</span>
-                                                    <span className="text-slate-900">{report.familias}</span>
-                                                </p>
-                                                <p className="text-[9px] font-bold text-slate-500 uppercase flex justify-between">
-                                                    <span>Personas:</span>
-                                                    <span className="text-slate-900 font-black">{report.personas}</span>
-                                                </p>
+                                {/* Capa de referencia de etiquetas siempre visible */}
+                                <TileLayer
+                                    url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                                    attribution='&copy; Esri'
+                                    zIndex={100}
+                                />
 
-                                                <div className="mt-2 pt-2 border-t border-slate-50 flex justify-between items-center">
-                                                    <span className="text-[9px] font-black text-slate-400 uppercase">Total Distribuido:</span>
-                                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter">
-                                                        {(
-                                                            (Number(report.total_proteina) || 0) +
-                                                            (Number(report.total_frutas) || 0) +
-                                                            (Number(report.total_hortalizas) || 0) +
-                                                            (Number(report.total_verduras) || 0) +
-                                                            (Number(report.total_secos) || 0)
-                                                        ).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TN
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </Popup>
-                                </Marker>
-                            ))}
+                                <LayersControl.Overlay checked name="📍 Jornadas Operativas (Filtradas)">
+                                    <LayerGroup>
+                                        {filteredReports.filter(r => r.latitud && r.longitud).map(report => {
+                                            const activityType = (report.tipo_actividad || '').trim().toUpperCase();
+                                            return (
+                                                <Marker
+                                                    key={`filtered-${report.id}`}
+                                                    position={[report.latitud, report.longitud]}
+                                                    icon={getMarkerIcon(activityType)}
+                                                >
+                                                    <Popup>
+                                                        <div className="p-3 font-sans min-w-[200px]">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <div
+                                                                    className="w-2.5 h-2.5 rounded-full shadow-sm"
+                                                                    style={{ backgroundColor: ACTIVITY_COLORS[activityType] || '#64748b' }}
+                                                                ></div>
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{activityType}</p>
+                                                            </div>
+                                                            <p className="text-sm font-black text-slate-800 uppercase leading-tight">{report.parroquia}</p>
+                                                            <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5 text-[9px] font-bold text-slate-500 uppercase">
+                                                                <p className="flex justify-between"><span>Ente:</span> <span className="text-blue-600 font-black">{report.empresa}</span></p>
+                                                                <p className="flex justify-between"><span>Estado:</span> <span className="text-slate-900">{report.estado_geografico}</span></p>
+                                                                <p className="flex justify-between"><span>Municipio:</span> <span className="text-slate-900">{report.municipio}</span></p>
+                                                                <p className="flex justify-between"><span>Personas:</span> <span className="text-slate-900 font-black">{report.personas}</span></p>
+                                                                    <div className="mt-1 pt-1 border-t border-slate-50 flex justify-between items-center text-emerald-600 font-black">
+                                                                        <span>TOTAL:</span>
+                                                                        <span>{((Number(report.total_proteina) || 0) + (Number(report.total_frutas) || 0) + (Number(report.total_hortalizas) || 0) + (Number(report.total_verduras) || 0) + (Number(report.total_secos) || 0)).toLocaleString('es-VE')} TN</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </Popup>
+                                                    </Marker>
+                                                );
+                                            })}
+                                    </LayerGroup>
+                                </LayersControl.Overlay>
+
+                                <LayersControl.Overlay checked name="⚠️ Zonas de Vulnerabilidad">
+                                    <LayerGroup>
+                                        {vulnerabilityData.map(v => {
+                                            const colors = ['#10B981', '#FBBF24', '#F59E0B', '#EF4444', '#7F1D1D'];
+                                            const color = colors[v.nivel_prioridad - 1] || '#EF4444';
+                                            return (
+                                                <Circle
+                                                    key={`vuln-${v.id}`}
+                                                    center={[v.latitud, v.longitud]}
+                                                    pathOptions={{
+                                                        fillColor: color,
+                                                        color: color,
+                                                        fillOpacity: 0.6,
+                                                        weight: 2
+                                                    }}
+                                                    radius={50000} // 50km para que sea visible en zoom nacional
+                                                >
+                                                    <Popup>
+                                                        <div className="p-3 font-sans min-w-[180px]">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }}></div>
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">VULNERABILIDAD NIVEL {v.nivel_prioridad}</p>
+                                                            </div>
+                                                            <p className="text-sm font-black text-slate-800 uppercase leading-tight">{v.parroquia || v.municipio}</p>
+                                                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">{v.estado}</p>
+                                                            <div className="mt-3 pt-3 border-t border-slate-100">
+                                                                <p className="text-[10px] leading-relaxed text-slate-600 italic">
+                                                                    "{v.descripcion_problema}"
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </Popup>
+                                                </Circle>
+                                            );
+                                        })}
+                                    </LayerGroup>
+                                </LayersControl.Overlay>
+                            </LayersControl>
                         </MapContainer>
+                        
+                        {/* Panel de Filtros Flotante del Mapa */}
+                        <div className="absolute top-6 right-16 z-[1001] w-[240px] pointer-events-none">
+                            <div className="bg-white/95 backdrop-blur-sm p-5 rounded-3xl border border-slate-100 shadow-2xl pointer-events-auto space-y-4">
+                                <div className="flex items-center gap-3 border-b border-slate-50 pb-3">
+                                    <div className="w-8 h-8 bg-blue-50 text-[#007AFF] rounded-xl flex items-center justify-center shadow-inner"><Activity size={16} /></div>
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Panel de Filtros</h4>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] ml-1">Ente / Empresa</label>
+                                        <select 
+                                            value={filterEnte} 
+                                            onChange={(e) => setFilterEnte(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-200 transition-all text-slate-700"
+                                        >
+                                            <option value="Todos">🏢 Todos los Entes</option>
+                                            {catalogos.entes.map(e => <option key={`map-ente-${e}`} value={e}>{e}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] ml-1">Tipo de Actividad</label>
+                                        <select 
+                                            value={filterTipo} 
+                                            onChange={(e) => setFilterTipo(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-200 transition-all text-slate-700"
+                                        >
+                                            <option value="Todos">⚡ Todas las Act.</option>
+                                            {catalogos.actividades.map(a => <option key={`map-act-${a}`} value={a}>{a}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="pt-2">
+                                        <button 
+                                            onClick={clearFilters}
+                                            className="w-full py-2 bg-slate-100/50 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                        >
+                                            Restablecer
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 {/* ── FIN MAPA ─────────────────────────────────────────────────── */}
@@ -1299,6 +1416,86 @@ export default function JefeDashboard() {
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
+
+                {/* SEGUIMIENTO OPERATIVO DE LAS FERIAS DEL CAMPO SOBERANO (GUIA SICA) */}
+                <div className="mt-8 bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col">
+                    <div className="text-center mb-10">
+                        <h2 className="lg:text-xl text-lg font-black uppercase text-slate-900 tracking-tighter">Seguimiento Operativo de las Ferias del Campo Soberano</h2>
+                        <p className="md:text-sm text-xs font-bold text-slate-500 mt-2">¿Presentó la Guía de Movilización de Alimentos del SICA de los Alimentos entregados en la Feria o Punto de Distribución Radial?</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        {/* CHART SICA */}
+                        <div className="flex flex-col items-center justify-center relative min-h-[400px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={[
+                                            { name: 'Sí', value: sicaData.totalSi },
+                                            { name: 'No', value: sicaData.totalNo }
+                                        ].filter(i => i.value > 0)}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={110}
+                                        outerRadius={180}
+                                        dataKey="value"
+                                        stroke="white"
+                                        strokeWidth={6}
+                                        labelLine={true}
+                                        label={({ cx, cy, midAngle = 0, innerRadius, outerRadius, value, name, percent = 0 }) => {
+                                            const RADIAN = Math.PI / 180;
+                                            const radius = innerRadius + (outerRadius - innerRadius) * 1.5;
+                                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                                            const align = x > cx ? 'start' : 'end';
+                                            return (
+                                                <text x={x} y={y} fill={name === 'Sí' ? '#22c55e' : '#ef4444'} textAnchor={align} dominantBaseline="central" className="font-sans">
+                                                    <tspan x={x} dy="-10" fontSize="16" fontWeight="bold">{name}</tspan>
+                                                    <tspan x={x} dy="20" fontSize="16" fontWeight="bold">{value}</tspan>
+                                                    <tspan x={x} dy="20" fontSize="14" fill="#64748b" fontWeight="normal">{(percent * 100).toFixed(0)}%</tspan>
+                                                </text>
+                                            );
+                                        }}
+                                    >
+                                        <Cell key="cell-0" fill="#22c55e" /> {/* Verde - Sí */}
+                                        <Cell key="cell-1" fill="#ef4444" /> {/* Rojo - No */}
+                                    </Pie>
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
+                                        itemStyle={{ fontSize: '12px', fontWeight: 900, textTransform: 'uppercase' }}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        {/* TABLE SICA */}
+                        <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white">
+                            <table className="w-full text-left text-[11px] bg-white lg:text-sm">
+                                <thead>
+                                    <tr className="uppercase font-black text-slate-900 border-b border-slate-200">
+                                        <th className="px-3 py-2 bg-slate-100 border-r border-slate-300">Entidad Federal</th>
+                                        <th className="px-3 py-2 bg-[#22c55e] border-r border-white/20 text-white text-center w-28">Sí</th>
+                                        <th className="px-3 py-2 bg-[#ef4444] text-white text-center w-28">No</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sicaData.stateRows.map((row, idx) => (
+                                        <tr key={idx} className="border-b border-slate-100 font-semibold text-slate-700">
+                                            <td className="px-3 py-1.5 border-r border-slate-200">{row.entidad}</td>
+                                            <td className="px-3 py-1.5 border-r border-slate-200 text-center text-slate-900">{row.si > 0 ? row.si : ''}</td>
+                                            <td className="px-3 py-1.5 text-center text-slate-900">{row.no > 0 ? row.no : ''}</td>
+                                        </tr>
+                                    ))}
+                                    <tr className="border-t-[3px] border-slate-800 font-black bg-slate-50 text-slate-900">
+                                        <td className="px-3 py-3 border-r border-slate-200 text-center uppercase tracking-widest text-sm text-slate-900">TOTAL</td>
+                                        <td className="px-3 py-3 border-r border-slate-200 text-center text-base">{sicaData.totalSi}</td>
+                                        <td className="px-3 py-3 text-center text-base">{sicaData.totalNo}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

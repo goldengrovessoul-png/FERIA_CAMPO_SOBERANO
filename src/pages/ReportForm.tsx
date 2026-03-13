@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { MapPin, Camera, Save, Send, ArrowLeft, Plus, Trash2, Users, Package, Home, ChevronDown, User, CheckCircle2, AlertTriangle, X } from 'lucide-react';
+import { MapPin, Camera, Save, Send, ArrowLeft, Plus, Trash2, Users, Package, Home, ChevronDown, User, CheckCircle2, AlertTriangle, X, FileText } from 'lucide-react';
 
 interface FoodItem {
     id?: string;
@@ -55,6 +55,22 @@ export default function ReportForm() {
     const [familias, setFamilias] = useState(0);
     const [personas, setPersonas] = useState(0);
 
+    const [dpaData, setDpaData] = useState<{ estado: string, municipio: string, parroquia: string }[]>([]);
+
+    const dpaEstados = useMemo(() => {
+        const unique = Array.from(new Set(dpaData.map(d => d.estado)));
+        // Asegurar que Petare y Dependencias siempre estén si existen en dpaData
+        return unique.sort();
+    }, [dpaData]);
+
+    const dpaMunicipios = useMemo(() => {
+        return Array.from(new Set(dpaData.filter(d => d.estado === estadoGeo).map(d => d.municipio))).sort();
+    }, [dpaData, estadoGeo]);
+
+    const dpaParroquias = useMemo(() => {
+        return Array.from(new Set(dpaData.filter(d => d.estado === estadoGeo && d.municipio === municipio).map(d => d.parroquia))).sort();
+    }, [dpaData, estadoGeo, municipio]);
+
     // Totales por Categoría (En Toneladas)
     const [totalProteina, setTotalProteina] = useState(0);
     const [totalFrutas, setTotalFrutas] = useState(0);
@@ -83,6 +99,10 @@ export default function ReportForm() {
     const [photos, setPhotos] = useState<string[]>([]);
     const [isRestoring, setIsRestoring] = useState(false);
 
+    // Guía SICA (Opcional)
+    const [guiaSicaEstado, setGuiaSicaEstado] = useState('');
+    const [guiaSicaFoto, setGuiaSicaFoto] = useState('');
+
     // Cargar datos si es edición y catálogos
     useEffect(() => {
         fetchCatalogs();
@@ -101,7 +121,8 @@ export default function ReportForm() {
                 nombreComuna, comunas, familias, personas,
                 totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalSecos,
                 responsableActividad, responsableComuna, condiciones,
-                presenciaMinppal, metodosPago, rubros, observacionesRubros, photos
+                presenciaMinppal, metodosPago, rubros, observacionesRubros, photos,
+                guiaSicaEstado, guiaSicaFoto
             };
             localStorage.setItem('fcs_report_draft', JSON.stringify(draftData));
         }
@@ -111,6 +132,7 @@ export default function ReportForm() {
         totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalSecos,
         responsableActividad, responsableComuna, condiciones,
         presenciaMinppal, metodosPago, rubros, observacionesRubros, photos,
+        guiaSicaEstado, guiaSicaFoto,
         reportId, isRestoring, loadingCatalogs
     ]);
 
@@ -143,6 +165,8 @@ export default function ReportForm() {
                 setRubros(data.rubros || []);
                 setObservacionesRubros(data.observacionesRubros || '');
                 setPhotos(data.photos || []);
+                setGuiaSicaEstado(data.guiaSicaEstado || '');
+                setGuiaSicaFoto(data.guiaSicaFoto || '');
             } catch (e) {
                 console.error("Error al restaurar borrador local:", e);
             } finally {
@@ -154,21 +178,25 @@ export default function ReportForm() {
     async function fetchCatalogs() {
         try {
             setLoadingCatalogs(true);
-            const { data, error } = await supabase
-                .from('catalog_items')
-                .select('type, name')
-                .eq('is_active', true)
-                .order('name', { ascending: true });
+            const [catalogRes, dpaRes] = await Promise.all([
+                supabase.from('catalog_items').select('type, name').eq('is_active', true).order('name', { ascending: true }),
+                supabase.from('venezuela_dpa').select('*').limit(2000)
+            ]);
 
-            if (error) throw error;
+            if (catalogRes.error) throw catalogRes.error;
+            if (dpaRes.error) throw dpaRes.error;
+
+            setDpaData(dpaRes.data || []);
+
+            const data = catalogRes.data;
 
             const newCatalogs = {
-                estados: data.filter(i => i.type === 'ESTADO').map(i => i.name),
-                empresas: data.filter(i => i.type === 'ENTE').map(i => i.name),
-                rubros: data.filter(i => i.type === 'ARTICULO').map(i => i.name),
-                medidas: data.filter(i => i.type === 'MEDIDA').map(i => i.name),
-                actividades: data.filter(i => i.type === 'ACTIVIDAD').map(i => i.name),
-                minppal: data.filter(i => i.type === 'MINPPAL').map(i => i.name)
+                estados: data.filter((i: any) => i.type === 'ESTADO').map((i: any) => i.name),
+                empresas: data.filter((i: any) => i.type === 'ENTE').map((i: any) => i.name),
+                rubros: data.filter((i: any) => i.type === 'ARTICULO').map((i: any) => i.name),
+                medidas: data.filter((i: any) => i.type === 'MEDIDA').map((i: any) => i.name),
+                actividades: data.filter((i: any) => i.type === 'ACTIVIDAD').map((i: any) => i.name),
+                minppal: data.filter((i: any) => i.type === 'MINPPAL').map((i: any) => i.name)
             };
 
             // Fallbacks si están vacíos
@@ -247,6 +275,10 @@ export default function ReportForm() {
                 }
                 if (df.observaciones_rubros) setObservacionesRubros(df.observaciones_rubros);
                 if (df.photos) setPhotos(df.photos);
+
+                // Cargar Guía SICA (Nuevos campos)
+                setGuiaSicaEstado(data.guia_sica_estado || '');
+                setGuiaSicaFoto(data.guia_sica_foto || '');
 
                 // Cargar rubros (desde la tabla report_items)
                 const { data: items } = await supabase.from('report_items').select('*').eq('report_id', reportId);
@@ -332,15 +364,47 @@ export default function ReportForm() {
         setPhotos(photos.filter((_, i) => i !== index));
     };
 
-    const handleSubmit = async (estadoReporte: 'borrador' | 'enviado') => {
-        if (!location && estadoReporte === 'enviado') {
-            alert('Es obligatorio tener coordenadas GPS para enviar.');
-            return;
-        }
+    const handleGuiaSicaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => setGuiaSicaFoto(reader.result as string);
+        reader.readAsDataURL(file);
+    };
 
-        if (estadoReporte === 'enviado' && !showConfirm) {
-            setShowConfirm(true);
-            return;
+    const handleSubmit = async (estadoReporte: 'borrador' | 'enviado') => {
+        if (estadoReporte === 'enviado') {
+            if (!location) {
+                alert('Es obligatorio tener coordenadas GPS para enviar.');
+                return;
+            }
+
+            // Validación de campos obligatorios
+            const isValidStr = (s: string | undefined | null) => s && s.trim().length > 0;
+            const isValidNumber = (n: number | undefined | null) => n !== undefined && n !== null && n >= 0;
+            
+            const isAllValid = 
+                isValidStr(tipoActividad) && isValidStr(empresa) &&
+                isValidStr(estadoGeo) && 
+                (estadoGeo.toUpperCase() === 'PETARE' || estadoGeo.toUpperCase() === 'DEPENDENCIAS FEDERALES' || (isValidStr(municipio) && isValidStr(parroquia))) && 
+                isValidStr(sector) &&
+                isValidStr(nombreComuna) && 
+                isValidNumber(comunas) && isValidNumber(familias) && isValidNumber(personas) &&
+                isValidStr(responsableActividad.nombre) && isValidStr(responsableActividad.cedula) && isValidStr(responsableActividad.telefono) &&
+                isValidStr(responsableComuna.nombre) && isValidStr(responsableComuna.cedula) && isValidStr(responsableComuna.telefono) &&
+                rubros.length > 0 && 
+                rubros.every(r => isValidStr(r.rubro) && isValidStr(r.empaque) && isValidStr(r.medida) && isValidNumber(r.cantidad) && r.cantidad > 0 && isValidStr(r.precio)) &&
+                metodosPago.length > 0 && photos.length > 0;
+                
+            if (!isAllValid) {
+                alert('INFORMACIÓN INCOMPLETA: Todos los campos del formulario, responsables, rubros, métodos de pago y al menos 1 fotografía son obligatorios (Excepto "Guía SICA"). Por favor, verifíquelos.');
+                return;
+            }
+
+            if (!showConfirm) {
+                setShowConfirm(true);
+                return;
+            }
         }
 
         setLoading(true);
@@ -368,6 +432,8 @@ export default function ReportForm() {
                 latitud: location?.lat || 0,
                 longitud: location?.lng || 0,
                 estado_reporte: estadoReporte,
+                guia_sica_estado: guiaSicaEstado || null,
+                guia_sica_foto: guiaSicaFoto || null,
                 datos_formulario: {
                     responsables: { actividad: responsableActividad, comuna: responsableComuna },
                     condiciones,
@@ -558,26 +624,66 @@ export default function ReportForm() {
                                 <div className="relative">
                                     <select
                                         value={estadoGeo}
-                                        onChange={(e) => setEstadoGeo(e.target.value)}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setEstadoGeo(val);
+                                            if (val.toUpperCase() === 'PETARE') {
+                                                setMunicipio('');
+                                                setParroquia('');
+                                            } else {
+                                                setMunicipio('');
+                                                setParroquia('');
+                                            }
+                                        }}
                                         className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 appearance-none transition-all"
                                     >
                                         <option value="">-- Seleccionar --</option>
-                                        {catalogos.estados.map(e => <option key={e} value={e}>{e}</option>)}
+                                        {(() => {
+                                            const combined = Array.from(new Set([...dpaEstados, ...catalogos.estados])).sort();
+                                            return combined.map(e => <option key={e} value={e}>{e}</option>);
+                                        })()}
                                     </select>
                                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Municipio</label>
-                                    <input type="text" value={municipio} onChange={(e) => setMunicipio(e.target.value.toUpperCase())} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all uppercase" placeholder="Ej: Sucre" />
+                            {(estadoGeo.toUpperCase() !== 'PETARE' && estadoGeo.toUpperCase() !== 'DEPENDENCIAS FEDERALES') && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Municipio</label>
+                                        <div className="relative">
+                                            <select
+                                                value={municipio}
+                                                onChange={(e) => {
+                                                    setMunicipio(e.target.value);
+                                                    setParroquia('');
+                                                }}
+                                                disabled={!estadoGeo}
+                                                className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 appearance-none transition-all disabled:opacity-50"
+                                            >
+                                                <option value="">-- Seleccionar --</option>
+                                                {dpaMunicipios.map(m => <option key={m} value={m}>{m}</option>)}
+                                            </select>
+                                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parroquia</label>
+                                        <div className="relative">
+                                            <select
+                                                value={parroquia}
+                                                onChange={(e) => setParroquia(e.target.value)}
+                                                disabled={!municipio}
+                                                className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 appearance-none transition-all disabled:opacity-50"
+                                            >
+                                                <option value="">-- Seleccionar --</option>
+                                                {dpaParroquias.map(p => <option key={p} value={p}>{p}</option>)}
+                                            </select>
+                                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parroquia</label>
-                                    <input type="text" value={parroquia} onChange={(e) => setParroquia(e.target.value.toUpperCase())} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all uppercase" placeholder="Ej: Petare" />
-                                </div>
-                            </div>
+                            )}
 
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Sector</label>
@@ -695,6 +801,82 @@ export default function ReportForm() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </section>
+
+                    {/* NUEVA SECCIÓN: Guía SICA (Opcional) */}
+                    <section className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/40 border border-white">
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                                <FileText size={20} />
+                            </div>
+                            <h2 className="text-lg font-black text-slate-800 uppercase tracking-tighter">Guía SICA (Opcional)</h2>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">¿Posee Guía SICA?</label>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {['Sí', 'No'].map(opcion => (
+                                        <button
+                                            key={opcion}
+                                            type="button"
+                                            onClick={() => {
+                                                if (guiaSicaEstado === opcion) {
+                                                    setGuiaSicaEstado('');
+                                                    setGuiaSicaFoto('');
+                                                } else {
+                                                    setGuiaSicaEstado(opcion);
+                                                }
+                                            }}
+                                            className={`p-4 rounded-2xl text-[10px] font-black text-center uppercase tracking-widest transition-all border-2 ${guiaSicaEstado === opcion ? 'bg-blue-600 border-blue-600 text-white shadow-xl shadow-blue-500/20' : 'bg-slate-50 border-transparent text-slate-400'}`}
+                                        >
+                                            {opcion}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {guiaSicaEstado === 'Sí' && (
+                                <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Fotografía de la Guía SICA</label>
+                                    {guiaSicaFoto ? (
+                                        <div className="aspect-video rounded-2xl overflow-hidden relative border border-slate-100 shadow-sm bg-slate-50">
+                                            <img src={guiaSicaFoto} alt="Guía SICA" className="w-full h-full object-cover" />
+                                            <button
+                                                onClick={() => setGuiaSicaFoto('')}
+                                                className="absolute top-2 right-2 w-8 h-8 bg-black/50 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all font-bold backdrop-blur-sm hover:bg-red-500"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <label className="flex flex-col items-center justify-center gap-2 p-6 bg-slate-900 text-white rounded-[2rem] font-bold text-xs shadow-xl active:scale-95 transition-all cursor-pointer">
+                                                <Camera size={24} />
+                                                CÁMARA
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    className="hidden"
+                                                    onChange={handleGuiaSicaUpload}
+                                                />
+                                            </label>
+                                            <label className="flex flex-col items-center justify-center gap-2 p-6 bg-slate-100 text-slate-700 rounded-[2rem] font-bold text-xs active:scale-95 transition-all cursor-pointer border border-slate-200">
+                                                <Package size={24} />
+                                                GALERÍA
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={handleGuiaSicaUpload}
+                                                />
+                                            </label>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </section>
 
