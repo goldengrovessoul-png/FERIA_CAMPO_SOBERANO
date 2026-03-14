@@ -226,6 +226,35 @@ export default function ReportView() {
                         </div>
                     </div>
 
+                    {/* Sección: Ubicación Exacta (Minimapa) */}
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3 border-b border-slate-100 pb-2">
+                            <MapPin size={18} className="text-blue-600" />
+                            <h2 className="text-xs font-black uppercase tracking-widest text-slate-800">Georreferenciación Exacta de la Jornada</h2>
+                        </div>
+                        <div className="w-full h-[300px] bg-slate-50 rounded-[2.5rem] overflow-hidden border border-slate-100 relative shadow-inner">
+                            {report.latitud && report.longitud ? (
+                                <img 
+                                    src={`https://static-maps.yandex.ru/1.x/?ll=${report.longitud},${report.latitud}&z=17&l=sat,skl&size=650,300&pt=${report.longitud},${report.latitud},pm2rdl`} 
+                                    alt="Mapa Satelital" 
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        // Fallback a mapa plano si falla el satelital
+                                        (e.target as HTMLImageElement).src = `https://static-maps.yandex.ru/1.x/?ll=${report.longitud},${report.latitud}&z=16&l=map&size=650,300&pt=${report.longitud},${report.latitud},pm2rdl`;
+                                    }}
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                    <p className="text-[10px] font-black uppercase tracking-widest">Coordenadas no disponibles para el mapa</p>
+                                </div>
+                            )}
+                            <div className="absolute bottom-6 right-6 bg-white/90 backdrop-blur-md px-5 py-2.5 rounded-full border border-slate-200 shadow-xl">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-blue-600">Punto de Verificación Satelital</p>
+                            </div>
+                        </div>
+                    </div>
+
+
                     {/* Sección 2: Responsables */}
                     <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-8">
                         <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
