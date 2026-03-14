@@ -75,7 +75,7 @@ export default function AdminPanel() {
     const [saving, setSaving] = useState(false);
 
     // Estados para Catálogos
-    const [catalogType, setCatalogType] = useState<'RUBRO' | 'ENTE' | 'ESTADO' | 'ACTIVIDAD' | 'MEDIDA' | 'ARTICULO' | 'MINPPAL'>('RUBRO');
+    const [catalogType, setCatalogType] = useState<'RUBRO' | 'ENTE' | 'ESTADO' | 'ACTIVIDAD' | 'MEDIDA' | 'ARTICULO' | 'MINPPAL' | 'EMPRENDIMIENTO'>('RUBRO');
     const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
     const [rubrosForSelect, setRubrosForSelect] = useState<{ id: string, name: string }[]>([]);
     const [minppalForSelect, setMinppalForSelect] = useState<{ id: string, name: string }[]>([]);
@@ -98,12 +98,18 @@ export default function AdminPanel() {
     });
     const [editingVulnerabilityId, setEditingVulnerabilityId] = useState<string | null>(null);
 
+    // Estados para Emprendimiento (Admin)
+    const [entrepreneurTypes, setEntrepreneurTypes] = useState<{id: string, nombre: string}[]>([]);
+    const [loadingEntrep, setLoadingEntrep] = useState(false);
+    const [newEntrepName, setNewEntrepName] = useState('');
+
     useEffect(() => {
         if (view === 'users') {
             fetchProfiles();
             fetchUnreadCounts();
         } else if (view === 'catalog') {
             fetchCatalogItems();
+            fetchEntrepreneurTypes(); // Cargar también tipos de emprendimiento
         } else if (view === 'vulnerability') {
             fetchVulnerabilities();
         }
@@ -357,6 +363,51 @@ export default function AdminPanel() {
             fetchCatalogItems();
         } catch (error) {
             alert('Error al eliminar elemento. Es posible que esté siendo usado en reportes.');
+        }
+    }
+
+    // --- FUNCIONES DE EMPRENDIMIENTO (ADMIN) ---
+    async function fetchEntrepreneurTypes() {
+        try {
+            setLoadingEntrep(true);
+            const { data, error } = await supabase
+                .from('cat_emprendimiento_tipos')
+                .select('*')
+                .order('nombre', { ascending: true });
+            if (error) throw error;
+            setEntrepreneurTypes(data || []);
+        } catch (err) {
+            console.error('Error fetching entrepreneur types:', err);
+        } finally {
+            setLoadingEntrep(false);
+        }
+    }
+
+    async function addEntrepreneurType() {
+        if (!newEntrepName.trim()) return;
+        try {
+            const { error } = await supabase
+                .from('cat_emprendimiento_tipos')
+                .insert([{ nombre: newEntrepName.trim().toUpperCase() }]);
+            if (error) throw error;
+            setNewEntrepName('');
+            fetchEntrepreneurTypes();
+        } catch (err: any) {
+            alert(err.code === '23505' ? 'Este tipo ya existe.' : 'Error al guardar.');
+        }
+    }
+
+    async function deleteEntrepreneurType(id: string) {
+        if (!window.confirm('¿Eliminar este tipo de actividad?')) return;
+        try {
+            const { error } = await supabase
+                .from('cat_emprendimiento_tipos')
+                .delete()
+                .eq('id', id);
+            if (error) throw error;
+            fetchEntrepreneurTypes();
+        } catch (err) {
+            alert('No se puede eliminar porque está en uso en reportes.');
         }
     }
 
@@ -872,7 +923,8 @@ export default function AdminPanel() {
                                     { id: 'ESTADO', label: 'Estados', icon: MapIcon },
                                     { id: 'ACTIVIDAD', label: 'Actividades', icon: Box },
                                     { id: 'MEDIDA', label: 'Medidas', icon: Ruler },
-                                    { id: 'MINPPAL', label: 'Empresas MINPPAL', icon: Briefcase }
+                                    { id: 'MINPPAL', label: 'Empresas MINPPAL', icon: Briefcase },
+                                    { id: 'EMPRENDIMIENTO', label: 'Emprendimiento', icon: UserPlus }
                                 ].map(type => (
                                     <button
                                         key={type.id}
@@ -902,10 +954,10 @@ export default function AdminPanel() {
                                         </label>
                                         <div className="relative">
                                             <input
-                                                value={newCatalogName}
-                                                onChange={e => setNewCatalogName(e.target.value)}
-                                                onKeyDown={e => e.key === 'Enter' && addCatalogItem()}
-                                                placeholder={`EJ: ${catalogType === 'RUBRO' ? 'CARNE' : catalogType === 'ARTICULO' ? 'ACEITE' : 'NUEVO ITEM'}`}
+                                                value={catalogType === 'EMPRENDIMIENTO' ? newEntrepName : newCatalogName}
+                                                onChange={e => catalogType === 'EMPRENDIMIENTO' ? setNewEntrepName(e.target.value) : setNewCatalogName(e.target.value)}
+                                                onKeyDown={e => e.key === 'Enter' && (catalogType === 'EMPRENDIMIENTO' ? addEntrepreneurType() : addCatalogItem())}
+                                                placeholder={`EJ: ${catalogType === 'RUBRO' ? 'CARNE' : catalogType === 'EMPRENDIMIENTO' ? 'COMIDA CASERA' : 'NUEVO ITEM'}`}
                                                 className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-100 transition-all uppercase"
                                             />
                                         </div>
@@ -959,7 +1011,7 @@ export default function AdminPanel() {
                                     )}
                                 </div>
                                 <button
-                                    onClick={addCatalogItem}
+                                    onClick={catalogType === 'EMPRENDIMIENTO' ? addEntrepreneurType : addCatalogItem}
                                     className="h-[60px] px-8 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-blue-500/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2 w-full justify-center"
                                 >
                                     <Plus size={18} /> AGREGAR AL CATÁLOGO
@@ -968,20 +1020,20 @@ export default function AdminPanel() {
 
                             {/* Lista de Elementos */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {loadingCatalog ? (
+                                {loadingCatalog || loadingEntrep ? (
                                     <div className="col-span-full py-20 text-center space-y-4">
                                         <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sincronizando Catálogo...</p>
                                     </div>
-                                ) : catalogItems.length > 0 ? (
-                                    catalogItems.map(item => (
+                                ) : (catalogType === 'EMPRENDIMIENTO' ? entrepreneurTypes : catalogItems).length > 0 ? (
+                                    (catalogType === 'EMPRENDIMIENTO' ? entrepreneurTypes : catalogItems).map((item: any) => (
                                         <div
                                             key={item.id}
                                             className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-blue-100 transition-all"
                                         >
                                             <div className="space-y-1">
-                                                <h4 className={`text-sm font-black uppercase tracking-tighter ${item.is_active ? 'text-slate-900' : 'text-slate-300 line-through'}`}>
-                                                    {item.name}
+                                                <h4 className={`text-sm font-black uppercase tracking-tighter ${(item.is_active !== false) ? 'text-slate-900' : 'text-slate-300 line-through'}`}>
+                                                    {catalogType === 'EMPRENDIMIENTO' ? item.nombre : item.name}
                                                 </h4>
                                                 <div className="flex items-center gap-2">
                                                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
@@ -998,15 +1050,17 @@ export default function AdminPanel() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                {catalogType !== 'EMPRENDIMIENTO' && (
+                                                    <button
+                                                        onClick={() => toggleCatalogStatus(item.id, item.is_active)}
+                                                        className={`p-3 rounded-xl transition-all ${item.is_active ? 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'}`}
+                                                        title={item.is_active ? 'Desactivar' : 'Activar'}
+                                                    >
+                                                        {item.is_active ? <ShieldAlert size={16} /> : <ShieldCheck size={16} />}
+                                                    </button>
+                                                )}
                                                 <button
-                                                    onClick={() => toggleCatalogStatus(item.id, item.is_active)}
-                                                    className={`p-3 rounded-xl transition-all ${item.is_active ? 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'}`}
-                                                    title={item.is_active ? 'Desactivar' : 'Activar'}
-                                                >
-                                                    {item.is_active ? <ShieldAlert size={16} /> : <ShieldCheck size={16} />}
-                                                </button>
-                                                <button
-                                                    onClick={() => deleteCatalogItem(item.id)}
+                                                    onClick={() => catalogType === 'EMPRENDIMIENTO' ? deleteEntrepreneurType(item.id) : deleteCatalogItem(item.id)}
                                                     className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all"
                                                     title="Eliminar"
                                                 >

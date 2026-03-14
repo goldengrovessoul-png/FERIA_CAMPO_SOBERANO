@@ -123,6 +123,13 @@ interface ReportMinppalPresencia {
     producto_name?: string;
 }
 
+interface Entrepreneur {
+    report_id: string;
+    nombre: string;
+    actividad: string;
+    telefono: string;
+}
+
 const StateTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
@@ -176,6 +183,7 @@ export default function JefeDashboard() {
     const [inspectors, setInspectors] = useState<Record<string, { nombre: string; apellido: string }>>({});
     const [vulnerabilityData, setVulnerabilityData] = useState<VulnerabilityData[]>([]);
     const [minppalPresencia, setMinppalPresencia] = useState<ReportMinppalPresencia[]>([]);
+    const [entrepreneurs, setEntrepreneurs] = useState<Entrepreneur[]>([]);
 
     // Filtros
     const [filterEstado, setFilterEstado] = useState('Todos');
@@ -282,15 +290,17 @@ export default function JefeDashboard() {
                 const reportIds = reportsData.map((r: any) => r.id);
                 console.log('Cargando items de reportes...');
                 
-                const [itemsRes, paymentRes, presRes] = await Promise.all([
+                const [itemsRes, paymentRes, presRes, entRes] = await Promise.all([
                     supabase.from('report_items').select('report_id,rubro,cantidad').in('report_id', reportIds),
                     supabase.from('report_payment_methods').select('report_id,metodo').in('report_id', reportIds),
-                    supabase.from('report_minppal_presencia').select('*').in('report_id', reportIds)
+                    supabase.from('report_minppal_presencia').select('*').in('report_id', reportIds),
+                    supabase.from('report_entrepreneurs').select('*').in('report_id', reportIds)
                 ]);
 
                 if (itemsRes.data) setReportItems(itemsRes.data);
                 if (paymentRes.data) setPaymentMethods(paymentRes.data);
                 if (presRes.data) setMinppalPresencia(presRes.data);
+                if (entRes.data) setEntrepreneurs(entRes.data);
 
                 // Nombres de Inspectores
                 const inspectorIds = Array.from(new Set(reportsData.map((r: any) => r.inspector_id).filter((id: any) => id)));
@@ -602,6 +612,22 @@ export default function JefeDashboard() {
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
     }, [minppalPresencia, filteredReportIds, catalogos.fullCatalog]);
+
+    const entrepreneurStats = useMemo(() => {
+        const counts: Record<string, number> = {};
+        let total = 0;
+        entrepreneurs.forEach(e => {
+            if (filteredReportIds.has(e.report_id)) {
+                const label = (e.actividad || 'OTRO').trim().toUpperCase();
+                counts[label] = (counts[label] || 0) + 1;
+                total++;
+            }
+        });
+        const chartData = Object.entries(counts)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+        return { chartData, total };
+    }, [entrepreneurs, filteredReportIds]);
 
 
     const inspectorReportData = useMemo(() => {
@@ -1780,6 +1806,72 @@ export default function JefeDashboard() {
                                     <p className="text-xs font-black uppercase tracking-widest">No hay novedades registradas con los filtros actuales</p>
                                 </div>
                             )}
+                    </div>
+                </div>
+
+                {/* NUEVO KPI: EMPRENDIMIENTO (Al final para no alterar la visual) */}
+                <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 mb-20">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-indigo-600/10 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner">
+                                <Award size={28} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black uppercase text-slate-900 tracking-tighter">Impacto de Emprendimiento</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Participación de actores locales en las jornadas</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-6 bg-slate-50 p-4 px-8 rounded-[2rem] border border-white shadow-sm">
+                            <div className="text-center">
+                                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Total Emprendedores</p>
+                                <p className="text-3xl font-black text-slate-900 leading-none">{entrepreneurStats.total}</p>
+                            </div>
+                            <div className="w-px h-10 bg-slate-200"></div>
+                            <div className="text-center">
+                                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Alcance Territorial</p>
+                                <p className="text-3xl font-black text-slate-900 leading-none">
+                                    {new Set(entrepreneurs.filter(e => filteredReportIds.has(e.report_id)).map(e => {
+                                        const r = reports.find(rep => rep.id === e.report_id);
+                                        return r?.estado_geografico;
+                                    })).size}
+                                </p>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">Estados</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-12 grid grid-cols-1 lg:grid-cols-12 gap-10">
+                        <div className="lg:col-span-12">
+                            <div className="h-[400px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={entrepreneurStats.chartData}>
+                                        <defs>
+                                            <linearGradient id="colorIndEnt" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#4F46E5" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#818CF8" stopOpacity={0.6} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
+                                        <XAxis 
+                                            dataKey="name" 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} 
+                                        />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
+                                        <Tooltip 
+                                            cursor={{ fill: '#f1f5f9' }} 
+                                            contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}
+                                            formatter={(value) => [`${value} Emprendedores`, 'Actividad']}
+                                        />
+                                        <Bar dataKey="value" fill="url(#colorIndEnt)" radius={[12, 12, 0, 0]} barSize={60}>
+                                            <LabelList dataKey="value" position="top" style={{ fontSize: 12, fontWeight: 900, fill: '#4F46E5' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </main>

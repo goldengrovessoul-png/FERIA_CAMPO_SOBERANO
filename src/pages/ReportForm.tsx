@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { MapPin, Camera, Save, Send, ArrowLeft, Plus, Trash2, Users, Package, Home, ChevronDown, User, CheckCircle2, AlertTriangle, X, FileText } from 'lucide-react';
+import { MapPin, Camera, Save, Send, ArrowLeft, Plus, Trash2, Users, Package, Home, ChevronDown, User, CheckCircle2, AlertTriangle, X, FileText, UserPlus } from 'lucide-react';
 
 interface FoodItem {
     id?: string;
@@ -48,7 +48,8 @@ export default function ReportForm() {
         medidas: [] as string[],
         actividades: [] as string[],
         minppal: [] as CatalogEntry[],
-        productos_minppal: [] as CatalogEntry[]
+        productos_minppal: [] as CatalogEntry[],
+        entrepreneurTypes: [] as string[]
     });
 
     // Estados del Formulario
@@ -104,6 +105,7 @@ export default function ReportForm() {
 
     const [metodosPago, setMetodosPago] = useState<string[]>([]);
     const [rubros, setRubros] = useState<FoodItem[]>([]);
+    const [entrepreneurs, setEntrepreneurs] = useState<{ nombre: string, actividad: string, telefono: string }[]>([]);
     const [observacionesRubros, setObservacionesRubros] = useState('');
     const [photos, setPhotos] = useState<string[]>([]);
     const [isRestoring, setIsRestoring] = useState(false);
@@ -130,7 +132,7 @@ export default function ReportForm() {
                 nombreComuna, comunas, familias, personas,
                 totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalSecos,
                 responsableActividad, responsableComuna, condiciones,
-                presenciaEntes, metodosPago, rubros, observacionesRubros, photos,
+                presenciaEntes, metodosPago, rubros, entrepreneurs, observacionesRubros, photos,
                 guiaSicaEstado, guiaSicaFoto
             };
             localStorage.setItem('fcs_report_draft', JSON.stringify(draftData));
@@ -140,7 +142,7 @@ export default function ReportForm() {
         nombreComuna, comunas, familias, personas,
         totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalSecos,
         responsableActividad, responsableComuna, condiciones,
-        presenciaEntes, metodosPago, rubros, observacionesRubros, photos,
+        presenciaEntes, metodosPago, rubros, entrepreneurs, observacionesRubros, photos,
         guiaSicaEstado, guiaSicaFoto,
         reportId, isRestoring, loadingCatalogs
     ]);
@@ -172,6 +174,7 @@ export default function ReportForm() {
                 setPresenciaEntes(data.presenciaEntes || []);
                 setMetodosPago(data.metodosPago || []);
                 setRubros(data.rubros || []);
+                setEntrepreneurs(data.entrepreneurs || []);
                 setObservacionesRubros(data.observacionesRubros || '');
                 setPhotos(data.photos || []);
                 setGuiaSicaEstado(data.guiaSicaEstado || '');
@@ -206,8 +209,13 @@ export default function ReportForm() {
                 medidas: data.filter((i: any) => i.type === 'MEDIDA').map((i: any) => i.name),
                 actividades: data.filter((i: any) => i.type === 'ACTIVIDAD').map((i: any) => i.name),
                 minppal: data.filter((i: any) => i.type === 'MINPPAL').map((i: any) => ({ id: i.id, name: i.name, type: i.type })),
-                productos_minppal: data.filter((i: any) => i.type === 'ARTICULO' && i.parent_id !== null).map((i: any) => ({ id: i.id, name: i.name, type: i.type, parent_id: i.parent_id }))
+                productos_minppal: data.filter((i: any) => i.type === 'ARTICULO' && i.parent_id !== null).map((i: any) => ({ id: i.id, name: i.name, type: i.type, parent_id: i.parent_id })),
+                entrepreneurTypes: [] as string[]
             };
+
+            // Cargar Tipos de Emprendimiento desde la tabla específica
+            const { data: entrepData } = await supabase.from('cat_emprendimiento_tipos').select('nombre').order('nombre', { ascending: true });
+            newCatalogs.entrepreneurTypes = entrepData?.map(e => e.nombre) || [];
 
             // Fallbacks si están vacíos
             if (newCatalogs.actividades.length === 0) newCatalogs.actividades = ["FCS", "FCS - Emblemática", "Bodega móvil", "Cielo Abierto"];
@@ -289,6 +297,14 @@ export default function ReportForm() {
                 // Cargar métodos de pago
                 const { data: mp } = await supabase.from('report_payment_methods').select('metodo').eq('report_id', reportId);
                 if (mp) setMetodosPago(mp.map((m: any) => m.metodo));
+
+                // Cargar Emprendedores
+                const { data: ents } = await supabase.from('report_entrepreneurs').select('*').eq('report_id', reportId);
+                if (ents) setEntrepreneurs(ents.map((e: any) => ({
+                    nombre: e.nombre,
+                    actividad: e.actividad,
+                    telefono: e.telefono || ''
+                })));
             }
         } catch (error) {
             console.error('Error al cargar reporte:', error);
@@ -354,6 +370,14 @@ export default function ReportForm() {
         const newRubros = [...rubros];
         newRubros[index] = { ...newRubros[index], [field]: value };
         setRubros(newRubros);
+    };
+
+    const addEntrepreneur = () => setEntrepreneurs([...entrepreneurs, { nombre: '', actividad: '', telefono: '' }]);
+    const removeEntrepreneur = (index: number) => setEntrepreneurs(entrepreneurs.filter((_, i) => i !== index));
+    const updateEntrepreneur = (index: number, field: string, value: string) => {
+        const newEnts = [...entrepreneurs];
+        (newEnts[index] as any)[field] = value.toUpperCase();
+        setEntrepreneurs(newEnts);
     };
 
     const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -479,8 +503,8 @@ export default function ReportForm() {
             if (reportId) {
                 await supabase.from('report_items').delete().eq('report_id', reportIdToUse);
                 await supabase.from('report_payment_methods').delete().eq('report_id', reportIdToUse);
-                // También eliminar registros previos de presencia MINPPAL para reinsertar
                 await supabase.from('report_minppal_presencia').delete().eq('report_id', reportIdToUse);
+                await supabase.from('report_entrepreneurs').delete().eq('report_id', reportIdToUse);
             }
 
             // Insertar Rubros
@@ -533,6 +557,20 @@ export default function ReportForm() {
 
                 const { error: presError } = await supabase.from('report_minppal_presencia').insert(presenciaData);
                 if (presError) throw presError;
+            }
+
+            // Insertar Emprendedores
+            if (entrepreneurs.length > 0) {
+                const entsData = entrepreneurs.filter(e => e.nombre.trim() && e.actividad.trim()).map(e => ({
+                    report_id: reportIdToUse,
+                    nombre: e.nombre,
+                    actividad: e.actividad,
+                    telefono: e.telefono || null
+                }));
+                if (entsData.length > 0) {
+                    const { error: entsError } = await supabase.from('report_entrepreneurs').insert(entsData);
+                    if (entsError) throw entsError;
+                }
             }
 
             alert(estadoReporte === 'borrador' ? 'Borrador guardado con éxito.' : '¡Informe enviado correctamente!');
@@ -795,19 +833,104 @@ export default function ReportForm() {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-3xl">
-                                <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400">
-                                    <Users size={24} />
-                                </div>
-                                <div className="flex-1 text-center">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Familias</label>
-                                    <input type="number" value={familias} onChange={(e) => setFamilias(Number(e.target.value))} className="w-full bg-transparent border-none p-0 text-xl font-black text-slate-800 text-center focus:ring-0" />
-                                </div>
-                                <div className="flex-1 text-right border-l border-slate-200">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-4">Personas</label>
-                                    <input type="number" value={personas} onChange={(e) => setPersonas(Number(e.target.value))} className="w-full bg-transparent border-none p-0 text-xl font-black text-slate-800 text-right pr-4 focus:ring-0" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-3xl">
+                                    <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400">
+                                        <Users size={24} />
+                                    </div>
+                                    <div className="flex-1 text-center">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Familias</label>
+                                        <input type="number" value={familias} onChange={(e) => setFamilias(Number(e.target.value))} className="w-full bg-transparent border-none p-0 text-xl font-black text-slate-800 text-center focus:ring-0" />
+                                    </div>
+                                    <div className="flex-1 text-right border-l border-slate-200">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-4">Personas</label>
+                                        <input type="number" value={personas} onChange={(e) => setPersonas(Number(e.target.value))} className="w-full bg-transparent border-none p-0 text-xl font-black text-slate-800 text-right pr-4 focus:ring-0" />
+                                    </div>
                                 </div>
                             </div>
+                        </div>
+                    </section>
+
+                    {/* NUEVA SECCIÓN: Participación de Emprendedores */}
+                    <section className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/40 border border-white">
+                        <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                                    <UserPlus size={20} />
+                                </div>
+                                <h2 className="text-lg font-black text-slate-800 uppercase tracking-tighter">Emprendedores</h2>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={addEntrepreneur}
+                                className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30 active:scale-90 transition-all font-black text-xs"
+                            >
+                                <Plus size={24} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {entrepreneurs.map((ent, index) => (
+                                <div key={index} className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4 relative group/ent">
+                                    <button
+                                        onClick={() => removeEntrepreneur(index)}
+                                        className="absolute -top-2 -right-2 w-8 h-8 bg-white text-red-500 rounded-full shadow-lg flex items-center justify-center active:scale-90 opacity-0 group-hover/ent:opacity-100 transition-all border border-red-50"
+                                    >
+                                        <X size={14} />
+                                    </button>
+
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre del Emprendedor</label>
+                                        <input
+                                            type="text"
+                                            value={ent.nombre}
+                                            onChange={(e) => updateEntrepreneur(index, 'nombre', e.target.value)}
+                                            className="w-full bg-white border-none rounded-2xl p-4 text-xs font-bold text-slate-900 focus:ring-4 focus:ring-indigo-500/10 transition-all uppercase"
+                                            placeholder="EJ: MARÍA PÉREZ"
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Actividad</label>
+                                            <div className="relative">
+                                                <input
+                                                    list={`ent-types-${index}`}
+                                                    value={ent.actividad}
+                                                    onChange={(e) => updateEntrepreneur(index, 'actividad', e.target.value)}
+                                                    className="w-full bg-white border-none rounded-2xl p-4 text-xs font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 appearance-none transition-all uppercase"
+                                                    placeholder="Seleccione o Escriba..."
+                                                />
+                                                <datalist id={`ent-types-${index}`}>
+                                                    {catalogos.entrepreneurTypes.map(t => <option key={t} value={t} />)}
+                                                </datalist>
+                                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono Contacto</label>
+                                            <input
+                                                type="text"
+                                                value={ent.telefono}
+                                                onChange={(e) => updateEntrepreneur(index, 'telefono', e.target.value)}
+                                                className="w-full bg-white border-none rounded-2xl p-4 text-xs font-bold text-slate-900 focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                                                placeholder="EJ: 0412-1234567"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {entrepreneurs.length === 0 && (
+                                <div className="py-12 text-center bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200">
+                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-300">
+                                        <UserPlus size={24} />
+                                    </div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-8 leading-relaxed">
+                                        ¿Hay emprendedores locales participando? <br/> Pulsa el botón superior para registrarlos.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </section>
 
