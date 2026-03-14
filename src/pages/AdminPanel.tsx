@@ -5,7 +5,7 @@ import {
     ChevronRight, LogOut, Search,
     MoreVertical, ShieldAlert, ShieldCheck,
     CreditCard as IdCard, RefreshCw, Plus, Trash2, Tag, Map as MapIcon,
-    Box, Briefcase, Ruler, ChevronDown
+    Box, Briefcase, Ruler, ChevronDown, SlidersHorizontal
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -103,13 +103,20 @@ export default function AdminPanel() {
     const [loadingEntrep, setLoadingEntrep] = useState(false);
     const [newEntrepName, setNewEntrepName] = useState('');
 
+    // Estados para Campos Personalizados de Emprendimiento
+    const [customFields, setCustomFields] = useState<{id: string, nombre: string, etiqueta: string, tipo: string, requerido: boolean, orden: number}[]>([]);
+    const [loadingFields, setLoadingFields] = useState(false);
+    const [newField, setNewField] = useState({ etiqueta: '', tipo: 'texto', requerido: false });
+    const [showFieldForm, setShowFieldForm] = useState(false);
+
     useEffect(() => {
         if (view === 'users') {
             fetchProfiles();
             fetchUnreadCounts();
         } else if (view === 'catalog') {
             fetchCatalogItems();
-            fetchEntrepreneurTypes(); // Cargar también tipos de emprendimiento
+            fetchEntrepreneurTypes();
+            if (catalogType === 'EMPRENDIMIENTO') fetchCustomFields();
         } else if (view === 'vulnerability') {
             fetchVulnerabilities();
         }
@@ -409,6 +416,40 @@ export default function AdminPanel() {
         } catch (err) {
             alert('No se puede eliminar porque está en uso en reportes.');
         }
+    }
+
+    // --- FUNCIONES DE CAMPOS PERSONALIZADOS ---
+    async function fetchCustomFields() {
+        try {
+            setLoadingFields(true);
+            const { data, error } = await supabase
+                .from('cat_emprendimiento_campos')
+                .select('*')
+                .order('orden', { ascending: true });
+            if (error) throw error;
+            setCustomFields((data || []).filter((f: any) => !['nombre', 'actividad', 'telefono'].includes(f.nombre)));
+        } catch (err) {
+            console.error('Error:', err);
+        } finally { setLoadingFields(false); }
+    }
+    async function addCustomField() {
+        if (!newField.etiqueta.trim()) return;
+        const nombre = newField.etiqueta.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        try {
+            const { error } = await supabase.from('cat_emprendimiento_campos').insert([{ nombre, etiqueta: newField.etiqueta.trim(), tipo: newField.tipo, requerido: newField.requerido, orden: customFields.length + 10 }]);
+            if (error) throw error;
+            setNewField({ etiqueta: '', tipo: 'texto', requerido: false });
+            setShowFieldForm(false);
+            fetchCustomFields();
+        } catch (err: any) { alert(err.code === '23505' ? 'Ya existe un campo con ese nombre.' : 'Error al guardar.'); }
+    }
+    async function deleteCustomField(id: string) {
+        if (!window.confirm('¿Eliminar este campo? Los datos ya guardados se conservarán.')) return;
+        try {
+            const { error } = await supabase.from('cat_emprendimiento_campos').delete().eq('id', id);
+            if (error) throw error;
+            fetchCustomFields();
+        } catch (err) { alert('Error al eliminar campo.'); }
     }
 
     // --- FUNCIONES DE VULNERABILIDAD ---
@@ -1078,8 +1119,99 @@ export default function AdminPanel() {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Campos Personalizados — solo visible en pestaña Emprendimiento */}
+                            {catalogType === 'EMPRENDIMIENTO' && (
+                                <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm space-y-8">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
+                                                <SlidersHorizontal size={22} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter">Campos Personalizados</h3>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Define información adicional que el Inspector deberá capturar de cada emprendedor</p>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setShowFieldForm(!showFieldForm)} className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">
+                                            <Plus size={16} /> Nuevo Campo
+                                        </button>
+                                    </div>
+                                    <div className="bg-slate-50 p-5 rounded-2xl border border-dashed border-slate-200">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Campos Base (no modificables)</p>
+                                        <div className="flex flex-wrap gap-3">
+                                            {['Nombre del Emprendedor', 'Tipo de Actividad', 'Teléfono de Contacto'].map(f => (
+                                                <div key={f} className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm">
+                                                    <div className="w-2 h-2 rounded-full bg-slate-300"></div>
+                                                    <span className="text-[10px] font-black text-slate-600 uppercase">{f}</span>
+                                                    <span className="text-[8px] font-bold text-slate-300 uppercase ml-2">FIJO</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {showFieldForm && (
+                                        <div className="bg-indigo-50/50 p-6 rounded-[2rem] border border-indigo-100 space-y-4">
+                                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Nuevo Campo Personalizado</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                                <div className="space-y-2">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre del Campo</label>
+                                                    <input type="text" value={newField.etiqueta} onChange={e => setNewField({ ...newField, etiqueta: e.target.value })} placeholder="EJ: Correo Electrónico" className="w-full bg-white border-none rounded-2xl p-4 text-sm font-bold text-slate-900 shadow-sm" />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Dato</label>
+                                                    <div className="relative">
+                                                        <select value={newField.tipo} onChange={e => setNewField({ ...newField, tipo: e.target.value })} className="w-full bg-white border-none rounded-2xl p-4 text-sm font-bold text-slate-700 appearance-none shadow-sm">
+                                                            <option value="texto">Texto Libre</option>
+                                                            <option value="numero">Número</option>
+                                                            <option value="email">Correo Electrónico</option>
+                                                            <option value="telefono">Teléfono</option>
+                                                        </select>
+                                                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3 cursor-pointer" onClick={() => setNewField({ ...newField, requerido: !newField.requerido })}>
+                                                    <div className={`w-12 h-6 rounded-full transition-colors relative ${newField.requerido ? 'bg-indigo-600' : 'bg-slate-200'}`}>
+                                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${newField.requerido ? 'left-7' : 'left-1'}`} />
+                                                    </div>
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Obligatorio</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-3">
+                                                <button onClick={addCustomField} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest active:scale-95 transition-all">Guardar Campo</button>
+                                                <button onClick={() => setShowFieldForm(false)} className="px-6 py-3 bg-slate-100 text-slate-500 rounded-2xl text-[11px] font-black uppercase tracking-widest active:scale-95 transition-all">Cancelar</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="space-y-3">
+                                        {loadingFields ? (
+                                            <div className="py-8 text-center"><div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div></div>
+                                        ) : customFields.length > 0 ? customFields.map(field => (
+                                            <div key={field.id} className="flex items-center justify-between p-5 bg-white rounded-2xl border border-slate-100 group hover:border-indigo-100 transition-all shadow-sm">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-500"><SlidersHorizontal size={16} /></div>
+                                                    <div>
+                                                        <p className="text-sm font-black text-slate-900 uppercase tracking-tighter">{field.etiqueta}</p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="text-[8px] font-black bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full uppercase">{field.tipo}</span>
+                                                            {field.requerido && <span className="text-[8px] font-black bg-red-50 text-red-400 px-2 py-0.5 rounded-full uppercase">Obligatorio</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => deleteCustomField(field.id)} className="p-3 bg-red-50 text-red-500 rounded-xl opacity-0 group-hover:opacity-100 hover:bg-red-500 hover:text-white transition-all active:scale-90">
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        )) : (
+                                            <div className="py-10 text-center bg-slate-50 rounded-[2rem] border border-dashed border-slate-200">
+                                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No hay campos adicionales. Pulsa "Nuevo Campo" para configurar uno.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
+
 
                     {/* VISTA: VULNERABILITY (Mapa de Vulnerabilidad) */}
                     {view === 'vulnerability' && (

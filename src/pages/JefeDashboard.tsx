@@ -614,20 +614,22 @@ export default function JefeDashboard() {
     }, [minppalPresencia, filteredReportIds, catalogos.fullCatalog]);
 
     const entrepreneurStats = useMemo(() => {
-        const counts: Record<string, number> = {};
+        // Agrupar por ESTADO para dar visión territorial al Jefe
+        const byState: Record<string, number> = {};
         let total = 0;
         entrepreneurs.forEach(e => {
             if (filteredReportIds.has(e.report_id)) {
-                const label = (e.actividad || 'OTRO').trim().toUpperCase();
-                counts[label] = (counts[label] || 0) + 1;
+                const rep = reports.find(r => r.id === e.report_id);
+                const estado = (rep?.estado_geografico || 'SIN ESTADO').trim().toUpperCase();
+                byState[estado] = (byState[estado] || 0) + 1;
                 total++;
             }
         });
-        const chartData = Object.entries(counts)
+        const chartData = Object.entries(byState)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
         return { chartData, total };
-    }, [entrepreneurs, filteredReportIds]);
+    }, [entrepreneurs, filteredReportIds, reports]);
 
 
     const inspectorReportData = useMemo(() => {

@@ -21,6 +21,7 @@ interface ReportDetails {
     estado_reporte: string;
     datos_formulario: any;
     presencia_detallada?: { nombre: string; productos: string[] }[];
+    entrepreneurs?: { nombre: string; actividad: string; telefono: string }[];
 }
 
 export default function ReportView() {
@@ -46,11 +47,12 @@ export default function ReportView() {
             if (error) throw error;
             if (!data) return;
 
-            const [itemsRes, payMethodsRes, presenciaRes, catalogRes] = await Promise.all([
+            const [itemsRes, payMethodsRes, presenciaRes, catalogRes, entrepreneursRes] = await Promise.all([
                 supabase.from('report_items').select('*').eq('report_id', id),
                 supabase.from('report_payment_methods').select('*').eq('report_id', id),
                 supabase.from('report_minppal_presencia').select('*').eq('report_id', id),
-                supabase.from('catalog_items').select('id, name, type').in('type', ['MINPPAL', 'ARTICULO'])
+                supabase.from('catalog_items').select('id, name, type').in('type', ['MINPPAL', 'ARTICULO']),
+                supabase.from('report_entrepreneurs').select('*').eq('report_id', id)
             ]);
 
             const catalogMap = (catalogRes.data || []).reduce((acc: any, item: any) => {
@@ -75,6 +77,7 @@ export default function ReportView() {
                 ...data,
                 payment_methods: payMethodsRes.data || [],
                 presencia_detallada: Object.values(presenciaAgrupada),
+                entrepreneurs: entrepreneursRes.data || [],
                 datos_formulario: {
                     ...(data.datos_formulario || {}),
                     rubros: itemsRes.data || [],
@@ -385,7 +388,44 @@ export default function ReportView() {
                         </div>
                     </div>
 
-                    {/* Sección 7: Comentarios / Observaciones */}
+                    {/* Sección 7: Emprendedores Participantes */}
+                    {report.entrepreneurs && report.entrepreneurs.length > 0 && (
+                        <div>
+                            <div className="flex items-center gap-3 border-b border-slate-100 pb-2 mb-6">
+                                <Users size={18} className="text-indigo-600" />
+                                <h2 className="text-xs font-black uppercase tracking-widest text-slate-800">Emprendedores Participantes</h2>
+                                <span className="ml-auto bg-indigo-100 text-indigo-700 text-[8px] font-black uppercase px-3 py-1 rounded-full tracking-widest">
+                                    {report.entrepreneurs.length} Registrado{report.entrepreneurs.length !== 1 ? 's' : ''}
+                                </span>
+                            </div>
+                            <div className="overflow-hidden rounded-2xl border border-slate-100">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-indigo-50/50">
+                                        <tr>
+                                            <th className="px-5 py-3 text-[9px] font-black text-indigo-400 uppercase tracking-widest">#</th>
+                                            <th className="px-5 py-3 text-[9px] font-black text-indigo-400 uppercase tracking-widest">Nombre</th>
+                                            <th className="px-5 py-3 text-[9px] font-black text-indigo-400 uppercase tracking-widest">Tipo de Actividad</th>
+                                            <th className="px-5 py-3 text-[9px] font-black text-indigo-400 uppercase tracking-widest">Teléfono</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {report.entrepreneurs.map((ent, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50/50">
+                                                <td className="px-5 py-3 text-[10px] font-black text-slate-400">{idx + 1}</td>
+                                                <td className="px-5 py-3 text-xs font-bold text-slate-800 uppercase">{ent.nombre}</td>
+                                                <td className="px-5 py-3">
+                                                    <span className="bg-indigo-50 text-indigo-700 text-[9px] font-black uppercase px-3 py-1 rounded-full">{ent.actividad}</span>
+                                                </td>
+                                                <td className="px-5 py-3 text-[10px] font-bold text-slate-500 font-mono">{ent.telefono || '—'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Sección 8: Comentarios / Observaciones */}
                     <div>
                         <div className="flex items-center gap-3 border-b border-slate-100 pb-2 mb-4">
                             <FileText size={16} className="text-blue-600" />
