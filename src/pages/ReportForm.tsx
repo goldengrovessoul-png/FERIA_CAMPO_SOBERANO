@@ -51,6 +51,7 @@ export default function ReportForm() {
         productos_minppal: [] as CatalogEntry[],
         entrepreneurTypes: [] as string[]
     });
+    const [customEntrepFields, setCustomEntrepFields] = useState<{id: string, nombre: string, etiqueta: string, tipo: string, requerido: boolean}[]>([]);
 
     // Estados del Formulario
     const [tipoActividad, setTipoActividad] = useState('FCS');
@@ -105,7 +106,7 @@ export default function ReportForm() {
 
     const [metodosPago, setMetodosPago] = useState<string[]>([]);
     const [rubros, setRubros] = useState<FoodItem[]>([]);
-    const [entrepreneurs, setEntrepreneurs] = useState<{ nombre: string, actividad: string, telefono: string }[]>([]);
+    const [entrepreneurs, setEntrepreneurs] = useState<{ nombre: string, actividad: string, telefono: string, datos_extras: Record<string, string> }[]>([]);
     const [observacionesRubros, setObservacionesRubros] = useState('');
     const [photos, setPhotos] = useState<string[]>([]);
     const [isRestoring, setIsRestoring] = useState(false);
@@ -217,6 +218,13 @@ export default function ReportForm() {
             const { data: entrepData } = await supabase.from('cat_emprendimiento_tipos').select('nombre').order('nombre', { ascending: true });
             newCatalogs.entrepreneurTypes = entrepData?.map(e => e.nombre) || [];
 
+            // Cargar campos personalizados de emprendimiento
+            const { data: customFieldsData } = await supabase
+                .from('cat_emprendimiento_campos')
+                .select('id, nombre, etiqueta, tipo, requerido')
+                .order('orden', { ascending: true });
+            setCustomEntrepFields((customFieldsData || []).filter((f: any) => !['nombre', 'actividad', 'telefono'].includes(f.nombre)));
+
             // Fallbacks si están vacíos
             if (newCatalogs.actividades.length === 0) newCatalogs.actividades = ["FCS", "FCS - Emblemática", "Bodega móvil", "Cielo Abierto"];
             if (newCatalogs.medidas.length === 0) newCatalogs.medidas = ["Toneladas (tn)", "Gramos (gr)", "Kilogramos (kg)", "Unidades (und)", "Litros (lts)"];
@@ -303,7 +311,8 @@ export default function ReportForm() {
                 if (ents) setEntrepreneurs(ents.map((e: any) => ({
                     nombre: e.nombre,
                     actividad: e.actividad,
-                    telefono: e.telefono || ''
+                    telefono: e.telefono || '',
+                    datos_extras: e.datos_extras || {}
                 })));
             }
         } catch (error) {
@@ -372,11 +381,18 @@ export default function ReportForm() {
         setRubros(newRubros);
     };
 
-    const addEntrepreneur = () => setEntrepreneurs([...entrepreneurs, { nombre: '', actividad: '', telefono: '' }]);
+    const addEntrepreneur = () => setEntrepreneurs([...entrepreneurs, { nombre: '', actividad: '', telefono: '', datos_extras: {} }]);
     const removeEntrepreneur = (index: number) => setEntrepreneurs(entrepreneurs.filter((_, i) => i !== index));
     const updateEntrepreneur = (index: number, field: string, value: string) => {
         const newEnts = [...entrepreneurs];
-        (newEnts[index] as any)[field] = value.toUpperCase();
+        if (field === 'datos_extras_key') {
+            // No se usa directamente
+        } else if (field.startsWith('extra_')) {
+            const key = field.replace('extra_', '');
+            newEnts[index] = { ...newEnts[index], datos_extras: { ...newEnts[index].datos_extras, [key]: value } };
+        } else {
+            (newEnts[index] as any)[field] = value.toUpperCase();
+        }
         setEntrepreneurs(newEnts);
     };
 
@@ -565,7 +581,8 @@ export default function ReportForm() {
                     report_id: reportIdToUse,
                     nombre: e.nombre,
                     actividad: e.actividad,
-                    telefono: e.telefono || null
+                    telefono: e.telefono || null,
+                    datos_extras: Object.keys(e.datos_extras || {}).length > 0 ? e.datos_extras : null
                 }));
                 if (entsData.length > 0) {
                     const { error: entsError } = await supabase.from('report_entrepreneurs').insert(entsData);
@@ -918,6 +935,31 @@ export default function ReportForm() {
                                             />
                                         </div>
                                     </div>
+
+                                    {/* Campos Personalizados Dinámicos */}
+                                    {customEntrepFields.length > 0 && (
+                                        <div className="pt-2 border-t border-slate-100 space-y-4">
+                                            <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Datos Adicionales</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {customEntrepFields.map(field => (
+                                                    <div key={field.id} className="space-y-2">
+                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                                            {field.etiqueta}
+                                                            {field.requerido && <span className="text-red-400 ml-1">*</span>}
+                                                        </label>
+                                                        <input
+                                                            type={field.tipo === 'email' ? 'email' : field.tipo === 'numero' ? 'number' : field.tipo === 'telefono' ? 'tel' : 'text'}
+                                                            value={ent.datos_extras?.[field.nombre] || ''}
+                                                            onChange={(e) => updateEntrepreneur(index, `extra_${field.nombre}`, e.target.value)}
+                                                            required={field.requerido}
+                                                            className="w-full bg-white border-none rounded-2xl p-4 text-xs font-bold text-slate-900 focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                                                            placeholder={`EJ: ${field.tipo === 'email' ? 'correo@ejemplo.com' : field.tipo === 'telefono' ? '0412-0000000' : field.tipo === 'numero' ? '0' : field.etiqueta}`}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
 

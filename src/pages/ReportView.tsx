@@ -409,15 +409,31 @@ export default function ReportView() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
-                                        {report.entrepreneurs.map((ent, idx) => (
-                                            <tr key={idx} className="hover:bg-slate-50/50">
-                                                <td className="px-5 py-3 text-[10px] font-black text-slate-400">{idx + 1}</td>
-                                                <td className="px-5 py-3 text-xs font-bold text-slate-800 uppercase">{ent.nombre}</td>
-                                                <td className="px-5 py-3">
-                                                    <span className="bg-indigo-50 text-indigo-700 text-[9px] font-black uppercase px-3 py-1 rounded-full">{ent.actividad}</span>
-                                                </td>
-                                                <td className="px-5 py-3 text-[10px] font-bold text-slate-500 font-mono">{ent.telefono || '—'}</td>
-                                            </tr>
+                                        {report.entrepreneurs.map((ent: any, idx: number) => (
+                                            <>
+                                                <tr key={`ent-${idx}`} className="hover:bg-slate-50/50">
+                                                    <td className="px-5 py-3 text-[10px] font-black text-slate-400">{idx + 1}</td>
+                                                    <td className="px-5 py-3 text-xs font-bold text-slate-800 uppercase">{ent.nombre}</td>
+                                                    <td className="px-5 py-3">
+                                                        <span className="bg-indigo-50 text-indigo-700 text-[9px] font-black uppercase px-3 py-1 rounded-full">{ent.actividad}</span>
+                                                    </td>
+                                                    <td className="px-5 py-3 text-[10px] font-bold text-slate-500 font-mono">{ent.telefono || '—'}</td>
+                                                </tr>
+                                                {ent.datos_extras && Object.keys(ent.datos_extras).length > 0 && (
+                                                    <tr key={`ent-extra-${idx}`} className="bg-indigo-50/30">
+                                                        <td></td>
+                                                        <td colSpan={3} className="px-5 py-2">
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {Object.entries(ent.datos_extras).map(([k, v]) => (
+                                                                    <span key={k} className="text-[8px] font-bold bg-white border border-indigo-100 text-indigo-600 px-3 py-1 rounded-full uppercase">
+                                                                        {k.replace(/_/g, ' ')}: {String(v)}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </>
                                         ))}
                                     </tbody>
                                 </table>
