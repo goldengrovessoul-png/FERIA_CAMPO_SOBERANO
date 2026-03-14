@@ -114,6 +114,15 @@ interface PaymentMethod {
     metodo: string;
 }
 
+interface ReportMinppalPresencia {
+    report_id: string;
+    ente_id: string;
+    producto_id: string | null;
+    presente: boolean;
+    ente_name?: string;
+    producto_name?: string;
+}
+
 const StateTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
@@ -166,6 +175,7 @@ export default function JefeDashboard() {
     const [searchTerm, setSearchTerm] = useState('');
     const [inspectors, setInspectors] = useState<Record<string, { nombre: string; apellido: string }>>({});
     const [vulnerabilityData, setVulnerabilityData] = useState<VulnerabilityData[]>([]);
+    const [minppalPresencia, setMinppalPresencia] = useState<ReportMinppalPresencia[]>([]);
 
     // Filtros
     const [filterEstado, setFilterEstado] = useState('Todos');
@@ -181,7 +191,8 @@ export default function JefeDashboard() {
         entes: [] as string[],
         articulos: [] as string[],
         actividades: [] as string[],
-        minppal: [] as string[]
+        minppal: [] as string[],
+        fullCatalog: [] as { id: string, name: string, type: string, parent_id?: string }[]
     });
     const [debug, setDebug] = useState<string>('Iniciando...');
 
@@ -247,7 +258,7 @@ export default function JefeDashboard() {
             setDebug('Sincronizando catálogos...');
             const { data: catalogData } = await supabase
                 .from('catalog_items')
-                .select('type,name')
+                .select('id, type, name, parent_id')
                 .eq('is_active', true);
 
             if (catalogData) {
@@ -259,7 +270,8 @@ export default function JefeDashboard() {
                     entes: normalize(catalogData, 'ENTE'),
                     articulos: normalize(catalogData, 'ARTICULO'),
                     actividades: normalize(catalogData, 'ACTIVIDAD'),
-                    minppal: normalize(catalogData, 'MINPPAL')
+                    minppal: normalize(catalogData, 'MINPPAL'),
+                    fullCatalog: catalogData.map((i: any) => ({ id: i.id, name: i.name, type: i.type, parent_id: i.parent_id }))
                 });
             }
 
@@ -270,13 +282,15 @@ export default function JefeDashboard() {
                 const reportIds = reportsData.map((r: any) => r.id);
                 console.log('Cargando items de reportes...');
                 
-                const [itemsRes, paymentRes] = await Promise.all([
+                const [itemsRes, paymentRes, presRes] = await Promise.all([
                     supabase.from('report_items').select('report_id,rubro,cantidad').in('report_id', reportIds),
-                    supabase.from('report_payment_methods').select('report_id,metodo').in('report_id', reportIds)
+                    supabase.from('report_payment_methods').select('report_id,metodo').in('report_id', reportIds),
+                    supabase.from('report_minppal_presencia').select('*').in('report_id', reportIds)
                 ]);
 
                 if (itemsRes.data) setReportItems(itemsRes.data);
                 if (paymentRes.data) setPaymentMethods(paymentRes.data);
+                if (presRes.data) setMinppalPresencia(presRes.data);
 
                 // Nombres de Inspectores
                 const inspectorIds = Array.from(new Set(reportsData.map((r: any) => r.inspector_id).filter((id: any) => id)));
@@ -514,14 +528,10 @@ export default function JefeDashboard() {
 
 
     const rubroPresenceData = useMemo(() => {
-        const RUBROS_LIST = catalogos.articulos.length > 0 ? catalogos.articulos : [
-            "Aceite uso doméstico", "Arroz blanco", "Arvejas", "Atún enlatado", "Avena en hojuelas",
-            "Azúcar", "Café", "Caraotas blancas", "Caraotas rojas", "Carne de cerdo", "Carne de res",
-            "Cartón de huevos", "Frijol", "Harina de maíz amarillo", "Harina de maíz blanco",
-            "Harina de trigo", "Jabón en polvo", "Leche en polvo", "Leche líquida UHT", "Lentejas",
-            "Margarina", "Mayonesa", "Mortadela", "Pasta corta", "Pasta larga", "Pescados variados",
-            "Pollo", "Queso", "Sal", "Salsa de tomate", "Sardina enlatada", "Sardina fresca"
-        ];
+        // Grafico C: Solo productos de terceros/privados (sin parent_id)
+        const RUBROS_LIST = catalogos.fullCatalog
+            .filter(i => i.type === 'ARTICULO' && !i.parent_id)
+            .map(i => i.name);
 
         const counts: Record<string, number> = {};
         RUBROS_LIST.forEach(r => counts[r.toLowerCase()] = 0);
@@ -539,18 +549,14 @@ export default function JefeDashboard() {
             name,
             value: counts[name.toLowerCase()] || 0,
             total: filteredReports.length
-        }));
-    }, [reportItems, filteredReportIds, catalogos.articulos, filteredReports.length]);
+        })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
+    }, [reportItems, filteredReportIds, catalogos.fullCatalog, filteredReports.length]);
 
     const rubroVolumeData = useMemo(() => {
-        const RUBROS_LIST = catalogos.articulos.length > 0 ? catalogos.articulos : [
-            "Aceite uso doméstico", "Arroz blanco", "Arvejas", "Atún enlatado", "Avena en hojuelas",
-            "Azúcar", "Café", "Caraotas blancas", "Caraotas rojas", "Carne de cerdo", "Carne de res",
-            "Cartón de huevos", "Frijol", "Harina de maíz amarillo", "Harina de maíz blanco",
-            "Harina de trigo", "Jabón en polvo", "Leche en polvo", "Leche líquida UHT", "Lentejas",
-            "Margarina", "Mayonesa", "Mortadela", "Pasta corta", "Pasta larga", "Pescados variados",
-            "Pollo", "Queso", "Sal", "Salsa de tomate", "Sardina enlatada", "Sardina fresca"
-        ];
+        // Grafico D: Solo productos de terceros/privados (sin parent_id)
+        const RUBROS_LIST = catalogos.fullCatalog
+            .filter(i => i.type === 'ARTICULO' && !i.parent_id)
+            .map(i => i.name);
 
         const sums: Record<string, number> = {};
         RUBROS_LIST.forEach(r => sums[r.toLowerCase()] = 0);
@@ -567,8 +573,35 @@ export default function JefeDashboard() {
         return RUBROS_LIST.map(name => ({
             name,
             value: sums[name.toLowerCase()] || 0
-        }));
-    }, [reportItems, filteredReportIds, catalogos.articulos]);
+        })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
+    }, [reportItems, filteredReportIds, catalogos.fullCatalog]);
+
+    const minppalProductsPresenceData = useMemo(() => {
+        // Grafico A: Solo productos de entes MINPPAL (con parent_id)
+        const productMap: Record<string, { name: string, ente: string }> = {};
+        catalogos.fullCatalog.forEach(c => {
+            if (c.type === 'ARTICULO' && c.parent_id) {
+                const ente = catalogos.fullCatalog.find(e => e.id === c.parent_id)?.name || 'ENTE';
+                productMap[c.id] = { name: c.name, ente: ente };
+            }
+        });
+
+        const counts: Record<string, number> = {};
+
+        minppalPresencia.forEach(pres => {
+            if (filteredReportIds.has(pres.report_id) && pres.presente && pres.producto_id) {
+                const info = productMap[pres.producto_id];
+                if (info) {
+                    const label = `${info.name} (${info.ente})`;
+                    counts[label] = (counts[label] || 0) + 1;
+                }
+            }
+        });
+
+        return Object.entries(counts)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+    }, [minppalPresencia, filteredReportIds, catalogos.fullCatalog]);
 
 
     const inspectorReportData = useMemo(() => {
@@ -599,6 +632,8 @@ export default function JefeDashboard() {
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
     }, [filteredReports]);
+
+
 
     const qualitySummary = useMemo(() => {
         const standards = [
@@ -668,9 +703,56 @@ export default function JefeDashboard() {
         }).sort((a, b) => b.count - a.count);
     }, [filteredReports, catalogos.minppal]);
 
+    const minppalConsolidatedData = useMemo(() => {
+        const totalReports = filteredReports.length || 1;
+        const counts: Record<string, number> = {};
+        
+        // Inicializar con entes del catálogo
+        catalogos.minppal.forEach(name => counts[name] = 0);
+
+        // Contar reportes únicos por ente usando la nueva tabla
+        const entesByReport: Record<string, Set<string>> = {};
+        
+        minppalPresencia.forEach(pres => {
+            if (filteredReportIds.has(pres.report_id) && pres.presente) {
+                const ente = catalogos.fullCatalog.find(c => c.id === pres.ente_id);
+                if (ente) {
+                    if (!entesByReport[pres.report_id]) entesByReport[pres.report_id] = new Set();
+                    entesByReport[pres.report_id].add(ente.name);
+                }
+            }
+        });
+
+        // Sumar ocurrencias
+        Object.values(entesByReport).forEach(entes => {
+            entes.forEach(name => {
+                counts[name] = (counts[name] || 0) + 1;
+            });
+        });
+
+        // Formatear para el gráfico (Image 2 style)
+        return Object.entries(counts).map(([name, count]) => ({
+            name,
+            count,
+            pct: Math.round((count / totalReports) * 100),
+            // Asignar color según el grupo (propuesta estética similar a la imagen 2)
+            color: ['NUTRICACAO', 'NUTRICHICHA', 'RED NUTRIVIDA', 'NUTRIMAÑOCO'].includes(name.toUpperCase()) ? '#10B981' : '#F43F5E'
+        })).sort((a, b) => b.count - a.count);
+    }, [minppalPresencia, filteredReportIds, catalogos.minppal, catalogos.fullCatalog, filteredReports.length]);
+
     const exportToExcel = () => {
         // Preparar los datos para Excel
         const dataToExport = filteredReports.map(report => {
+            // Obtener productos de MINPPAL para este reporte
+            const productosPresentes = minppalPresencia
+                .filter(p => p.report_id === report.id && p.presente)
+                .map(p => {
+                    const prodName = catalogos.fullCatalog.find(c => c.id === p.producto_id)?.name || 'GENERAL';
+                    const enteName = catalogos.fullCatalog.find(c => c.id === p.ente_id)?.name || 'ENTE';
+                    return `${enteName}: ${prodName}`;
+                })
+                .join(' | ');
+
             return {
                 'ID': report.id,
                 'FECHA': new Date(report.fecha).toLocaleDateString('es-VE'),
@@ -687,7 +769,8 @@ export default function JefeDashboard() {
                 'HORTALIZAS (TON)': report.total_hortalizas,
                 'VERDURAS (TON)': report.total_verduras,
                 'SECOS (TON)': report.total_secos,
-                'ESTADO REPORTE': report.estado_reporte
+                'ESTADO REPORTE': report.estado_reporte,
+                'PRODUCTOS MINPPAL': productosPresentes
             };
         });
 
@@ -853,7 +936,7 @@ export default function JefeDashboard() {
                                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 leading-none">{kpi.label}</p>
                                 <p className="text-3xl font-black text-slate-900 tracking-tighter">{kpi.value.toString()}</p>
                             </div>
-                            <div className={`w - 14 h - 14 ${kpi.bg} ${kpi.color} rounded - 2xl flex items - center justify - center shadow - inner`}>{kpi.icon}</div>
+                            <div className={`w-14 h-14 ${kpi.bg} ${kpi.color} rounded-2xl flex items-center justify-center shadow-inner`}>{kpi.icon}</div>
                         </div>
                     ))}
                 </div>
@@ -939,6 +1022,67 @@ export default function JefeDashboard() {
                                                 position="right"
                                                 formatter={(v: any) => `${v}% `}
                                                 style={{ fontSize: 9, fontWeight: 900, fill: '#92400e' }}
+                                            />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-8 mt-4">
+                        {/* SECCIÓN ADICIONAL: Seguimiento Operativo MINPPAL (Estilo Imagen 2) */}
+                        <div className="p-10 flex flex-col items-center bg-white border-y border-slate-50">
+                            <div className="text-center mb-10">
+                                <h4 className="text-xl font-black text-slate-900 uppercase tracking-tighter">SEGUIMIENTO OPERATIVO DE LAS FERIAS DEL CAMPO SOBERANO</h4>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Consolidado de Respuestas Afirmativas (Presencia de Productos de las empresas de MINPPAL)</p>
+                            </div>
+                            
+                            <div className="h-[450px] w-full max-w-5xl">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={minppalConsolidatedData} margin={{ top: 40, right: 30, left: 20, bottom: 60 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
+                                        <XAxis 
+                                            dataKey="name" 
+                                            axisLine={false}
+                                            tickLine={false}
+                                            interval={0}
+                                            tick={({ x, y, payload }) => (
+                                                <g transform={`translate(${x},${y})`}>
+                                                    <text 
+                                                        x={0} 
+                                                        y={0} 
+                                                        dy={16} 
+                                                        textAnchor="middle" 
+                                                        fill="#64748b" 
+                                                        style={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', width: '80px' }}
+                                                    >
+                                                        {payload.value.length > 20 ? `${payload.value.substring(0, 18)}...` : payload.value}
+                                                    </text>
+                                                </g>
+                                            )}
+                                        />
+                                        <YAxis hide />
+                                        <Tooltip 
+                                            cursor={{ fill: 'transparent' }}
+                                            contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }}
+                                            formatter={(v: any) => [`${v} Jornadas`, 'Presencia']}
+                                        />
+                                        <Bar dataKey="count" radius={[12, 12, 0, 0]} barSize={60}>
+                                            {minppalConsolidatedData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                            ))}
+                                            <LabelList 
+                                                dataKey="pct" 
+                                                position="top" 
+                                                formatter={(v: any) => `${v}%`} 
+                                                style={{ fontSize: 20, fontWeight: 900, fill: '#64748b' }} 
+                                                offset={15}
+                                            />
+                                            <LabelList 
+                                                dataKey="count" 
+                                                position="center" 
+                                                style={{ fontSize: 24, fontWeight: 900, fill: 'white' }} 
                                             />
                                         </Bar>
                                     </BarChart>
@@ -1263,13 +1407,16 @@ export default function JefeDashboard() {
                     {/* Columna Derecha (4) - KPIs de Soporte */}
                     <div className="lg:col-span-4 space-y-8">
 
-                        {/* Despliegue Ente MINPPAL */}
+                        {/* Despliegue Ente MINPPAL (Participación General) */}
                         <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-                            <div className="flex items-center gap-4 mb-8">
+                            <div className="flex items-center gap-4 mb-4">
                                 <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 shadow-inner"><Building2 size={20} /></div>
-                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Despliegue Ente MINPPAL</h3>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Despliegue Ente MINPPAL</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Participación en jornadas</p>
+                                </div>
                             </div>
-                            <div className="h-[300px]">
+                            <div className="h-[250px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={enteReportData} layout="vertical" margin={{ left: -10, right: 40, top: 0, bottom: 0 }}>
                                         <defs>
@@ -1290,6 +1437,10 @@ export default function JefeDashboard() {
                             </div>
                         </div>
 
+
+
+
+
                         {/* Distribución de Alimentos */}
                         <div className="bg-white rounded-[3rem] p-8 shadow-sm border border-slate-100 flex flex-col items-center">
                             <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-10 text-center">Distribución Alimentaria (TN)</h3>
@@ -1305,7 +1456,7 @@ export default function JefeDashboard() {
                                             stroke="none"
                                             cornerRadius={8}
                                         >
-                                            {foodDistribution.map((_, index) => <Cell key={`cell - ${index} `} fill={MONO_BLUE[index % MONO_BLUE.length]} />)}
+                                            {foodDistribution.map((_, index) => <Cell key={`cell-${index}`} fill={MONO_BLUE[index % MONO_BLUE.length]} />)}
                                         </Pie>
                                         <Tooltip
                                             contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
@@ -1365,12 +1516,59 @@ export default function JefeDashboard() {
                     </div>
                 </div>
 
-                {/* Secciones de Rubros (Full Width Inferior) */}
+                {/* SECCIÓN: PRESENCIA DE PRODUCTOS ESPECÍFICOS MINPPAL (Gráfico A) */}
+                <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 mt-8">
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner">
+                            <Package size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Presencia de Productos Específicos (Nivel Entes MINPPAL)</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Gráfico A: Detección de artículos por marca/ente en campo</p>
+                        </div>
+                    </div>
+                    <div className="h-[600px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={minppalProductsPresenceData} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorAmberA" x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0%" stopColor="#F59E0B" stopOpacity={1} />
+                                        <stop offset="100%" stopColor="#F59E0B" stopOpacity={0.6} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                <XAxis type="number" hide />
+                                <YAxis
+                                    dataKey="name"
+                                    type="category"
+                                    width={240}
+                                    tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }}
+                                    interval={0}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
+                                <Tooltip 
+                                    cursor={{ fill: '#fef3c7' }} 
+                                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 60px rgba(0,0,0,0.1)' }} 
+                                    formatter={(v) => [`${v} Jornadas`, 'Presencia']}
+                                />
+                                <Bar dataKey="value" fill="url(#colorAmberA)" radius={[0, 12, 12, 0]} barSize={14}>
+                                    <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#b45309' }} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10 mt-8">
                     <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100">
-                        <div className="flex items-center gap-4 mb-10">
-                            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner"><Package size={24} /></div>
-                            <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Presencia por Rubro</h3>
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-inner">
+                                <Building2 size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Rubros del Sector Privado (Terceros)</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Gráfico C: Presencia de rubros base en campo</p>
+                            </div>
                         </div>
                         <div className="h-[700px]">
                             <ResponsiveContainer width="100%" height="100%">
@@ -1379,14 +1577,14 @@ export default function JefeDashboard() {
                                     <XAxis type="number" hide />
                                     <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
                                     <Tooltip cursor={{ fill: '#fcfcfc' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                    <Bar dataKey="value" fill="url(#colorAmber3)" radius={[0, 10, 10, 0]} barSize={12}>
+                                    <Bar dataKey="value" fill="url(#colorIndigo3)" radius={[0, 10, 10, 0]} barSize={12}>
                                         <defs>
-                                            <linearGradient id="colorAmber3" x1="0" y1="0" x2="1" y2="0">
-                                                <stop offset="0%" stopColor="#D97706" stopOpacity={1} />
-                                                <stop offset="100%" stopColor="#D97706" stopOpacity={0.6} />
+                                            <linearGradient id="colorIndigo3" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="#4F46E5" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#4F46E5" stopOpacity={0.6} />
                                             </linearGradient>
                                         </defs>
-                                        <LabelList dataKey="value" position="right" style={{ fontSize: 9, fontWeight: 900, fill: '#D97706' }} />
+                                        <LabelList dataKey="value" position="right" style={{ fontSize: 9, fontWeight: 900, fill: '#4F46E5' }} />
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
@@ -1394,9 +1592,14 @@ export default function JefeDashboard() {
                     </div>
 
                     <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100">
-                        <div className="flex items-center gap-4 mb-10">
-                            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-inner"><TrendingUp size={24} /></div>
-                            <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Volumen Total por Rubro (TN/Und)</h3>
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-inner">
+                                <TrendingUp size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Volumen por Rubro Privado</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Gráfico D: Consolidado de distribución (Terceros)</p>
+                            </div>
                         </div>
                         <div className="h-[700px]">
                             <ResponsiveContainer width="100%" height="100%">

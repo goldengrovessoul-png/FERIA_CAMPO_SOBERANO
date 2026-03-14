@@ -20,6 +20,7 @@ interface ReportDetails {
     longitud: number;
     estado_reporte: string;
     datos_formulario: any;
+    presencia_detallada?: { nombre: string; productos: string[] }[];
 }
 
 export default function ReportView() {
@@ -45,16 +46,38 @@ export default function ReportView() {
             if (error) throw error;
             if (!data) return;
 
-            const { data: items } = await supabase.from('report_items').select('*').eq('report_id', id);
-            const { data: payMethods } = await supabase.from('report_payment_methods').select('*').eq('report_id', id);
+            const [itemsRes, payMethodsRes, presenciaRes, catalogRes] = await Promise.all([
+                supabase.from('report_items').select('*').eq('report_id', id),
+                supabase.from('report_payment_methods').select('*').eq('report_id', id),
+                supabase.from('report_minppal_presencia').select('*').eq('report_id', id),
+                supabase.from('catalog_items').select('id, name, type').in('type', ['MINPPAL', 'ARTICULO'])
+            ]);
+
+            const catalogMap = (catalogRes.data || []).reduce((acc: any, item: any) => {
+                acc[item.id] = item.name;
+                return acc;
+            }, {});
+
+            // Agrupar presencia por ente para visualizar mejor
+            const presenciaAgrupada = (presenciaRes.data || []).reduce((acc: any, item: any) => {
+                if (!acc[item.ente_id]) {
+                    acc[item.ente_id] = {
+                        nombre: catalogMap[item.ente_id] || 'Ente Desconocido',
+                        productos: []
+                    };
+                }
+                acc[item.ente_id].productos.push(catalogMap[item.producto_id] || 'Producto Desconocido');
+                return acc;
+            }, {});
 
             // Unificar datos para que el renderizado de abajo funcione
             const formattedData = {
                 ...data,
-                payment_methods: payMethods || [],
+                payment_methods: payMethodsRes.data || [],
+                presencia_detallada: Object.values(presenciaAgrupada),
                 datos_formulario: {
                     ...(data.datos_formulario || {}),
-                    rubros: items || [],
+                    rubros: itemsRes.data || [],
                     observaciones_rubros: data.datos_formulario?.observaciones_rubros || data.datos_formulario?.comentarios || 'Sin observaciones'
                 }
             };
@@ -222,57 +245,42 @@ export default function ReportView() {
                         </div>
                     </div>
 
-                    {/* NUEVA SECCIÓN: Presencia productos MINPPAL */}
+                    {/* SECCIÓN: Presencia productos MINPPAL */}
                     <div>
                         <div className="flex items-center gap-3 border-b border-slate-100 pb-2 mb-6">
                             <CheckCircle2 size={18} className="text-blue-600" />
                             <h2 className="text-xs font-black uppercase tracking-widest text-slate-800">Presencia productos MINPPAL</h2>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 print:grid-cols-3 gap-y-4 gap-x-6">
-                            {(() => {
-                                const labels: Record<string, string> = {
-                                    lacteosLosAndes: 'Lácteos Los Andes',
-                                    indugram: 'Indugram',
-                                    diana: 'Diana',
-                                    salbiven: 'Salbiven',
-                                    argeliaLaya: 'Argelia Laya',
-                                    redNutrivida: 'Red Nutrivida (INN)',
-                                    nutricacao: 'Nutricacao',
-                                    nutrimanoco: 'Nutrimañoco'
-                                };
-                                const presencia = report.datos_formulario?.presenciaMinppal;
-
-                                if (Array.isArray(presencia)) {
-                                    return presencia.length > 0 ? presencia.map(nombre => (
-                                        <div key={nombre} className="flex items-center gap-3">
-                                            <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 bg-blue-600 text-white">
-                                                <CheckCircle2 size={10} strokeWidth={4} />
+                        
+                        {report.presencia_detallada && report.presencia_detallada.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                {report.presencia_detallada.map((ente, idx) => (
+                                    <div key={idx} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-5 h-5 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0">
+                                                <CheckCircle2 size={12} strokeWidth={4} />
                                             </div>
-                                            <span className="text-[9px] font-bold uppercase leading-snug text-slate-800">
-                                                {nombre}
-                                            </span>
+                                            <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-900">{ente.nombre}</h3>
                                         </div>
-                                    )) : (
-                                        <p className="text-[10px] text-slate-400 uppercase tracking-widest col-span-full">Sin presencia MINPPAL reportada</p>
-                                    );
-                                }
-
-                                // Old object fallback
-                                return Object.entries(labels).map(([key, label]) => {
-                                    const isPresent = (presencia || {})[key];
-                                    return (
-                                        <div key={key} className="flex items-center gap-3">
-                                            <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${isPresent ? 'bg-blue-600 text-white' : 'bg-slate-200 text-transparent'}`}>
-                                                <CheckCircle2 size={10} strokeWidth={4} />
-                                            </div>
-                                            <span className={`text-[9px] font-bold uppercase leading-snug ${isPresent ? 'text-slate-800' : 'text-slate-300'}`}>
-                                                {label}
-                                            </span>
+                                        
+                                        <div className="flex flex-wrap gap-2 pl-8">
+                                            {ente.productos.map((prod, pIdx) => (
+                                                <div key={pIdx} className="bg-white px-3 py-1 rounded-full border border-slate-200 text-[8px] font-bold text-slate-600 uppercase">
+                                                    {prod}
+                                                </div>
+                                            ))}
+                                            {ente.productos.length === 0 && (
+                                                <span className="text-[8px] italic text-slate-400 uppercase">Sin productos específicos registrados</span>
+                                            )}
                                         </div>
-                                    );
-                                });
-                            })()}
-                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No se reportó presencia de productos MINPPAL</p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Sección 3: Condiciones Técnicas */}

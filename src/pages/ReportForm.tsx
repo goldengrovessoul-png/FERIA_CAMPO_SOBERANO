@@ -12,6 +12,13 @@ interface FoodItem {
     cantidad: number;
 }
 
+interface CatalogEntry {
+    id: string;
+    name: string;
+    type: string;
+    parent_id?: string | null;
+}
+
 const METODOS_PAGO = [
     "Efectivo [Moneda Nacional]",
     "Efectivo [Divisa]",
@@ -40,7 +47,8 @@ export default function ReportForm() {
         rubros: [] as string[],
         medidas: [] as string[],
         actividades: [] as string[],
-        minppal: [] as string[]
+        minppal: [] as CatalogEntry[],
+        productos_minppal: [] as CatalogEntry[]
     });
 
     // Estados del Formulario
@@ -91,7 +99,8 @@ export default function ReportForm() {
         presenciaFrutas: false, // Nuevo
     });
 
-    const [presenciaMinppal, setPresenciaMinppal] = useState<string[]>([]);
+    // Estructura: { enteId: string, productosIds: string[] }[]
+    const [presenciaEntes, setPresenciaEntes] = useState<{ enteId: string, productosIds: string[] }[]>([]);
 
     const [metodosPago, setMetodosPago] = useState<string[]>([]);
     const [rubros, setRubros] = useState<FoodItem[]>([]);
@@ -121,7 +130,7 @@ export default function ReportForm() {
                 nombreComuna, comunas, familias, personas,
                 totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalSecos,
                 responsableActividad, responsableComuna, condiciones,
-                presenciaMinppal, metodosPago, rubros, observacionesRubros, photos,
+                presenciaEntes, metodosPago, rubros, observacionesRubros, photos,
                 guiaSicaEstado, guiaSicaFoto
             };
             localStorage.setItem('fcs_report_draft', JSON.stringify(draftData));
@@ -131,7 +140,7 @@ export default function ReportForm() {
         nombreComuna, comunas, familias, personas,
         totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalSecos,
         responsableActividad, responsableComuna, condiciones,
-        presenciaMinppal, metodosPago, rubros, observacionesRubros, photos,
+        presenciaEntes, metodosPago, rubros, observacionesRubros, photos,
         guiaSicaEstado, guiaSicaFoto,
         reportId, isRestoring, loadingCatalogs
     ]);
@@ -160,7 +169,7 @@ export default function ReportForm() {
                 setResponsableActividad(data.responsableActividad || { nombre: '', cedula: '', telefono: '' });
                 setResponsableComuna(data.responsableComuna || { nombre: '', cedula: '', telefono: '' });
                 setCondiciones(data.condiciones || { bodegaLimpia: false, personalSuficiente: false, comunidadNotificada: false, entornoLimpio: false, presenciaProteina: false, presenciaHortalizas: false, presenciaFrutas: false });
-                setPresenciaMinppal(data.presenciaMinppal || []);
+                setPresenciaEntes(data.presenciaEntes || []);
                 setMetodosPago(data.metodosPago || []);
                 setRubros(data.rubros || []);
                 setObservacionesRubros(data.observacionesRubros || '');
@@ -179,7 +188,7 @@ export default function ReportForm() {
         try {
             setLoadingCatalogs(true);
             const [catalogRes, dpaRes] = await Promise.all([
-                supabase.from('catalog_items').select('type, name').eq('is_active', true).order('name', { ascending: true }),
+                supabase.from('catalog_items').select('id, type, name, parent_id').eq('is_active', true).order('name', { ascending: true }),
                 supabase.from('venezuela_dpa').select('*').limit(2000)
             ]);
 
@@ -193,16 +202,17 @@ export default function ReportForm() {
             const newCatalogs = {
                 estados: data.filter((i: any) => i.type === 'ESTADO').map((i: any) => i.name),
                 empresas: data.filter((i: any) => i.type === 'ENTE').map((i: any) => i.name),
-                rubros: data.filter((i: any) => i.type === 'ARTICULO').map((i: any) => i.name),
+                rubros: data.filter((i: any) => i.type === 'ARTICULO' && !i.parent_id).map((i: any) => i.name),
                 medidas: data.filter((i: any) => i.type === 'MEDIDA').map((i: any) => i.name),
                 actividades: data.filter((i: any) => i.type === 'ACTIVIDAD').map((i: any) => i.name),
-                minppal: data.filter((i: any) => i.type === 'MINPPAL').map((i: any) => i.name)
+                minppal: data.filter((i: any) => i.type === 'MINPPAL').map((i: any) => ({ id: i.id, name: i.name, type: i.type })),
+                productos_minppal: data.filter((i: any) => i.type === 'ARTICULO' && i.parent_id !== null).map((i: any) => ({ id: i.id, name: i.name, type: i.type, parent_id: i.parent_id }))
             };
 
             // Fallbacks si están vacíos
             if (newCatalogs.actividades.length === 0) newCatalogs.actividades = ["FCS", "FCS - Emblemática", "Bodega móvil", "Cielo Abierto"];
             if (newCatalogs.medidas.length === 0) newCatalogs.medidas = ["Toneladas (tn)", "Gramos (gr)", "Kilogramos (kg)", "Unidades (und)", "Litros (lts)"];
-            if (newCatalogs.minppal.length === 0) newCatalogs.minppal = ["LÁCTEOS LOS ANDES", "INDUGRAM", "DIANA", "SALBIVEN", "ARGELIA LAYA", "RED NUTRIVIDA", "NUTRICACAO", "NUTRIMAÑOCO"];
+            if (newCatalogs.minppal.length === 0) newCatalogs.minppal = [];
 
             setCatalogos(newCatalogs);
 
@@ -252,26 +262,12 @@ export default function ReportForm() {
                     setResponsableComuna(df.responsables.comuna);
                 }
                 if (df.condiciones) setCondiciones(df.condiciones);
-                if (df.presenciaMinppal) {
-                    if (Array.isArray(df.presenciaMinppal)) {
-                        setPresenciaMinppal(df.presenciaMinppal);
-                    } else {
-                        // Compatibilidad hacia atrás
-                        const keysMap: Record<string, string> = {
-                            lacteosLosAndes: 'LÁCTEOS LOS ANDES',
-                            indugram: 'INDUGRAM',
-                            diana: 'DIANA',
-                            salbiven: 'SALBIVEN',
-                            argeliaLaya: 'ARGELIA LAYA',
-                            redNutrivida: 'RED NUTRIVIDA',
-                            nutricacao: 'NUTRICACAO',
-                            nutrimanoco: 'NUTRIMAÑOCO'
-                        };
-                        const arr = Object.keys(df.presenciaMinppal)
-                            .filter(key => df.presenciaMinppal[key] === true)
-                            .map(key => keysMap[key] || key.toUpperCase());
-                        setPresenciaMinppal(arr);
-                    }
+                if (df.presenciaEntes) {
+                    setPresenciaEntes(df.presenciaEntes);
+                } else if (df.presenciaMinppal) {
+                    // Mapear datos antiguos a la nueva estructura
+                    // Como no tenemos los IDs de los entes antiguos fácilmente aquí,
+                    // esta parte será un poco limitada hasta que se recarguen los catálogos
                 }
                 if (df.observaciones_rubros) setObservacionesRubros(df.observaciones_rubros);
                 if (df.photos) setPhotos(df.photos);
@@ -328,12 +324,28 @@ export default function ReportForm() {
         }
     };
 
-    const toggleMinppal = (item: string) => {
-        if (presenciaMinppal.includes(item)) {
-            setPresenciaMinppal(presenciaMinppal.filter(m => m !== item));
+    const toggleEnte = (enteId: string) => {
+        const existe = presenciaEntes.find(p => p.enteId === enteId);
+        if (existe) {
+            setPresenciaEntes(presenciaEntes.filter(p => p.enteId !== enteId));
         } else {
-            setPresenciaMinppal([...presenciaMinppal, item]);
+            setPresenciaEntes([...presenciaEntes, { enteId, productosIds: [] }]);
         }
+    };
+
+    const toggleProductoEnte = (enteId: string, productoId: string) => {
+        setPresenciaEntes(prev => prev.map(p => {
+            if (p.enteId === enteId) {
+                const yaEsta = p.productosIds.includes(productoId);
+                return {
+                    ...p,
+                    productosIds: yaEsta 
+                        ? p.productosIds.filter(id => id !== productoId)
+                        : [...p.productosIds, productoId]
+                };
+            }
+            return p;
+        }));
     };
 
     const addRubro = () => setRubros([...rubros, { rubro: '', empaque: '', medida: 'kg', precio: '', cantidad: 1 }]);
@@ -437,7 +449,7 @@ export default function ReportForm() {
                 datos_formulario: {
                     responsables: { actividad: responsableActividad, comuna: responsableComuna },
                     condiciones,
-                    presenciaMinppal,
+                    presenciaEntes,
                     observaciones_rubros: observacionesRubros,
                     photos
                 }
@@ -467,6 +479,8 @@ export default function ReportForm() {
             if (reportId) {
                 await supabase.from('report_items').delete().eq('report_id', reportIdToUse);
                 await supabase.from('report_payment_methods').delete().eq('report_id', reportIdToUse);
+                // También eliminar registros previos de presencia MINPPAL para reinsertar
+                await supabase.from('report_minppal_presencia').delete().eq('report_id', reportIdToUse);
             }
 
             // Insertar Rubros
@@ -491,6 +505,34 @@ export default function ReportForm() {
                 }));
                 const { error: pagosError } = await supabase.from('report_payment_methods').insert(pagosData);
                 if (pagosError) throw pagosError;
+            }
+
+            // Insertar Presencia MINPPAL Detallada
+            if (presenciaEntes.length > 0) {
+                const presenciaData: any[] = [];
+                presenciaEntes.forEach(ente => {
+                    if (ente.productosIds.length > 0) {
+                        ente.productosIds.forEach(prodId => {
+                            presenciaData.push({
+                                report_id: reportIdToUse,
+                                ente_id: ente.enteId,
+                                producto_id: prodId,
+                                presente: true
+                            });
+                        });
+                    } else {
+                        // Si el ente está presente pero no se marcaron productos específicos
+                        presenciaData.push({
+                            report_id: reportIdToUse,
+                            ente_id: ente.enteId,
+                            producto_id: null,
+                            presente: true
+                        });
+                    }
+                });
+
+                const { error: presError } = await supabase.from('report_minppal_presencia').insert(presenciaData);
+                if (presError) throw presError;
             }
 
             alert(estadoReporte === 'borrador' ? 'Borrador guardado con éxito.' : '¡Informe enviado correctamente!');
@@ -1031,26 +1073,74 @@ export default function ReportForm() {
 
                     {/* SECCIÓN: Presencia productos MINPPAL */}
                     <section className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/40 border border-white">
-                        <div className="flex items-center gap-3 mb-8">
+                        <div className="flex items-center gap-3 mb-2">
                             <div className="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
                                 <CheckCircle2 size={20} />
                             </div>
                             <h2 className="text-lg font-black text-slate-800 uppercase tracking-tighter">Presencia productos MINPPAL</h2>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {catalogos.minppal.map((item) => (
-                                <button
-                                    key={item}
-                                    type="button"
-                                    onClick={() => toggleMinppal(item)}
-                                    className={`flex items-center gap-4 p-4 rounded-2xl transition-all border-2 ${presenciaMinppal.includes(item) ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-50 border-transparent text-slate-400'}`}
-                                >
-                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${presenciaMinppal.includes(item) ? 'bg-blue-600 text-white' : 'bg-slate-200 text-transparent'}`}>
-                                        <CheckCircle2 size={14} strokeWidth={3} />
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-8 ml-13">Vincule los entes presentes y sus respectivos productos</p>
+
+                        <div className="space-y-4">
+                            {catalogos.minppal.map((ente) => {
+                                const enteSeleccionado = presenciaEntes.find(p => p.enteId === ente.id);
+                                const productosDelEnte = catalogos.productos_minppal.filter(p => p.parent_id === ente.id);
+
+                                return (
+                                    <div key={ente.id} className={`rounded-[2rem] border-2 transition-all overflow-hidden ${enteSeleccionado ? 'border-blue-100 bg-white' : 'border-slate-50 bg-slate-50/50'}`}>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleEnte(ente.id)}
+                                            className={`w-full flex items-center gap-4 p-5 transition-all ${enteSeleccionado ? 'bg-blue-50/50' : ''}`}
+                                        >
+                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all shadow-sm ${enteSeleccionado ? 'bg-blue-600 text-white' : 'bg-white text-slate-200 border border-slate-100'}`}>
+                                                <CheckCircle2 size={16} strokeWidth={3} />
+                                            </div>
+                                            <div className="flex-1 text-left">
+                                                <span className={`text-[11px] font-black uppercase tracking-tight ${enteSeleccionado ? 'text-blue-900' : 'text-slate-400'}`}>
+                                                    {ente.name}
+                                                </span>
+                                            </div>
+                                            {enteSeleccionado && productosDelEnte.length > 0 && (
+                                                <div className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">
+                                                    {enteSeleccionado.productosIds.length} / {productosDelEnte.length} Prod.
+                                                </div>
+                                            )}
+                                        </button>
+
+                                        {enteSeleccionado && productosDelEnte.length > 0 && (
+                                            <div className="p-5 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                <div className="col-span-full h-px bg-blue-100/50 mb-2"></div>
+                                                {productosDelEnte.map(prod => (
+                                                    <button
+                                                        key={prod.id}
+                                                        type="button"
+                                                        onClick={() => toggleProductoEnte(ente.id, prod.id)}
+                                                        className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${enteSeleccionado.productosIds.includes(prod.id) ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-white border-slate-100 text-slate-400 opacity-60'}`}
+                                                    >
+                                                        <div className={`w-4 h-4 rounded flex items-center justify-center ${enteSeleccionado.productosIds.includes(prod.id) ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-transparent'}`}>
+                                                            <Plus size={10} strokeWidth={4} />
+                                                        </div>
+                                                        <span className="text-[10px] font-bold uppercase tracking-tight">{prod.name}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        
+                                        {enteSeleccionado && productosDelEnte.length === 0 && (
+                                            <div className="px-14 pb-5">
+                                                <p className="text-[9px] font-bold text-slate-300 italic uppercase">Sin productos vinculados en el catálogo</p>
+                                            </div>
+                                        )}
                                     </div>
-                                    <span className="text-[10px] font-bold uppercase tracking-tight text-left">{item}</span>
-                                </button>
-                            ))}
+                                );
+                            })}
+                            
+                            {catalogos.minppal.length === 0 && (
+                                <div className="py-10 text-center bg-slate-50 rounded-[2rem] border border-dashed border-slate-200">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No hay empresas MINPPAL registradas</p>
+                                </div>
+                            )}
                         </div>
                     </section>
 

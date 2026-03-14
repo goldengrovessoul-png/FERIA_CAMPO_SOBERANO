@@ -78,9 +78,11 @@ export default function AdminPanel() {
     const [catalogType, setCatalogType] = useState<'RUBRO' | 'ENTE' | 'ESTADO' | 'ACTIVIDAD' | 'MEDIDA' | 'ARTICULO' | 'MINPPAL'>('RUBRO');
     const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
     const [rubrosForSelect, setRubrosForSelect] = useState<{ id: string, name: string }[]>([]);
+    const [minppalForSelect, setMinppalForSelect] = useState<{ id: string, name: string }[]>([]);
     const [loadingCatalog, setLoadingCatalog] = useState(false);
     const [newCatalogName, setNewCatalogName] = useState('');
     const [selectedParentId, setSelectedParentId] = useState('');
+    const [selectedMinppalId, setSelectedMinppalId] = useState('');
 
     // Estados para Vulnerabilidad
     const [vulnerabilities, setVulnerabilities] = useState<VulnerabilityData[]>([]);
@@ -279,6 +281,15 @@ export default function AdminPanel() {
                     .eq('is_active', true)
                     .order('name', { ascending: true });
                 setRubrosForSelect(rubros || []);
+
+                // También cargar las empresas MINPPAL
+                const { data: minppal } = await supabase
+                    .from('catalog_items')
+                    .select('id, name')
+                    .eq('type', 'MINPPAL')
+                    .eq('is_active', true)
+                    .order('name', { ascending: true });
+                setMinppalForSelect(minppal || []);
             }
         } catch (error) {
             console.error('Error fetching catalogs:', error);
@@ -295,8 +306,11 @@ export default function AdminPanel() {
                 name: newCatalogName.trim().toUpperCase()
             };
 
-            if (catalogType === 'ARTICULO' && selectedParentId) {
-                insertData.parent_id = selectedParentId;
+            if (catalogType === 'ARTICULO') {
+                if (selectedParentId) insertData.parent_id = selectedParentId;
+                // Si se selecciona un MINPPAL, usamos seleccionador de jerarquía
+                // Para simplificar la misión de Gonzalo, vamos a permitir vincular un ARTICULO a un MINPPAL directamente
+                if (selectedMinppalId) insertData.parent_id = selectedMinppalId;
             }
 
             const { error } = await supabase
@@ -306,6 +320,7 @@ export default function AdminPanel() {
             if (error) throw error;
             setNewCatalogName('');
             setSelectedParentId('');
+            setSelectedMinppalId('');
             fetchCatalogItems();
         } catch (error: any) {
             if (error.code === '23505') {
@@ -897,22 +912,48 @@ export default function AdminPanel() {
                                     </div>
 
                                     {catalogType === 'ARTICULO' && (
-                                        <div className="space-y-2 w-full">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                                                Vincular a Rubro (Opcional)
-                                            </label>
-                                            <div className="relative">
-                                                <select
-                                                    value={selectedParentId}
-                                                    onChange={e => setSelectedParentId(e.target.value)}
-                                                    className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-100 transition-all appearance-none"
-                                                >
-                                                    <option value="">-- Sin Vincular --</option>
-                                                    {rubrosForSelect.map(r => (
-                                                        <option key={r.id} value={r.id}>{r.name}</option>
-                                                    ))}
-                                                </select>
-                                                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                                    Vincular a Rubro (Categoría)
+                                                </label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={selectedParentId}
+                                                        onChange={e => {
+                                                            setSelectedParentId(e.target.value);
+                                                            if (e.target.value) setSelectedMinppalId('');
+                                                        }}
+                                                        className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-100 transition-all appearance-none"
+                                                    >
+                                                        <option value="">-- Sin Vincular --</option>
+                                                        {rubrosForSelect.map(r => (
+                                                            <option key={r.id} value={r.id}>{r.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1">
+                                                    O Vincular a Empresa MINPPAL
+                                                </label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={selectedMinppalId}
+                                                        onChange={e => {
+                                                            setSelectedMinppalId(e.target.value);
+                                                            if (e.target.value) setSelectedParentId('');
+                                                        }}
+                                                        className="w-full bg-blue-50/30 border-2 border-blue-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-200 transition-all appearance-none"
+                                                    >
+                                                        <option value="">-- Producido por --</option>
+                                                        {minppalForSelect.map(m => (
+                                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-blue-400 pointer-events-none" size={18} />
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -950,7 +991,7 @@ export default function AdminPanel() {
                                                         <>
                                                             <span className="text-slate-200">|</span>
                                                             <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest">
-                                                                RUBRO: {item.parent.name}
+                                                                VINCULADO A: {item.parent.name}
                                                             </p>
                                                         </>
                                                     )}
