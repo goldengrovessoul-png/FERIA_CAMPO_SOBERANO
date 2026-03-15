@@ -4,7 +4,7 @@ import {
     BarChart3, Users, LogOut, Search,
     TrendingUp, Package,
     Activity, RefreshCw, Home,
-    ChevronDown, Award, Building2, Eraser, MessageSquare, Clock
+    ChevronDown, Award, Building2, Eraser, Star
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -81,7 +81,9 @@ interface Report {
     total_secos: number;
     latitud: number;
     longitud: number;
-    datos_formulario: any;
+    datos_formulario?: any; 
+    rating_value?: number;
+    audit_summary?: any;
     estado_reporte: string;
     inspector_id?: string;
     guia_sica_estado?: string | null;
@@ -207,62 +209,57 @@ export default function JefeDashboard() {
     // Solo ejecutar fetchData cuando el auth ya esté resuelto y tengamos sesión
     useEffect(() => {
         if (!authLoading && session?.access_token) {
-            fetchData(session.access_token);
+            fetchData();
         }
     }, [authLoading, session?.access_token]);
 
-    const fetchData = async (accessToken?: string) => {
+    const fetchData = async () => {
         try {
             setLoading(true);
-            setDebug('Iniciando carga...');
-            console.log("fetchData started");
+            setDebug('Iniciando carga inteligente...');
+            
+            // 1. Carga Paginada de Reportes (ULTRA-LITE con Caching de DB)
+            const allReports: Report[] = [];
+            let page = 0;
+            const pageSize = 20; 
+            let keepFetching = true;
 
-            // Usar el token del AuthContext (ya resuelto) o pedir uno nuevo como fallback
-            let token = accessToken;
-            if (!token) {
-                const { data: sessionData } = await supabase.auth.getSession();
-                token = sessionData?.session?.access_token;
+            setDebug('Conectando con base de datos...');
+
+            while (keepFetching) {
+                // CONSULTA OPTIMIZADA: No tocamos datos_formulario (donde están las fotos)
+                // Usamos las nuevas columnas rating_value y audit_summary que cree en la DB
+                const { data: pageData, error: pageError } = await supabase
+                    .from('reports')
+                    .select('id, fecha, tipo_actividad, empresa, estado_geografico, municipio, parroquia, personas, familias, comunas, total_proteina, total_frutas, total_hortalizas, total_verduras, total_secos, latitud, longitud, estado_reporte, inspector_id, guia_sica_estado, rating_value, audit_summary')
+                    .eq('estado_reporte', 'enviado')
+                    .order('fecha', { ascending: false })
+                    .range(page * pageSize, (page + 1) * pageSize - 1);
+
+                if (pageError) throw pageError;
+
+                if (pageData && pageData.length > 0) {
+                    allReports.push(...(pageData as any[]));
+                    setReports([...allReports]); 
+                    setDebug(`Lote ${page + 1}: ${allReports.length} jornadas...`);
+                    
+                    // Pequeña pausa para permitir que la UI respire y procese los useMemo
+                    await new Promise(r => setTimeout(r, 100));
+
+                    if (pageData.length < pageSize) keepFetching = false;
+                    page++;
+                } else {
+                    keepFetching = false;
+                }
             }
-            console.log("Token:", token ? 'OK' : 'Sin token');
 
-            if (!token) {
-                setDebug('Error: No hay sesión activa. Inicie sesión de nuevo.');
+            if (allReports.length === 0) {
                 setLoading(false);
+                setDebug('No se encontraron reportes.');
                 return;
             }
 
-            // Usar fetch nativo para evitar el queueing interno del SDK
-
-
-            // 1. Cargar Reportes (Principal) - Modo Ultra-Lite
-            setDebug('Estableciendo conexión mínima (50 reportes)...');
-
-            const { data: rawReports, error: reportsError } = await supabase
-                .from('reports')
-                .select(`
-                    id, fecha, tipo_actividad, empresa, estado_geografico, municipio, 
-                    parroquia, personas, familias, comunas, total_proteina, total_frutas, 
-                    total_hortalizas, total_verduras, total_secos, latitud, longitud, 
-                    estado_reporte, inspector_id, guia_sica_estado
-                `)
-                .eq('estado_reporte', 'enviado')
-                .order('fecha', { ascending: false })
-                .limit(1000);
-
-            if (reportsError) {
-                console.error("DEBUG: Error cargando reportes:", reportsError);
-                setDebug(`Error Base Datos: ${reportsError.message}`);
-                throw reportsError;
-            }
-
-            const reportsData = (rawReports || []).map((r: any) => ({
-                ...r,
-                datos_formulario: { condiciones: {}, presenciaMinppal: {}, observaciones_rubros: '' }
-            }));
-
-            setReports(reportsData);
-
-            // 2. Cargar Catálogos (Básico para filtros)
+            // 2. Cargar Catálogos
             setDebug('Sincronizando catálogos...');
             const { data: catalogData } = await supabase
                 .from('catalog_items')
@@ -283,51 +280,56 @@ export default function JefeDashboard() {
                 });
             }
 
-            setDebug(`Conexión OK (${reportsData?.length} jornadas)`);
+            // 3. Cargar datos secundarios por bloques
+            const reportIds = allReports.map(r => r.id);
+            const chunkSize = 100;
+            const allItems: any[] = [];
+            const allPayments: any[] = [];
+            const allPresencia: any[] = [];
+            const allEntrepreneurs: any[] = [];
 
-            // 3. Cargar datos secundarios para esos 50 reportes (para que los gráficos no estén vacíos)
-            if (reportsData && reportsData.length > 0) {
-                const reportIds = reportsData.map((r: any) => r.id);
-                console.log('Cargando items de reportes...');
+            for (let i = 0; i < reportIds.length; i += chunkSize) {
+                const chunk = reportIds.slice(i, i + chunkSize);
+                setDebug(`Detalles: ${Math.round((i / reportIds.length) * 100)}%...`);
                 
                 const [itemsRes, paymentRes, presRes, entRes] = await Promise.all([
-                    supabase.from('report_items').select('report_id,rubro,cantidad').in('report_id', reportIds),
-                    supabase.from('report_payment_methods').select('report_id,metodo').in('report_id', reportIds),
-                    supabase.from('report_minppal_presencia').select('*').in('report_id', reportIds),
-                    supabase.from('report_entrepreneurs').select('*').in('report_id', reportIds)
+                    supabase.from('report_items').select('report_id,rubro,cantidad').in('report_id', chunk),
+                    supabase.from('report_payment_methods').select('report_id,metodo').in('report_id', chunk),
+                    supabase.from('report_minppal_presencia').select('*').in('report_id', chunk),
+                    supabase.from('report_entrepreneurs').select('*').in('report_id', chunk)
                 ]);
 
-                if (itemsRes.data) setReportItems(itemsRes.data);
-                if (paymentRes.data) setPaymentMethods(paymentRes.data);
-                if (presRes.data) setMinppalPresencia(presRes.data);
-                if (entRes.data) setEntrepreneurs(entRes.data);
-
-                // Nombres de Inspectores
-                const inspectorIds = Array.from(new Set(reportsData.map((r: any) => r.inspector_id).filter((id: any) => id)));
-                if (inspectorIds.length > 0) {
-                    const { data: profData } = await supabase
-                        .from('profiles')
-                        .select('id,nombre,apellido')
-                        .in('id', inspectorIds);
-
-                    if (profData) {
-                        const map: Record<string, { nombre: string; apellido: string }> = {};
-                        profData.forEach((p: any) => map[p.id] = { nombre: p.nombre, apellido: p.apellido });
-                        setInspectors(map);
-                    }
-                }
-                console.log('All secondary data fetched');
+                if (itemsRes.data) allItems.push(...itemsRes.data);
+                if (paymentRes.data) allPayments.push(...paymentRes.data);
+                if (presRes.data) allPresencia.push(...presRes.data);
+                if (entRes.data) allEntrepreneurs.push(...entRes.data);
             }
 
-            // 4. Cargar Datos de Vulnerabilidad
-            const { data: vData } = await supabase
-                .from('vulnerability_data')
-                .select('*');
+            setReportItems(allItems);
+            setPaymentMethods(allPayments);
+            setMinppalPresencia(allPresencia);
+            setEntrepreneurs(allEntrepreneurs);
+
+            // 4. Inspectores
+            const inspectorIds = Array.from(new Set(allReports.map(r => r.inspector_id).filter(id => id)));
+            if (inspectorIds.length > 0) {
+                const { data: profData } = await supabase.from('profiles').select('id,nombre,apellido').in('id', inspectorIds);
+                if (profData) {
+                    const map: Record<string, { nombre: string; apellido: string }> = {};
+                    profData.forEach((p: any) => map[p.id] = { nombre: p.nombre, apellido: p.apellido });
+                    setInspectors(map);
+                }
+            }
+
+            // 5. Vulnerabilidad
+            const { data: vData } = await supabase.from('vulnerability_data').select('*');
             if (vData) setVulnerabilityData(vData);
+
+            setDebug(`Carga completa: ${allReports.length} reportes.`);
 
         } catch (error: any) {
             console.error('Error fetching dashboard data:', error);
-            setDebug(`Error general: ${error.message || 'Desconocido'} `);
+            setDebug(`Error: ${error.message || 'Error de conexión'}`);
         } finally {
             setLoading(false);
             console.log('fetchData completed.');
@@ -345,7 +347,7 @@ export default function JefeDashboard() {
     };
 
     const filteredReports = useMemo(() => {
-        return reports.filter(r => {
+        return reports.filter((r: Report) => {
             const cleanSearch = searchTerm.trim().toLowerCase();
             const matchesSearch = !cleanSearch ||
                 (r.parroquia || '').toLowerCase().includes(cleanSearch) ||
@@ -631,6 +633,20 @@ export default function JefeDashboard() {
         return { chartData, total };
     }, [entrepreneurs, filteredReportIds, reports]);
 
+    const ratingData = useMemo(() => {
+        const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        filteredReports.forEach((r: Report) => {
+            const rating = Number(r.rating_value); 
+            if (!isNaN(rating) && rating >= 1 && rating <= 5) {
+                counts[rating as keyof typeof counts]++;
+            }
+        });
+        return Object.entries(counts).map(([star, value]) => ({
+            star: `${star} ★`,
+            value,
+            rating: Number(star)
+        }));
+    }, [filteredReports]);
 
     const inspectorReportData = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -671,8 +687,12 @@ export default function JefeDashboard() {
         ];
         const totalReports = filteredReports.length || 1;
         let totalPercentageSum = 0;
+        
         standards.forEach(key => {
-            const count = filteredReports.filter(r => r.datos_formulario?.condiciones?.[key]).length;
+            const count = filteredReports.filter((r: Report) => {
+                const cond = r.audit_summary;
+                return cond?.[key] === true;
+            }).length;
             totalPercentageSum += (count / totalReports) * 100;
         });
         return Math.round(totalPercentageSum / standards.length);
@@ -680,14 +700,14 @@ export default function JefeDashboard() {
 
     const minppalPresenceSummary = useMemo(() => {
         const totalReports = filteredReports.length || 1;
-        const count = filteredReports.filter(r => {
-            const minppal = r.datos_formulario?.presenciaMinppal;
-            if (!minppal) return false;
-            if (Array.isArray(minppal)) return minppal.length > 0;
-            return Object.values(minppal).some(v => v === true);
-        }).length;
-        return Math.round((count / totalReports) * 100);
-    }, [filteredReports]);
+        // Ahora usamos la tabla relacional minppalPresencia para este cálculo, es más fiable y ya está cargada
+        const distinctReportIdsWithMinppal = new Set(
+            minppalPresencia
+                .filter(p => p.presente && filteredReportIds.has(p.report_id))
+                .map(p => p.report_id)
+        );
+        return Math.round((distinctReportIdsWithMinppal.size / totalReports) * 100);
+    }, [filteredReports, minppalPresencia, filteredReportIds]);
 
     const MINPPAL_EMPRESAS_FALLBACK = [
         { id: 'lacteosLosAndes', label: 'LÁCTEOS LOS ANDES' },
@@ -702,71 +722,33 @@ export default function JefeDashboard() {
 
     const minppalDetailData = useMemo(() => {
         const totalReports = filteredReports.length || 1;
+        
+        const entesMap: Record<string, string> = {};
+        catalogos.fullCatalog.forEach(c => {
+            if (c.type === 'MINPPAL') entesMap[c.id] = c.name;
+        });
 
-        const empresasArray = catalogos.minppal.length > 0
-            ? catalogos.minppal
-            : MINPPAL_EMPRESAS_FALLBACK.map(e => e.label);
+        const counts: Record<string, number> = {};
+        minppalPresencia.forEach(pres => {
+            if (filteredReportIds.has(pres.report_id) && pres.presente) {
+                const name = entesMap[pres.ente_id] || 'DESCONOCIDO';
+                counts[name] = (counts[name] || 0) + 1;
+            }
+        });
 
-        return empresasArray.map(empresaName => {
-            const count = filteredReports.filter(r => {
-                const minppal = r.datos_formulario?.presenciaMinppal;
-                if (!minppal) return false;
+        const empresasUI = catalogos.minppal.length > 0 ? catalogos.minppal : MINPPAL_EMPRESAS_FALLBACK.map(e => e.label);
 
-                if (Array.isArray(minppal)) {
-                    return minppal.includes(empresaName);
-                }
-
-                // Formato viejo (objeto de booleanos)
-                const fallbackObj = MINPPAL_EMPRESAS_FALLBACK.find(e => e.label.toUpperCase() === empresaName.toUpperCase());
-                if (fallbackObj && minppal[fallbackObj.id] === true) return true;
-
-                return false;
-            }).length;
-
+        return empresasUI.map(name => {
+            const count = counts[name] || 0;
             return {
-                name: empresaName,
+                name,
                 count,
                 pct: Math.round((count / totalReports) * 100)
             };
         }).sort((a, b) => b.count - a.count);
-    }, [filteredReports, catalogos.minppal]);
+    }, [filteredReports, minppalPresencia, filteredReportIds, catalogos.fullCatalog, catalogos.minppal]);
 
-    const minppalConsolidatedData = useMemo(() => {
-        const totalReports = filteredReports.length || 1;
-        const counts: Record<string, number> = {};
-        
-        // Inicializar con entes del catálogo
-        catalogos.minppal.forEach(name => counts[name] = 0);
 
-        // Contar reportes únicos por ente usando la nueva tabla
-        const entesByReport: Record<string, Set<string>> = {};
-        
-        minppalPresencia.forEach(pres => {
-            if (filteredReportIds.has(pres.report_id) && pres.presente) {
-                const ente = catalogos.fullCatalog.find(c => c.id === pres.ente_id);
-                if (ente) {
-                    if (!entesByReport[pres.report_id]) entesByReport[pres.report_id] = new Set();
-                    entesByReport[pres.report_id].add(ente.name);
-                }
-            }
-        });
-
-        // Sumar ocurrencias
-        Object.values(entesByReport).forEach(entes => {
-            entes.forEach(name => {
-                counts[name] = (counts[name] || 0) + 1;
-            });
-        });
-
-        // Formatear para el gráfico (Image 2 style)
-        return Object.entries(counts).map(([name, count]) => ({
-            name,
-            count,
-            pct: Math.round((count / totalReports) * 100),
-            // Asignar color según el grupo (propuesta estética similar a la imagen 2)
-            color: ['NUTRICACAO', 'NUTRICHICHA', 'RED NUTRIVIDA', 'NUTRIMAÑOCO'].includes(name.toUpperCase()) ? '#10B981' : '#F43F5E'
-        })).sort((a, b) => b.count - a.count);
-    }, [minppalPresencia, filteredReportIds, catalogos.minppal, catalogos.fullCatalog, filteredReports.length]);
 
     const exportToExcel = () => {
         // Preparar los datos para Excel
@@ -843,7 +825,7 @@ export default function JefeDashboard() {
                     >
                         <FileDown size={18} /> Excel
                     </button>
-                    <button onClick={() => fetchData(session?.access_token)} className="flex-1 md:flex-none p-3 bg-slate-100 text-slate-600 hover:text-[#007AFF] hover:bg-blue-50 rounded-2xl transition-all border border-slate-200 flex justify-center">
+                    <button onClick={() => fetchData()} className="flex-1 md:flex-none p-3 bg-slate-100 text-slate-600 hover:text-[#007AFF] hover:bg-blue-50 rounded-2xl transition-all border border-slate-200 flex justify-center">
                         <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
                     </button>
                     <button onClick={() => navigate('/login')} className="flex-[3] md:flex-none flex items-center justify-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 shadow-lg">
@@ -1058,66 +1040,6 @@ export default function JefeDashboard() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-8 mt-4">
-                        {/* SECCIÓN ADICIONAL: Seguimiento Operativo MINPPAL (Estilo Imagen 2) */}
-                        <div className="p-10 flex flex-col items-center bg-white border-y border-slate-50">
-                            <div className="text-center mb-10">
-                                <h4 className="text-xl font-black text-slate-900 uppercase tracking-tighter">SEGUIMIENTO OPERATIVO DE LAS FERIAS DEL CAMPO SOBERANO</h4>
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Consolidado de Respuestas Afirmativas (Presencia de Productos de las empresas de MINPPAL)</p>
-                            </div>
-                            
-                            <div className="h-[450px] w-full max-w-5xl">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={minppalConsolidatedData} margin={{ top: 40, right: 30, left: 20, bottom: 60 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
-                                        <XAxis 
-                                            dataKey="name" 
-                                            axisLine={false}
-                                            tickLine={false}
-                                            interval={0}
-                                            tick={({ x, y, payload }) => (
-                                                <g transform={`translate(${x},${y})`}>
-                                                    <text 
-                                                        x={0} 
-                                                        y={0} 
-                                                        dy={16} 
-                                                        textAnchor="middle" 
-                                                        fill="#64748b" 
-                                                        style={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', width: '80px' }}
-                                                    >
-                                                        {payload.value.length > 20 ? `${payload.value.substring(0, 18)}...` : payload.value}
-                                                    </text>
-                                                </g>
-                                            )}
-                                        />
-                                        <YAxis hide />
-                                        <Tooltip 
-                                            cursor={{ fill: 'transparent' }}
-                                            contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }}
-                                            formatter={(v: any) => [`${v} Jornadas`, 'Presencia']}
-                                        />
-                                        <Bar dataKey="count" radius={[12, 12, 0, 0]} barSize={60}>
-                                            {minppalConsolidatedData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                            <LabelList 
-                                                dataKey="pct" 
-                                                position="top" 
-                                                formatter={(v: any) => `${v}%`} 
-                                                style={{ fontSize: 20, fontWeight: 900, fill: '#64748b' }} 
-                                                offset={15}
-                                            />
-                                            <LabelList 
-                                                dataKey="count" 
-                                                position="center" 
-                                                style={{ fontSize: 24, fontWeight: 900, fill: 'white' }} 
-                                            />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-                    </div>
                 </div>
                 {/* ── FIN PANEL MINPPAL ─────────────────────────────── */}
 
@@ -1527,7 +1449,7 @@ export default function JefeDashboard() {
                                     { label: 'Proteína', key: 'presenciaProteina', icon: <Award size={16} />, color: '#F59E0B' }
                                 ].map(item => {
                                     const total = filteredReports.length || 1;
-                                    const count = filteredReports.filter(r => r.datos_formulario?.condiciones?.[item.key]).length;
+                                    const count = filteredReports.filter(r => r.audit_summary?.[item.key]).length;
                                     const pct = Math.round((count / total) * 100);
                                     return (
                                         <div key={item.key} className="p-4 rounded-3xl border border-slate-50 bg-slate-50/50">
@@ -1731,83 +1653,68 @@ export default function JefeDashboard() {
                     </div>
                 </div>
 
-                {/* NOVEDADES DEL TERRENO: El toque humano de la gestión */}
+                {/* SECCIÓN: VALORACIÓN ESTATAL DE RUBROS (Sustituye a Novedades) */}
                 <div className="mt-8 bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 mb-12">
                     <div className="flex items-center justify-between mb-8">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner"><MessageSquare size={24} /></div>
+                            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shadow-inner">
+                                <Star size={24} fill="currentColor" />
+                            </div>
                             <div>
-                                <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Novedades del Terreno</h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Observaciones directas de los inspectores en campo</p>
+                                <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Calificación de Rubros (1-5)</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Distribución de valoraciones cuantitativas reportadas por inspectores</p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredReports
-                            .filter(r => {
-                                const obs = r.datos_formulario?.observaciones_rubros;
-                                return typeof obs === 'string' && obs.length > 0 && obs.toLowerCase() !== 'null';
-                            })
-                            .slice(0, 12)
-                            .map((r, idx) => {
-                                const inspector = r.inspector_id ? inspectors[r.inspector_id] : null;
-                                const fecha = new Date(r.fecha).toLocaleDateString('es-VE', {
-                                    day: '2-digit',
-                                    month: 'short',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                });
+                    <div className="h-[400px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={ratingData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
+                                <XAxis 
+                                    dataKey="star" 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fontSize: 12, fontWeight: 900, fill: '#64748b' }} 
+                                />
+                                <YAxis 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fontSize: 10, fontWeight: 700 }} 
+                                />
+                                <Tooltip 
+                                    cursor={{ fill: '#f8fafc' }} 
+                                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}
+                                    formatter={(value: any) => [`${value} Reportes`, 'Frecuencia']}
+                                />
+                                <Bar dataKey="value" radius={[12, 12, 0, 0]} barSize={80}>
+                                    {ratingData.map((entry: any, index: number) => {
+                                        // Semántica de colores: 1-2 Rojo, 3 Amarillo, 4-5 Verde
+                                        let color = '#22c55e'; // Verde
+                                        if (entry.rating <= 2) color = '#ef4444'; // Rojo
+                                        else if (entry.rating === 3) color = '#f59e0b'; // Ámbar/Amarillo
+                                        
+                                        return <Cell key={`cell-${index}`} fill={color} />;
+                                    })}
+                                    <LabelList dataKey="value" position="top" style={{ fontSize: 14, fontWeight: 900, fill: '#475569' }} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
 
-                                return (
-                                    <div key={r.id || idx} className="group relative bg-slate-50/50 hover:bg-white rounded-3xl p-6 border border-slate-100 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1 overflow-hidden">
-                                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                            <MessageSquare size={40} />
-                                        </div>
-
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-xs font-black text-indigo-600 border border-slate-100 shadow-sm">
-                                                {inspector ? `${inspector.nombre[0]}${inspector.apellido[0]} ` : <Users size={16} />}
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-black text-slate-900 leading-tight">
-                                                    {inspector ? `${inspector.nombre} ${inspector.apellido} ` : 'Inspector Desconocido'}
-                                                </p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider bg-indigo-50 px-2 py-0.5 rounded-full">{r.estado_geografico}</span>
-                                                    <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase">
-                                                        <Clock size={10} />
-                                                        {fecha}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <p className="text-sm font-semibold text-slate-600 italic leading-relaxed line-clamp-4 relative z-10">
-                                            "{r.datos_formulario.observaciones_rubros}"
-                                        </p>
-
-                                        <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase">{r.tipo_actividad}</span>
-                                            <button
-                                                onClick={() => navigate(`/ver-reporte/${r.id}`)}
-                                                className="text-[10px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-tighter"
-                                            >
-                                                Ver Detalle →
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        {filteredReports.filter(r => {
-                            const obs = r.datos_formulario?.observaciones_rubros;
-                            return typeof obs === 'string' && obs.length > 0 && obs.toLowerCase() !== 'null';
-                        }).length === 0 && (
-                                <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
-                                    <Activity size={48} className="opacity-20 mb-4" />
-                                    <p className="text-xs font-black uppercase tracking-widest">No hay novedades registradas con los filtros actuales</p>
-                                </div>
-                            )}
+                    <div className="mt-8 flex justify-center gap-8 border-t border-slate-50 pt-8">
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-['Outfit']">Prioridad Crítica</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-['Outfit']">Atención Requerida</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-['Outfit']">Operación Óptima</span>
+                        </div>
                     </div>
                 </div>
 

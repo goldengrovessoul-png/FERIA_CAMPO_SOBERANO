@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { MapPin, Camera, Save, Send, ArrowLeft, Plus, Trash2, Users, Package, Home, ChevronDown, User, CheckCircle2, AlertTriangle, X, FileText, UserPlus } from 'lucide-react';
+import { MapPin, Camera, Save, Send, ArrowLeft, Plus, Trash2, Users, Package, Home, ChevronDown, User, CheckCircle2, AlertTriangle, X, FileText, UserPlus, Star } from 'lucide-react';
 
 interface FoodItem {
     id?: string;
@@ -107,7 +107,7 @@ export default function ReportForm() {
     const [metodosPago, setMetodosPago] = useState<string[]>([]);
     const [rubros, setRubros] = useState<FoodItem[]>([]);
     const [entrepreneurs, setEntrepreneurs] = useState<{ nombre: string, actividad: string, telefono: string, datos_extras: Record<string, string> }[]>([]);
-    const [observacionesRubros, setObservacionesRubros] = useState('');
+    const [ratingRubros, setRatingRubros] = useState<number>(0);
     const [photos, setPhotos] = useState<string[]>([]);
     const [isRestoring, setIsRestoring] = useState(false);
 
@@ -133,7 +133,7 @@ export default function ReportForm() {
                 nombreComuna, comunas, familias, personas,
                 totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalSecos,
                 responsableActividad, responsableComuna, condiciones,
-                presenciaEntes, metodosPago, rubros, entrepreneurs, observacionesRubros, photos,
+                presenciaEntes, metodosPago, rubros, entrepreneurs, ratingRubros, photos,
                 guiaSicaEstado, guiaSicaFoto
             };
             localStorage.setItem('fcs_report_draft', JSON.stringify(draftData));
@@ -143,7 +143,7 @@ export default function ReportForm() {
         nombreComuna, comunas, familias, personas,
         totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalSecos,
         responsableActividad, responsableComuna, condiciones,
-        presenciaEntes, metodosPago, rubros, entrepreneurs, observacionesRubros, photos,
+        presenciaEntes, metodosPago, rubros, entrepreneurs, ratingRubros, photos,
         guiaSicaEstado, guiaSicaFoto,
         reportId, isRestoring, loadingCatalogs
     ]);
@@ -176,7 +176,7 @@ export default function ReportForm() {
                 setMetodosPago(data.metodosPago || []);
                 setRubros(data.rubros || []);
                 setEntrepreneurs(data.entrepreneurs || []);
-                setObservacionesRubros(data.observacionesRubros || '');
+                setRatingRubros(Number(data.ratingRubros) || 0);
                 setPhotos(data.photos || []);
                 setGuiaSicaEstado(data.guiaSicaEstado || '');
                 setGuiaSicaFoto(data.guiaSicaFoto || '');
@@ -285,7 +285,7 @@ export default function ReportForm() {
                     // Como no tenemos los IDs de los entes antiguos fácilmente aquí,
                     // esta parte será un poco limitada hasta que se recarguen los catálogos
                 }
-                if (df.observaciones_rubros) setObservacionesRubros(df.observaciones_rubros);
+                if (df.rating_rubros) setRatingRubros(Number(df.rating_rubros));
                 if (df.photos) setPhotos(df.photos);
 
                 // Cargar Guía SICA (Nuevos campos)
@@ -490,7 +490,7 @@ export default function ReportForm() {
                     responsables: { actividad: responsableActividad, comuna: responsableComuna },
                     condiciones,
                     presenciaEntes,
-                    observaciones_rubros: observacionesRubros,
+                    rating_rubros: ratingRubros,
                     photos
                 }
             };
@@ -1219,20 +1219,31 @@ export default function ReportForm() {
                             </div>
                         )}
 
-                        {/* Campo de Observaciones con Contador */}
-                        <div className="space-y-3 pt-6 border-t border-slate-100 mt-6">
-                            <div className="flex justify-between items-center px-1">
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Observaciones de Rubros</label>
-                                <span className={`text-[10px] font-black px-2 py-1 rounded-lg transition-all ${observacionesRubros.length >= 210 ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-blue-50 text-blue-600'}`}>
-                                    Quedan {220 - observacionesRubros.length} caracteres
-                                </span>
+                        {/* Valoración por Estrellas (1-5) */}
+                        <div className="space-y-4 pt-6 border-t border-slate-100 mt-6">
+                            <div className="flex flex-col items-center gap-4 py-6 bg-slate-50 rounded-[2rem] border border-slate-100 shadow-sm">
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Valoración de los Rubros</label>
+                                <div className="flex gap-3">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <button
+                                            key={star}
+                                            type="button"
+                                            onClick={() => setRatingRubros(star)}
+                                            className={`p-3 rounded-2xl transition-all duration-300 transform active:scale-90 ${ratingRubros >= star ? 'text-amber-500 bg-amber-50 scale-110 shadow-lg shadow-amber-200/50' : 'text-slate-300 hover:text-slate-400'}`}
+                                        >
+                                            <Star size={32} fill={ratingRubros >= star ? "currentColor" : "none"} strokeWidth={ratingRubros >= star ? 2.5 : 2} />
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="mt-2 text-[10px] font-black uppercase tracking-widest transition-all duration-500 h-4">
+                                    {ratingRubros === 1 && <span className="text-red-500">Deficiente (1/5)</span>}
+                                    {ratingRubros === 2 && <span className="text-orange-500">Regular (2/5)</span>}
+                                    {ratingRubros === 3 && <span className="text-amber-600">Aceptable (3/5)</span>}
+                                    {ratingRubros === 4 && <span className="text-emerald-500">Muy Bueno (4/5)</span>}
+                                    {ratingRubros === 5 && <span className="text-emerald-600 animate-bounce">Excelente (5/5)</span>}
+                                    {ratingRubros === 0 && <span className="text-slate-400">Seleccione una calificación</span>}
+                                </div>
                             </div>
-                            <textarea
-                                value={observacionesRubros}
-                                onChange={(e) => setObservacionesRubros(e.target.value.slice(0, 220))}
-                                placeholder="Escriba aquí cualquier problema o detalle con los rubros reportados..."
-                                className="w-full bg-slate-50 border-none rounded-3xl p-5 text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:ring-4 focus:ring-amber-500/10 transition-all resize-none h-32"
-                            />
                         </div>
                     </section>
 

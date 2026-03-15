@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, MapPin, Calendar, Download, FileText, Printer, User, Users, CheckCircle2, Home, Package } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Download, FileText, Printer, User, Users, CheckCircle2, Home, Package, Star } from 'lucide-react';
 
 interface ReportDetails {
     id: string;
@@ -470,14 +470,40 @@ export default function ReportView() {
                         </div>
                     )}
 
-                    {/* Sección 8: Comentarios / Observaciones */}
+                    {/* Sección 8: Valoración de los Rubros */}
                     <div>
                         <div className="flex items-center gap-3 border-b border-slate-100 pb-2 mb-4">
-                            <FileText size={16} className="text-blue-600" />
-                            <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-800">Comentarios y Observaciones del Inspector</h2>
+                            <Star size={16} className="text-amber-500" />
+                            <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-800">Valoración Cualitativa de Rubros</h2>
                         </div>
-                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 italic text-xs text-slate-600 leading-relaxed font-medium">
-                            {report.datos_formulario?.observaciones_rubros || report.datos_formulario?.comentarios || "Sin comentarios."}
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex flex-col items-center gap-3">
+                            {(() => {
+                                const rating = Number(report.datos_formulario?.rating_rubros || report.datos_formulario?.observaciones_rubros);
+                                if (!isNaN(rating) && rating > 0) {
+                                    return (
+                                        <>
+                                            <div className="flex gap-2">
+                                                {[1, 2, 3, 4, 5].map((s) => (
+                                                    <Star 
+                                                        key={s} 
+                                                        size={24} 
+                                                        className={rating >= s ? 'text-amber-500' : 'text-slate-200'} 
+                                                        fill={rating >= s ? 'currentColor' : 'none'} 
+                                                    />
+                                                ))}
+                                            </div>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                                Calificación: {rating} / 5
+                                            </p>
+                                        </>
+                                    );
+                                }
+                                return (
+                                    <p className="text-xs font-semibold text-slate-500 italic">
+                                        {report.datos_formulario?.observaciones_rubros || report.datos_formulario?.comentarios || "Sin valoración registrada."}
+                                    </p>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>

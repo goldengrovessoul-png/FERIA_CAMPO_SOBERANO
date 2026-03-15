@@ -99,12 +99,12 @@ export default function AdminPanel() {
     const [editingVulnerabilityId, setEditingVulnerabilityId] = useState<string | null>(null);
 
     // Estados para Emprendimiento (Admin)
-    const [entrepreneurTypes, setEntrepreneurTypes] = useState<{id: string, nombre: string}[]>([]);
+    const [entrepreneurTypes, setEntrepreneurTypes] = useState<{ id: string, nombre: string }[]>([]);
     const [loadingEntrep, setLoadingEntrep] = useState(false);
     const [newEntrepName, setNewEntrepName] = useState('');
 
     // Estados para Campos Personalizados de Emprendimiento
-    const [customFields, setCustomFields] = useState<{id: string, nombre: string, etiqueta: string, tipo: string, requerido: boolean, orden: number}[]>([]);
+    const [customFields, setCustomFields] = useState<{ id: string, nombre: string, etiqueta: string, tipo: string, requerido: boolean, orden: number }[]>([]);
     const [loadingFields, setLoadingFields] = useState(false);
     const [newField, setNewField] = useState({ etiqueta: '', tipo: 'texto', requerido: false });
     const [showFieldForm, setShowFieldForm] = useState(false);
@@ -1231,7 +1231,7 @@ export default function AdminPanel() {
                                         </p>
                                     </div>
                                     {editingVulnerabilityId && (
-                                        <button 
+                                        <button
                                             onClick={() => {
                                                 setEditingVulnerabilityId(null);
                                                 setNewVulnerability({
@@ -1316,9 +1316,8 @@ export default function AdminPanel() {
 
                                 <button
                                     onClick={addVulnerability}
-                                    className={`h-[65px] px-8 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl transition-all flex items-center gap-3 w-full justify-center active:scale-95 ${
-                                        editingVulnerabilityId ? 'bg-blue-600 shadow-blue-500/20' : 'bg-slate-900 shadow-slate-900/20'
-                                    }`}
+                                    className={`h-[65px] px-8 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl transition-all flex items-center gap-3 w-full justify-center active:scale-95 ${editingVulnerabilityId ? 'bg-blue-600 shadow-blue-500/20' : 'bg-slate-900 shadow-slate-900/20'
+                                        }`}
                                 >
                                     {editingVulnerabilityId ? <RefreshCw size={20} /> : <Plus size={20} />}
                                     {editingVulnerabilityId ? 'ACTUALIZAR PUNTO CRÍTICO' : 'GUARDAR PUNTO CRÍTICO'}
@@ -1335,12 +1334,11 @@ export default function AdminPanel() {
                                     vulnerabilities.map(v => (
                                         <div key={v.id} className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-50 shadow-sm hover:shadow-lg transition-all relative group">
                                             <div className="flex gap-6">
-                                                <div className={`w-14 h-14 rounded-2xl flex-shrink-0 flex items-center justify-center font-black text-xl text-white shadow-lg ${
-                                                    v.nivel_prioridad === 5 ? 'bg-red-900 shadow-red-900/20' :
+                                                <div className={`w-14 h-14 rounded-2xl flex-shrink-0 flex items-center justify-center font-black text-xl text-white shadow-lg ${v.nivel_prioridad === 5 ? 'bg-red-900 shadow-red-900/20' :
                                                     v.nivel_prioridad >= 4 ? 'bg-red-600 shadow-red-600/20' :
-                                                    v.nivel_prioridad === 3 ? 'bg-amber-500 shadow-amber-500/20' :
-                                                    'bg-emerald-500 shadow-emerald-500/20'
-                                                }`}>
+                                                        v.nivel_prioridad === 3 ? 'bg-amber-500 shadow-amber-500/20' :
+                                                            'bg-emerald-500 shadow-emerald-500/20'
+                                                    }`}>
                                                     {v.nivel_prioridad}
                                                 </div>
                                                 <div className="flex-1 space-y-1">
