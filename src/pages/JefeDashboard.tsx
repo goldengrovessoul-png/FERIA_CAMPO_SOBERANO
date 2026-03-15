@@ -4,7 +4,7 @@ import {
     BarChart3, Users, LogOut, Search,
     TrendingUp, Package,
     Activity, RefreshCw, Home,
-    ChevronDown, Award, Building2, Eraser, Star
+    ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -388,6 +388,68 @@ export default function JefeDashboard() {
     }, [reports, searchTerm, filterEstado, filterTipo, filterEnte, filterRubro, startDate, endDate, reportItems]);
 
     const filteredReportIds = useMemo(() => new Set(filteredReports.map(r => r.id)), [filteredReports]);
+
+    const proteinEfficiency = useMemo(() => {
+        let totalProteina = 0;
+        let totalGeneral = 0;
+        filteredReports.forEach(r => {
+            const p = Number(r.total_proteina) || 0;
+            const t = (Number(r.total_proteina) || 0) + (Number(r.total_frutas) || 0) + 
+                      (Number(r.total_hortalizas) || 0) + (Number(r.total_verduras) || 0) + 
+                      (Number(r.total_secos) || 0);
+            totalProteina += p;
+            totalGeneral += t;
+        });
+        return totalGeneral > 0 ? Math.round((totalProteina / totalGeneral) * 100) : 0;
+    }, [filteredReports]);
+
+    const entrepreneurDiversity = useMemo(() => {
+        const activityMap: Record<string, { count: number, reports: Set<string> }> = {};
+        const filteredEnt = entrepreneurs.filter(e => filteredReportIds.has(e.report_id));
+        filteredEnt.forEach(e => {
+            const r = reports.find(rep => rep.id === e.report_id);
+            if (r) {
+                const act = r.tipo_actividad || 'OTRO';
+                if (!activityMap[act]) activityMap[act] = { count: 0, reports: new Set() };
+                activityMap[act].count += 1;
+                activityMap[act].reports.add(e.report_id);
+            }
+        });
+        return Object.entries(activityMap).map(([name, data]) => ({
+            name,
+            value: data.reports.size > 0 ? Number((data.count / data.reports.size).toFixed(1)) : 0
+        })).sort((a, b) => b.value - a.value).slice(0, 5);
+    }, [entrepreneurs, filteredReportIds, reports]);
+
+    const vulnerabilityAlerts = useMemo(() => {
+        const highZones = vulnerabilityData.filter(v => (v.nivel_prioridad || 0) >= 4);
+        return filteredReports.filter(r => 
+            highZones.some(vz => 
+                vz.estado.trim().toUpperCase() === (r.estado_geografico || '').trim().toUpperCase() &&
+                vz.municipio.trim().toUpperCase() === (r.municipio || '').trim().toUpperCase() &&
+                vz.parroquia.trim().toUpperCase() === (r.parroquia || '').trim().toUpperCase()
+            )
+        ).length;
+    }, [vulnerabilityData, filteredReports]);
+
+    const monthlyComparison = useMemo(() => {
+        const now = new Date();
+        const curM = now.getMonth();
+        const curY = now.getFullYear();
+        const lastDate = new Date(); lastDate.setMonth(now.getMonth() - 1);
+        const lastM = lastDate.getMonth();
+        const lastY = lastDate.getFullYear();
+
+        let curF = 0, lastF = 0;
+        reports.forEach(r => {
+            const d = new Date(r.fecha);
+            if (d.getMonth() === curM && d.getFullYear() === curY) curF += Number(r.familias) || 0;
+            else if (d.getMonth() === lastM && d.getFullYear() === lastY) lastF += Number(r.familias) || 0;
+        });
+        const diff = curF - lastF;
+        const pct = lastF > 0 ? Math.abs(Math.round((diff / lastF) * 100)) : 100;
+        return { cur: curF, last: lastF, pct, trend: diff >= 0 ? 'up' : 'down' };
+    }, [reports]);
 
     const foodDistribution = useMemo(() => {
         const categories = {
@@ -1783,6 +1845,122 @@ export default function JefeDashboard() {
                         </div>
                     </div>
                 </div>
+                {/* ── SECCIÓN: ANÁLISIS DE INDICADORES ESTRATÉGICOS (KPIs SOLICITADOS) ── */}
+                <div className="mt-12 space-y-12 pb-20">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-4">
+                        <div>
+                            <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase font-['Outfit']">Análisis de Indicadores Estratégicos</h2>
+                            <p className="text-[#007AFF] text-sm font-black uppercase tracking-[0.2em] mt-2 font-mono">Medición Avanzada de Impacto Operativo</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
+                        {/* KPI 1: Eficiencia en Proteína */}
+                        <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 relative overflow-hidden group">
+                            <div className="absolute -right-10 -top-10 w-48 h-48 bg-emerald-50 rounded-full blur-3xl group-hover:bg-emerald-100/50 transition-all duration-700"></div>
+                            <div className="relative z-10 flex flex-col items-center">
+                                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mb-8 shadow-inner">
+                                    <Percent size={32} />
+                                </div>
+                                <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] mb-3">Eficiencia en Proteína</h4>
+                                <div className="text-6xl font-black text-slate-900 tracking-tighter mb-6">{proteinEfficiency}<span className="text-2xl opacity-30">%</span></div>
+                                <div className="w-full h-4 bg-slate-50 rounded-full overflow-hidden mb-6 p-1">
+                                    <div className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full transition-all duration-1000" style={{ width: `${proteinEfficiency}%` }}></div>
+                                </div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase text-center leading-relaxed max-w-[250px]">
+                                    Relación porcentual de rubros proteicos sobre el volumen nacional distribuido.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* KPI 3: Alertas de Zonas de Vulnerabilidad */}
+                        <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 relative overflow-hidden group">
+                            <div className="absolute -right-10 -top-10 w-48 h-48 bg-red-50 rounded-full blur-3xl group-hover:bg-red-100/50 transition-all duration-700"></div>
+                            <div className="relative z-10 flex flex-col items-center">
+                                <div className={`w-16 h-16 ${vulnerabilityAlerts > 0 ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-slate-50 text-slate-400'} rounded-3xl flex items-center justify-center mb-8 shadow-inner`}>
+                                    <AlertTriangle size={32} />
+                                </div>
+                                <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] mb-3">Alertas de Vulnerabilidad</h4>
+                                <div className="text-6xl font-black text-slate-900 tracking-tighter mb-4">{vulnerabilityAlerts}</div>
+                                <span className={`px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest ${vulnerabilityAlerts > 0 ? 'bg-red-600 text-white shadow-lg shadow-red-200' : 'bg-slate-100 text-slate-400'}`}>
+                                    {vulnerabilityAlerts > 0 ? 'Acción Requerida' : 'Nivel Seguro'}
+                                </span>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase text-center leading-relaxed mt-10 max-w-[250px]">
+                                    Reportes registrados en zonas tipificadas con Nivel de Vulnerabilidad 4 o 5.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
+                        {/* KPI 2: Diversidad Productiva (Emprendedores) */}
+                        <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col min-h-[400px]">
+                            <div className="flex items-center gap-5 mb-12">
+                                <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner">
+                                    <Users size={28} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase text-slate-900 tracking-tighter">Diversidad Productiva</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Media de emprendedores por actividad</p>
+                                </div>
+                            </div>
+                            <div className="flex-1 min-h-[250px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={entrepreneurDiversity} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.05)' }} />
+                                        <Bar dataKey="value" fill="#6366F1" radius={[0, 10, 10, 0]} barSize={20}>
+                                            <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#4F46E5' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* KPI 4: Comparativa Mensual */}
+                        <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 relative overflow-hidden group min-h-[400px]">
+                            <div className={`absolute -right-10 -top-10 w-48 h-48 ${monthlyComparison.trend === 'up' ? 'bg-blue-50' : 'bg-orange-50'} rounded-full blur-3xl transition-all duration-700`}></div>
+                            <div className="relative z-10 flex flex-col justify-between h-full">
+                                <div className="flex items-center gap-5 mb-8">
+                                    <div className={`w-14 h-14 ${monthlyComparison.trend === 'up' ? 'bg-blue-50 text-[#007AFF]' : 'bg-orange-50 text-orange-600'} rounded-2xl flex items-center justify-center shadow-inner`}>
+                                        <TrendingUp size={28} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black uppercase text-slate-900 tracking-tighter">Tendencia Mensual</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cobertura de Familias</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex flex-col gap-1 mb-10">
+                                    <div className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Mes Actual</div>
+                                    <div className="flex items-center gap-5">
+                                        <div className="text-6xl font-black text-slate-900 tracking-tighter">{monthlyComparison.cur.toLocaleString('es-VE')}</div>
+                                        <div className={`flex flex-col items-center p-3 rounded-2xl ${monthlyComparison.trend === 'up' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                                            <span className="text-xl font-black">{monthlyComparison.trend === 'up' ? '↑' : '↓'}</span>
+                                            <span className="text-sm font-black">{monthlyComparison.pct}%</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-6 border-t border-slate-100 pt-8">
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Mes Anterior</p>
+                                        <p className="text-xl font-black text-slate-800 tracking-tight">{monthlyComparison.last.toLocaleString('es-VE')}</p>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Estado</p>
+                                        <p className={`text-[11px] font-black uppercase tracking-tighter px-3 py-1 rounded-lg ${monthlyComparison.trend === 'up' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                                            {monthlyComparison.trend === 'up' ? 'Crecimiento' : 'Contracción'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="pb-10"></div>
             </main>
         </div>
     );
