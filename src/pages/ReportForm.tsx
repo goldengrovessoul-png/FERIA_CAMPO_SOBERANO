@@ -206,11 +206,11 @@ export default function ReportForm() {
             const newCatalogs = {
                 estados: data.filter((i: any) => i.type === 'ESTADO').map((i: any) => i.name),
                 empresas: data.filter((i: any) => i.type === 'ENTE').map((i: any) => i.name),
-                rubros: data.filter((i: any) => i.type === 'ARTICULO' && !i.parent_id).map((i: any) => i.name),
+                rubros: data.filter((i: any) => (i.type === 'ARTICULO' || i.type === 'RUBRO') && !i.parent_id).map((i: any) => i.name),
                 medidas: data.filter((i: any) => i.type === 'MEDIDA').map((i: any) => i.name),
                 actividades: data.filter((i: any) => i.type === 'ACTIVIDAD').map((i: any) => i.name),
                 minppal: data.filter((i: any) => i.type === 'MINPPAL').map((i: any) => ({ id: i.id, name: i.name, type: i.type })),
-                productos_minppal: data.filter((i: any) => i.type === 'ARTICULO' && i.parent_id !== null).map((i: any) => ({ id: i.id, name: i.name, type: i.type, parent_id: i.parent_id })),
+                productos_minppal: data.filter((i: any) => (i.type === 'ARTICULO' || i.type === 'RUBRO') && i.parent_id !== null).map((i: any) => ({ id: i.id, name: i.name, type: i.type, parent_id: i.parent_id })),
                 entrepreneurTypes: [] as string[]
             };
 
@@ -1176,7 +1176,7 @@ export default function ReportForm() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Precio (Bs.)</label>
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Precio Venta Feria (Bs.)</label>
                                             <input
                                                 type="number"
                                                 step="0.01"

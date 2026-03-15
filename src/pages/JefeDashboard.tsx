@@ -4,7 +4,7 @@ import {
     BarChart3, Users, LogOut, Search,
     TrendingUp, Package,
     Activity, RefreshCw, Home,
-    ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent
+    ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -108,6 +108,7 @@ interface ReportItem {
     report_id: string;
     rubro: string;
     cantidad: number;
+    precio_unitario?: number;
     _alreadyCounted?: boolean;
 }
 
@@ -202,7 +203,7 @@ export default function JefeDashboard() {
         articulos: [] as string[],
         actividades: [] as string[],
         minppal: [] as string[],
-        fullCatalog: [] as { id: string, name: string, type: string, parent_id?: string }[]
+        fullCatalog: [] as { id: string, name: string, type: string, parent_id?: string, precio_referencia?: number, presentacion?: string }[]
     });
     const [debug, setDebug] = useState<string>('Iniciando...');
 
@@ -263,12 +264,16 @@ export default function JefeDashboard() {
             setDebug('Sincronizando catálogos...');
             const { data: catalogData } = await supabase
                 .from('catalog_items')
-                .select('id, type, name, parent_id')
+                .select('id, type, name, parent_id, precio_referencia, presentacion')
                 .eq('is_active', true);
 
             if (catalogData) {
-                const normalize = (items: any[], type: string) =>
-                    Array.from(new Set(items.filter(i => i.type === type).map(i => i.name.trim().toUpperCase()))).sort() as string[];
+                const normalize = (items: any[], type: string) => {
+                    if (type === 'ARTICULO') {
+                        return Array.from(new Set(items.filter(i => i.type === 'ARTICULO' || i.type === 'RUBRO').map(i => i.name.trim().toUpperCase()))).sort() as string[];
+                    }
+                    return Array.from(new Set(items.filter(i => i.type === type).map(i => i.name.trim().toUpperCase()))).sort() as string[];
+                }
 
                 setCatalogos({
                     estados: normalize(catalogData, 'ESTADO'),
@@ -276,7 +281,14 @@ export default function JefeDashboard() {
                     articulos: normalize(catalogData, 'ARTICULO'),
                     actividades: normalize(catalogData, 'ACTIVIDAD'),
                     minppal: normalize(catalogData, 'MINPPAL'),
-                    fullCatalog: catalogData.map((i: any) => ({ id: i.id, name: i.name, type: i.type, parent_id: i.parent_id }))
+                    fullCatalog: catalogData.map((i: any) => ({ 
+                        id: i.id, 
+                        name: i.name, 
+                        type: i.type, 
+                        parent_id: i.parent_id,
+                        precio_referencia: i.precio_referencia,
+                        presentacion: i.presentacion
+                    }))
                 });
             }
 
@@ -293,7 +305,7 @@ export default function JefeDashboard() {
                 setDebug(`Detalles: ${Math.round((i / reportIds.length) * 100)}%...`);
                 
                 const [itemsRes, paymentRes, presRes, entRes] = await Promise.all([
-                    supabase.from('report_items').select('report_id,rubro,cantidad').in('report_id', chunk),
+                    supabase.from('report_items').select('report_id,rubro,cantidad,precio_unitario').in('report_id', chunk),
                     supabase.from('report_payment_methods').select('report_id,metodo').in('report_id', chunk),
                     supabase.from('report_minppal_presencia').select('*').in('report_id', chunk),
                     supabase.from('report_entrepreneurs').select('*').in('report_id', chunk)
@@ -450,6 +462,52 @@ export default function JefeDashboard() {
         const pct = lastF > 0 ? Math.abs(Math.round((diff / lastF) * 100)) : 100;
         return { cur: curF, last: lastF, pct, trend: diff >= 0 ? 'up' : 'down' };
     }, [reports]);
+
+    const priceTrackingData = useMemo(() => {
+        const stats: Record<string, { 
+            name: string, 
+            presentation: string, 
+            nationalRef: number, 
+            totalPrice: number, 
+            count: number 
+        }> = {};
+
+        // Obtener solo artículos del catálogo que tengan precio de referencia > 0 (incluye tipo RUBRO)
+        const articles = catalogos.fullCatalog.filter(c => (c.type === 'ARTICULO' || c.type === 'RUBRO') && (c.precio_referencia || 0) > 0);
+        
+        articles.forEach(art => {
+            stats[art.name] = {
+                name: art.name,
+                presentation: art.presentacion || 'N/A',
+                nationalRef: art.precio_referencia || 0,
+                totalPrice: 0,
+                count: 0
+            };
+        });
+
+        // Filtrar report_items que coincidan con los nombres de artículos y que pertenezcan a reportes filtrados
+        reportItems.forEach(item => {
+            if (filteredReportIds.has(item.report_id) && stats[item.rubro]) {
+                const price = Number(item.precio_unitario) || 0;
+                if (price > 0) {
+                    stats[item.rubro].totalPrice += price;
+                    stats[item.rubro].count += 1;
+                }
+            }
+        });
+
+        return Object.values(stats)
+            .map(s => {
+                const avgFair = s.count > 0 ? s.totalPrice / s.count : 0;
+                const savings = s.nationalRef > 0 ? ((s.nationalRef - avgFair) / s.nationalRef) * 100 : 0;
+                return {
+                    ...s,
+                    avgFair,
+                    savings: avgFair > 0 ? savings : 0
+                };
+            })
+            .sort((a, b) => b.savings - a.savings);
+    }, [reportItems, filteredReportIds, catalogos.fullCatalog]);
 
     const foodDistribution = useMemo(() => {
         const categories = {
@@ -1845,6 +1903,80 @@ export default function JefeDashboard() {
                         </div>
                     </div>
                 </div>
+                {/* ── SECCIÓN: CONTROL DE AHORRO SOCIAL Y MONITOREO DE PRECIOS ── */}
+                <div className="mt-12 space-y-8">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-4">
+                        <div>
+                            <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase font-['Outfit']">Control de Ahorro Social</h2>
+                            <p className="text-emerald-500 text-sm font-black uppercase tracking-[0.2em] mt-2 font-mono">Monitoreo de Precios y Beneficio a la Población</p>
+                        </div>
+                        <div className="flex gap-4">
+                            <div className="bg-emerald-50 p-4 px-8 rounded-3xl border border-emerald-100 flex flex-col items-center">
+                                <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Ahorro Promedio</p>
+                                <div className="flex items-center gap-2">
+                                    <TrendingUp size={16} className="text-emerald-500" />
+                                    <p className="text-2xl font-black text-emerald-600">
+                                        {priceTrackingData.length > 0
+                                            ? (priceTrackingData.reduce((acc, curr) => acc + curr.savings, 0) / priceTrackingData.length).toFixed(1)
+                                            : '0.0'}%
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-50">
+                                        <th className="pb-6 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rubro / Artículo</th>
+                                        <th className="pb-6 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Referencia Nacional</th>
+                                        <th className="pb-6 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Promedio Ferias</th>
+                                        <th className="pb-6 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ahorro (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {priceTrackingData.length > 0 ? priceTrackingData.map((item, idx) => (
+                                        <tr key={idx} className="group hover:bg-slate-50/50 transition-colors border-b border-slate-50 last:border-none">
+                                            <td className="py-6 px-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-black text-slate-900 group-hover:text-[#007AFF] transition-colors uppercase leading-none">{item.name}</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase mt-1.5 px-2 py-0.5 bg-slate-50 rounded-lg self-start">{item.presentation}</span>
+                                                </div>
+                                            </td>
+                                            <td className="py-6 px-4 text-center">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-xs font-bold text-slate-500 uppercase mb-1">Bs.</span>
+                                                    <span className="text-lg font-black text-slate-800 font-mono tracking-tight">{item.nationalRef.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            </td>
+                                            <td className="py-6 px-4 text-center">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-xs font-bold text-slate-500 uppercase mb-1">Bs.</span>
+                                                    <span className={`text-lg font-black font-mono tracking-tight ${item.avgFair > item.nationalRef ? 'text-red-500' : 'text-emerald-500'}`}>
+                                                        {item.avgFair > 0 ? item.avgFair.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : 'S/D'}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="py-6 px-4 text-right">
+                                                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl ${item.savings > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'} font-black`}>
+                                                    {item.savings > 0 ? <ArrowDownRight size={14} /> : <AlertTriangle size={14} />}
+                                                    <span className="text-sm font-mono">{Math.abs(item.savings).toFixed(1)}%</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan={4} className="py-12 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest">No hay datos de precios disponibles con los filtros actuales</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 {/* ── SECCIÓN: ANÁLISIS DE INDICADORES ESTRATÉGICOS (KPIs SOLICITADOS) ── */}
                 <div className="mt-12 space-y-12 pb-20">
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-4">

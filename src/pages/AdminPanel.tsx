@@ -5,12 +5,12 @@ import {
     ChevronRight, LogOut, Search,
     MoreVertical, ShieldAlert, ShieldCheck,
     CreditCard as IdCard, RefreshCw, Plus, Trash2, Tag, Map as MapIcon,
-    Box, Briefcase, Ruler, ChevronDown, SlidersHorizontal
+    Box, Briefcase, Ruler, ChevronDown, SlidersHorizontal,
+    Pencil, MessageCircle, FileDown
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import ChatBox from '../components/Chat/ChatBox';
-import { MessageCircle, FileDown } from 'lucide-react';
 import { ChatService } from '../services/ChatService';
 import * as XLSX from 'xlsx';
 
@@ -83,6 +83,9 @@ export default function AdminPanel() {
     const [newCatalogName, setNewCatalogName] = useState('');
     const [selectedParentId, setSelectedParentId] = useState('');
     const [selectedMinppalId, setSelectedMinppalId] = useState('');
+    const [newCatalogPrice, setNewCatalogPrice] = useState('0');
+    const [newCatalogPresentation, setNewCatalogPresentation] = useState('');
+    const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
 
     // Estados para Vulnerabilidad
     const [vulnerabilities, setVulnerabilities] = useState<VulnerabilityData[]>([]);
@@ -314,34 +317,59 @@ export default function AdminPanel() {
     async function addCatalogItem() {
         if (!newCatalogName.trim()) return;
         try {
-            const insertData: any = {
+            const itemData: any = {
                 type: catalogType,
                 name: newCatalogName.trim().toUpperCase()
             };
 
-            if (catalogType === 'ARTICULO') {
-                if (selectedParentId) insertData.parent_id = selectedParentId;
-                // Si se selecciona un MINPPAL, usamos seleccionador de jerarquía
-                // Para simplificar la misión de Gonzalo, vamos a permitir vincular un ARTICULO a un MINPPAL directamente
-                if (selectedMinppalId) insertData.parent_id = selectedMinppalId;
+            if (catalogType === 'ARTICULO' || catalogType === 'RUBRO') {
+                itemData.parent_id = selectedMinppalId || selectedParentId || null;
+                itemData.precio_referencia = Number(newCatalogPrice) || 0;
+                itemData.presentacion = newCatalogPresentation.trim();
             }
 
-            const { error } = await supabase
-                .from('catalog_items')
-                .insert([insertData]);
+            if (editingCatalogId) {
+                // Modo Edición
+                const { error } = await supabase
+                    .from('catalog_items')
+                    .update(itemData)
+                    .eq('id', editingCatalogId);
+                if (error) throw error;
+                alert('Elemento actualizado correctamente.');
+            } else {
+                // Modo Creación
+                const { error } = await supabase
+                    .from('catalog_items')
+                    .insert([itemData]);
+                if (error) throw error;
+            }
 
-            if (error) throw error;
             setNewCatalogName('');
             setSelectedParentId('');
             setSelectedMinppalId('');
+            setNewCatalogPrice('0');
+            setNewCatalogPresentation('');
+            setEditingCatalogId(null);
             fetchCatalogItems();
         } catch (error: any) {
             if (error.code === '23505') {
                 alert('Este elemento ya existe en el catálogo.');
             } else {
-                alert('Error al agregar elemento.');
+                alert('Error al procesar la operación.');
             }
         }
+    }
+
+    function handleEditCatalogItem(item: any) {
+        setEditingCatalogId(item.id);
+        setNewCatalogName(item.name);
+        if (catalogType === 'ARTICULO' || catalogType === 'RUBRO') {
+            setSelectedParentId(item.parent_id || '');
+            setSelectedMinppalId(''); // Por ahora asumimos que si tiene parent_id lo cargamos en selectedParentId
+            setNewCatalogPrice(item.precio_referencia?.toString() || '0');
+            setNewCatalogPresentation(item.presentacion || '');
+        }
+        window.scrollTo({ top: 400, behavior: 'smooth' });
     }
 
     async function toggleCatalogStatus(id: string, currentStatus: boolean) {
@@ -1004,7 +1032,7 @@ export default function AdminPanel() {
                                         </div>
                                     </div>
 
-                                    {catalogType === 'ARTICULO' && (
+                                    {(catalogType === 'ARTICULO' || catalogType === 'RUBRO') && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
@@ -1051,12 +1079,56 @@ export default function AdminPanel() {
                                         </div>
                                     )}
                                 </div>
-                                <button
-                                    onClick={catalogType === 'EMPRENDIMIENTO' ? addEntrepreneurType : addCatalogItem}
-                                    className="h-[60px] px-8 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-blue-500/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2 w-full justify-center"
-                                >
-                                    <Plus size={18} /> AGREGAR AL CATÁLOGO
-                                </button>
+                                {/* Campos adicionales para ARTÍCULO */}
+                                {(catalogType === 'ARTICULO' || catalogType === 'RUBRO') && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Presentación (Ej: 1Kg, 140Grs)</label>
+                                            <input
+                                                type="text"
+                                                value={newCatalogPresentation}
+                                                onChange={(e) => setNewCatalogPresentation(e.target.value)}
+                                                placeholder="Ej: 1 Kg"
+                                                className="w-full h-[60px] px-8 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 transition-all"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Precio Sugerido Nacional (Bs.)</label>
+                                            <div className="relative">
+                                                <span className="absolute left-8 top-1/2 -translate-y-1/2 text-slate-400 font-bold">Bs.</span>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={newCatalogPrice}
+                                                    onChange={(e) => setNewCatalogPrice(e.target.value)}
+                                                    className="w-full h-[60px] pl-16 pr-8 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 transition-all"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={catalogType === 'EMPRENDIMIENTO' ? addEntrepreneurType : addCatalogItem}
+                                        className={`h-[60px] flex-1 px-8 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl transition-all flex items-center gap-2 justify-center ${editingCatalogId ? 'bg-amber-500 shadow-amber-500/20 text-white' : 'bg-blue-600 shadow-blue-500/20 text-white'}`}
+                                    >
+                                        {editingCatalogId ? <RefreshCw size={18} /> : <Plus size={18} />}
+                                        {editingCatalogId ? 'ACTUALIZAR ELEMENTO' : 'AGREGAR AL CATÁLOGO'}
+                                    </button>
+                                    {editingCatalogId && (
+                                        <button
+                                            onClick={() => {
+                                                setEditingCatalogId(null);
+                                                setNewCatalogName('');
+                                                setNewCatalogPrice('0');
+                                                setNewCatalogPresentation('');
+                                            }}
+                                            className="h-[60px] px-8 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-200 transition-all"
+                                        >
+                                            CANCELAR
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Lista de Elementos */}
@@ -1091,6 +1163,15 @@ export default function AdminPanel() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                {catalogType !== 'EMPRENDIMIENTO' && (
+                                                    <button
+                                                        onClick={() => handleEditCatalogItem(item)}
+                                                        className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all"
+                                                        title="Editar"
+                                                    >
+                                                        <Pencil size={16} />
+                                                    </button>
+                                                )}
                                                 {catalogType !== 'EMPRENDIMIENTO' && (
                                                     <button
                                                         onClick={() => toggleCatalogStatus(item.id, item.is_active)}
