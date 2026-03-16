@@ -4,7 +4,8 @@ import {
     BarChart3, Users, LogOut, Search,
     TrendingUp, Package,
     Activity, RefreshCw, Home,
-    ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight
+    ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight,
+    Leaf, UserPlus
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -12,7 +13,7 @@ import { MapContainer, TileLayer, Marker, Popup, LayersControl, LayerGroup, Circ
 import 'leaflet/dist/leaflet.css';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    LineChart, Line, PieChart, Pie, Cell, Legend, LabelList
+    LineChart, Line, PieChart, Pie, Cell, Legend, LabelList, ReferenceLine
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import { FileDown } from 'lucide-react';
@@ -601,6 +602,67 @@ export default function JefeDashboard() {
             }))
             .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
     }, [filteredReports, catalogos.estados]);
+    
+    // Nueva métrica: Comparativa de Precio Promedio por Estado vs Referencia Nacional
+    const priceComparisonByState = useMemo(() => {
+        // Si no hay rubro seleccionado (está en 'Todos'), devolvemos datos vacíos
+        if (filterRubro === 'Todos') {
+            return {
+                data: [],
+                referencePrice: 0,
+                productName: ''
+            };
+        }
+
+        let targetRubro = filterRubro;
+        
+        // Buscar el artículo en el catálogo para obtener el precio de referencia
+        const catalogItem = catalogos.fullCatalog.find(c => 
+            (c.name.trim().toUpperCase() === targetRubro.trim().toUpperCase()) && 
+            (c.type === 'ARTICULO' || c.type === 'RUBRO')
+        );
+
+        let effectiveTarget = targetRubro;
+        let referencePrice = catalogItem?.precio_referencia || 0;
+
+        const stateAvgs: Record<string, { total: number, count: number }> = {};
+        
+        // Inicializar estados
+        catalogos.estados.forEach(e => {
+            stateAvgs[e.trim().toUpperCase()] = { total: 0, count: 0 };
+        });
+
+        // Calcular promedios por estado
+        reportItems.forEach(item => {
+            if (filteredReportIds.has(item.report_id) && 
+                item.rubro?.trim().toUpperCase() === effectiveTarget.trim().toUpperCase() &&
+                (item.precio_unitario || 0) > 0) {
+                
+                const rep = reports.find(r => r.id === item.report_id);
+                if (rep) {
+                    const state = (rep.estado_geografico || 'DESCONOCIDO').trim().toUpperCase();
+                    if (!stateAvgs[state]) stateAvgs[state] = { total: 0, count: 0 };
+                    stateAvgs[state].total += Number(item.precio_unitario);
+                    stateAvgs[state].count += 1;
+                }
+            }
+        });
+
+        const chartData = Object.entries(stateAvgs)
+            .map(([name, stats]) => ({
+                name,
+                avgPrice: stats.count > 0 ? stats.total / stats.count : 0
+            }))
+            .filter(d => d.avgPrice > 0) // Solo mostrar estados con datos
+            .sort((a, b) => b.avgPrice - a.avgPrice);
+
+        return {
+            data: chartData,
+            referencePrice,
+            productName: effectiveTarget
+        };
+    }, [reportItems, reports, filteredReportIds, catalogos.fullCatalog, catalogos.estados, filterRubro]);
+
 
 
     const activityTypeData = useMemo(() => {
@@ -1331,14 +1393,13 @@ export default function JefeDashboard() {
                 {/* ── FIN MAPA ─────────────────────────────────────────────────── */}
 
 
-                {/* Grid Analítico Principal */}
+                {/* Grid Analítico Principal Reestructurado para Simetría */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
-                    {/* Columna Izquierda (8) - Reportes Dinámicos */}
-                    <div className="lg:col-span-8 space-y-8">
-
-                        {/* Fila 1: Histórico de Jornadas (Full Width) */}
-                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-                            <div className="flex items-center gap-4 mb-8">
+                    
+                    {/* FILA 1: Histórico y Despliegue Ente */}
+                    <div className="lg:col-span-8">
+                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-full">
+                            <div className="flex items-center gap-4 mb-10">
                                 <div className="w-10 h-10 bg-blue-50 text-[#007AFF] rounded-xl flex items-center justify-center"><TrendingUp size={20} /></div>
                                 <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Histórico de Jornadas</h3>
                             </div>
@@ -1354,139 +1415,18 @@ export default function JefeDashboard() {
                                 </ResponsiveContainer>
                             </div>
                         </div>
-
-                        {/* Fila 2: Tipos de Actividad y Cobranza (50% cada uno) */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-                                <div className="flex items-center gap-4 mb-8">
-                                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><Activity size={20} /></div>
-                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Tipos de Actividad</h3>
-                                </div>
-                                <div className="h-[300px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={activityTypeData} margin={{ top: 20 }}>
-                                            <defs>
-                                                <linearGradient id="colorBlue" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="0%" stopColor="#007AFF" stopOpacity={1} />
-                                                    <stop offset="100%" stopColor="#007AFF" stopOpacity={0.6} />
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
-                                            <XAxis dataKey="name" hide />
-                                            <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none', fontSize: '10px', fontWeight: 900 }} />
-                                            <Bar dataKey="value" fill="url(#colorBlue)" radius={[10, 10, 0, 0]} barSize={40}>
-                                                <LabelList dataKey="value" position="top" style={{ fontSize: 11, fontWeight: 900, fill: '#64748b' }} />
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-
-                            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-                                <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-8">Cobranza Consolidada</h3>
-                                <div className="h-[300px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={paymentData} layout="vertical" margin={{ left: -10, right: 30 }}>
-                                            <defs>
-                                                <linearGradient id="colorIndigo" x1="0" y1="0" x2="1" y2="0">
-                                                    <stop offset="0%" stopColor="#4F46E5" stopOpacity={1} />
-                                                    <stop offset="100%" stopColor="#4F46E5" stopOpacity={0.6} />
-                                                </linearGradient>
-                                            </defs>
-                                            <XAxis type="number" hide />
-                                            <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                            <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                            <Bar dataKey="value" fill="url(#colorIndigo)" radius={[0, 10, 10, 0]} barSize={18}>
-                                                <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#4F46E5' }} />
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Actividades por Estado - Gran Formato con Tooltip Enriquecido */}
-                        <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100">
-                            <div className="flex items-center justify-between mb-10">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-blue-50 text-[#007AFF] rounded-2xl flex items-center justify-center shadow-inner"><Package size={22} /></div>
-                                    <div>
-                                        <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Actividades por Estado (Detalle Nacional)</h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Analítica de despliegue territorial</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="h-[800px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={stateData} layout="vertical" margin={{ left: 10, right: 80, top: 0, bottom: 0 }}>
-                                        <defs>
-                                            <linearGradient id="colorBlueH" x1="0" y1="0" x2="1" y2="0">
-                                                <stop offset="0%" stopColor="#007AFF" stopOpacity={1} />
-                                                <stop offset="100%" stopColor="#007AFF" stopOpacity={0.6} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
-                                        <XAxis type="number" hide />
-                                        <YAxis
-                                            dataKey="name"
-                                            type="category"
-                                            width={140}
-                                            tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }}
-                                            interval={0}
-                                            axisLine={false}
-                                            tickLine={false}
-                                        />
-                                        <Tooltip content={<StateTooltip />} cursor={{ fill: '#f8fafc' }} />
-                                        <Bar dataKey="value" fill="url(#colorBlueH)" radius={[0, 12, 12, 0]} barSize={16}>
-                                            <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#007AFF' }} />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-
-
-                        {/* Productividad de Inspectores (Full width in Col-8 bottom) */}
-                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-lg shadow-slate-900/20"><Users size={20} /></div>
-                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Productividad de Inspectores</h3>
-                            </div>
-                            <div className="h-[600px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={inspectorReportData} layout="vertical" margin={{ left: 10, right: 40, top: 20, bottom: 0 }}>
-                                        <defs>
-                                            <linearGradient id="colorDark" x1="0" y1="0" x2="1" y2="0">
-                                                <stop offset="0%" stopColor="#1e293b" stopOpacity={1} />
-                                                <stop offset="100%" stopColor="#1e293b" stopOpacity={0.6} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
-                                        <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
-                                        <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                        <Bar dataKey="value" fill="url(#colorDark)" radius={[0, 10, 10, 0]} barSize={18}>
-                                            <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#1e293b' }} />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
                     </div>
 
-                    {/* Columna Derecha (4) - KPIs de Soporte */}
-                    <div className="lg:col-span-4 space-y-8">
-
-                        {/* Despliegue Ente MINPPAL (Participación General) */}
-                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-                            <div className="flex items-center gap-4 mb-4">
+                    <div className="lg:col-span-4">
+                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-full">
+                            <div className="flex items-center gap-4 mb-6">
                                 <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 shadow-inner"><Building2 size={20} /></div>
                                 <div>
                                     <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Despliegue Ente MINPPAL</h3>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Participación en jornadas</p>
                                 </div>
                             </div>
-                            <div className="h-[250px]">
+                            <div className="h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={enteReportData} layout="vertical" margin={{ left: -10, right: 40, top: 0, bottom: 0 }}>
                                         <defs>
@@ -1506,13 +1446,62 @@ export default function JefeDashboard() {
                                 </ResponsiveContainer>
                             </div>
                         </div>
+                    </div>
 
+                    {/* FILA 2: Tripleta Central de Distribución */}
+                    <div className="lg:col-span-4">
+                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-full">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><Activity size={20} /></div>
+                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Tipos de Actividad</h3>
+                            </div>
+                            <div className="h-[300px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={activityTypeData} margin={{ top: 20 }}>
+                                        <defs>
+                                            <linearGradient id="colorBlue" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#007AFF" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#007AFF" stopOpacity={0.6} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
+                                        <XAxis dataKey="name" hide />
+                                        <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none', fontSize: '10px', fontWeight: 900 }} />
+                                        <Bar dataKey="value" fill="url(#colorBlue)" radius={[10, 10, 0, 0]} barSize={40}>
+                                            <LabelList dataKey="value" position="top" style={{ fontSize: 11, fontWeight: 900, fill: '#64748b' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
 
+                    <div className="lg:col-span-4">
+                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-full">
+                            <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-12">Cobranza Consolidada</h3>
+                            <div className="h-[300px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={paymentData} layout="vertical" margin={{ left: -10, right: 30 }}>
+                                        <defs>
+                                            <linearGradient id="colorIndigo" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="#4F46E5" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#4F46E5" stopOpacity={0.6} />
+                                            </linearGradient>
+                                        </defs>
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                                        <Bar dataKey="value" fill="url(#colorIndigo)" radius={[0, 10, 10, 0]} barSize={18}>
+                                            <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#4F46E5' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
 
-
-
-                        {/* Distribución de Alimentos */}
-                        <div className="bg-white rounded-[3rem] p-8 shadow-sm border border-slate-100 flex flex-col items-center">
+                    <div className="lg:col-span-4">
+                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-full flex flex-col items-center">
                             <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-10 text-center">Distribución Alimentaria (TN)</h3>
                             <div className="h-[320px] w-full relative">
                                 <ResponsiveContainer width="100%" height="100%">
@@ -1549,9 +1538,53 @@ export default function JefeDashboard() {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                    {/* FILA 3: Actividades por Estado y Auditoría de Calidad */}
+                    <div className="lg:col-span-8">
+                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-full">
+                            <div className="flex items-center gap-6 mb-10 pb-6 border-b border-slate-50">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-blue-50 text-[#007AFF] rounded-2xl flex items-center justify-center shadow-inner">
+                                        <TrendingUp size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Actividades por Estado</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Analítica de despliegue territorial</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="h-[600px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={stateData} layout="vertical" margin={{ left: 10, right: 80, top: 0, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="colorBlueH" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="#007AFF" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#007AFF" stopOpacity={0.6} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                        <XAxis type="number" hide />
+                                        <YAxis
+                                            dataKey="name"
+                                            type="category"
+                                            width={140}
+                                            tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }}
+                                            interval={0}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <Tooltip content={<StateTooltip />} cursor={{ fill: '#f8fafc' }} />
+                                        <Bar dataKey="value" fill="url(#colorBlueH)" radius={[0, 12, 12, 0]} barSize={16}>
+                                            <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#007AFF' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
 
-                        {/* Auditoría de Calidad */}
-                        <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col">
+                    <div className="lg:col-span-4">
+                        <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 h-full flex flex-col">
                             <div className="flex justify-between items-center mb-10">
                                 <div>
                                     <h3 className="text-[11px] font-black uppercase text-[#007AFF] tracking-[0.25em] mb-1">Auditoría</h3>
@@ -1566,21 +1599,53 @@ export default function JefeDashboard() {
                                     { label: 'Higiene', key: 'bodegaLimpia', icon: <Package size={16} />, color: '#3B82F6' },
                                     { label: 'Entorno', key: 'entornoLimpio', icon: <Activity size={16} />, color: '#10B981' },
                                     { label: 'Comunidad', key: 'comunidadNotificada', icon: <Users size={16} />, color: '#6366F1' },
-                                    { label: 'Proteína', key: 'presenciaProteina', icon: <Award size={16} />, color: '#F59E0B' }
-                                ].map(item => {
+                                    { label: 'Personal', key: 'personalSuficiente', icon: <UserPlus size={16} />, color: '#8B5CF6' },
+                                    { label: 'Proteína', key: 'presenciaProteina', icon: <Award size={16} />, color: '#F59E0B' },
+                                    { label: 'Hortalizas', key: 'presenciaHortalizas', icon: <Leaf size={16} />, color: '#84CC16' },
+                                    { label: 'Frutas', key: 'presenciaFrutas', icon: <Star size={16} />, color: '#EC4899' }
+                                ].map((item) => {
                                     const total = filteredReports.length || 1;
-                                    const count = filteredReports.filter(r => r.audit_summary?.[item.key]).length;
+                                    const count = filteredReports.filter((r: any) => r.audit_summary?.[item.key] === true).length;
                                     const pct = Math.round((count / total) * 100);
                                     return (
                                         <div key={item.key} className="p-4 rounded-3xl border border-slate-50 bg-slate-50/50">
                                             <p className="text-[9px] font-black text-slate-400 uppercase mb-2">{item.label}</p>
                                             <div className="text-base font-black text-slate-900 mb-2">{pct}%</div>
                                             <div className="h-1.5 bg-white rounded-full overflow-hidden">
-                                                <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}% `, backgroundColor: item.color }} />
+                                                <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, backgroundColor: item.color }} />
                                             </div>
                                         </div>
                                     );
                                 })}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* FILA 4: Productividad (Ancho Completo) */}
+                    <div className="lg:col-span-12">
+                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-lg shadow-slate-900/20"><Users size={20} /></div>
+                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Productividad de Inspectores</h3>
+                            </div>
+                            <div className="h-[500px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={inspectorReportData} layout="vertical" margin={{ left: 10, right: 40, top: 20, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="colorDark" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="#1e293b" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#1e293b" stopOpacity={0.6} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                                        <Bar dataKey="value" fill="url(#colorDark)" radius={[0, 10, 10, 0]} barSize={18}>
+                                            <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#1e293b' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
                     </div>
@@ -2091,9 +2156,111 @@ export default function JefeDashboard() {
                         </div>
                     </div>
                 </div>
+                
+                {/* ── SECCIÓN: COMPARATIVA DE PRECIOS POR ESTADO (NUEVA MÉTRICA SOLICITADA) ── */}
+                <div className="mt-12 bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 mb-20 overflow-hidden">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center shadow-inner">
+                                <AlertTriangle size={28} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black uppercase text-slate-900 tracking-tighter">Comparativa de Precio por Estado</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Alertas Visuales vs Precio Nacional Sugerido (Catálogo)</p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex flex-col md:flex-row items-center gap-4">
+                            <div className="relative w-full md:w-64">
+                                <label className="absolute -top-6 left-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">Cambiar Rubro</label>
+                                <select 
+                                    value={filterRubro} 
+                                    onChange={(e) => setFilterRubro(e.target.value)}
+                                    className="w-full pl-5 pr-10 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] font-black uppercase outline-none focus:border-red-100 transition-all appearance-none"
+                                >
+                                    <option value="Todos">-- SELECCIONE UN RUBRO --</option>
+                                    {catalogos.articulos.map(r => <option key={r} value={r}>{r}</option>)}
+                                </select>
+                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                            </div>
+
+                            {priceComparisonByState.referencePrice > 0 && (
+                                <div className="bg-red-600 px-6 py-3 rounded-2xl shadow-lg shadow-red-200 min-w-[180px]">
+                                    <p className="text-[9px] font-bold text-red-100 uppercase tracking-widest mb-1 text-center">Ref. Nacional Sugerida</p>
+                                    <p className="text-xl font-black text-white text-center">Bs. {priceComparisonByState.referencePrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="text-center mb-10">
+                        <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">
+                            PRECIO PROMEDIO DE {priceComparisonByState.productName} POR ESTADO
+                        </h2>
+                    </div>
+
+                    <div className="h-[800px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart 
+                                data={priceComparisonByState.data} 
+                                layout="vertical" 
+                                margin={{ left: 20, right: 80, top: 20, bottom: 20 }}
+                            >
+                                <defs>
+                                    <linearGradient id="colorPriceBar" x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0%" stopColor="#1e3a8a" stopOpacity={0.8} />
+                                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.6} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                <XAxis type="number" hide domain={[0, priceComparisonByState.referencePrice * 1.2 || 'auto']} />
+                                <YAxis 
+                                    dataKey="name" 
+                                    type="category" 
+                                    width={150} 
+                                    tick={{ fontSize: 10, fontStyle: 'normal', fontWeight: 900, fill: '#1e293b' }} 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                />
+                                <Tooltip 
+                                    cursor={{ fill: '#f1f5f9', opacity: 0.4 }}
+                                    contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }}
+                                    formatter={(value: any) => [`Bs. ${Number(value).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`, 'Precio Promedio']}
+                                />
+                                
+                                {priceComparisonByState.referencePrice > 0 && (
+                                    <ReferenceLine 
+                                        x={priceComparisonByState.referencePrice} 
+                                        stroke="#ef4444" 
+                                        strokeDasharray="5 5" 
+                                        strokeWidth={3}
+                                        label={{ 
+                                            position: 'top', 
+                                            value: `Precio Mercado: Bs. ${priceComparisonByState.referencePrice.toLocaleString()}`, 
+                                            fill: '#ef4444', 
+                                            fontSize: 10, 
+                                            fontWeight: 900
+                                        }} 
+                                    />
+                                )}
+
+                                <Bar dataKey="avgPrice" fill="url(#colorPriceBar)" radius={[0, 10, 10, 0]} barSize={24}>
+                                    <LabelList 
+                                        dataKey="avgPrice" 
+                                        position="right" 
+                                        formatter={(v: any) => `Bs. ${Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`} 
+                                        style={{ fontSize: 11, fontWeight: 900, fill: '#1e3a8a' }} 
+                                    />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                </div>
 
                 <div className="pb-10"></div>
             </main>
+
         </div>
     );
 }
