@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import ChatBox from '../components/Chat/ChatBox';
+import ChatBox from '../components/chat/ChatBox';
 import { ChatService } from '../services/ChatService';
 import * as XLSX from 'xlsx';
 

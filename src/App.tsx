@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './lib/AuthContext';
-import RutaProtegida from './components/RutaProtegida';
+import RutaProtegida from './components/auth/RutaProtegida';
 import Login from './pages/Login';
 import InspectorDashboard from './pages/InspectorDashboard';
 import JefeDashboard from './pages/JefeDashboard';

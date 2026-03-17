@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, LogOut, ChevronRight, CheckCircle2, FileEdit, User, MapPin, Loader2, RefreshCw, Camera, Trash2, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import ChatBox from '../components/Chat/ChatBox';
+import ChatBox from '../components/chat/ChatBox';
 import { MessageCircle, X } from 'lucide-react';
 import { ChatService } from '../services/ChatService';
 import type { ChatMessage } from '../services/ChatService';
