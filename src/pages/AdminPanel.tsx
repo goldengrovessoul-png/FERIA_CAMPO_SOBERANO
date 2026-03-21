@@ -6,7 +6,7 @@ import {
     MoreVertical, ShieldAlert, ShieldCheck,
     CreditCard as IdCard, RefreshCw, Plus, Trash2, Tag, Map as MapIcon,
     Box, Briefcase, Ruler, ChevronDown, SlidersHorizontal,
-    Pencil, MessageCircle, FileDown
+    Pencil, MessageCircle, FileDown, DollarSign
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -33,7 +33,12 @@ interface CatalogItem {
     is_active: boolean;
     created_at: string;
     parent_id?: string;
+    empresa_id?: string;
+    precio_referencia?: number;
+    precio_privado?: number;
+    presentacion?: string;
     parent?: { name: string };
+    empresa?: { name: string };
 }
 
 interface VulnerabilityData {
@@ -84,6 +89,7 @@ export default function AdminPanel() {
     const [selectedParentId, setSelectedParentId] = useState('');
     const [selectedMinppalId, setSelectedMinppalId] = useState('');
     const [newCatalogPrice, setNewCatalogPrice] = useState('0');
+    const [newCatalogPricePrivado, setNewCatalogPricePrivado] = useState('0');
     const [newCatalogPresentation, setNewCatalogPresentation] = useState('');
     const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
 
@@ -279,7 +285,7 @@ export default function AdminPanel() {
             setLoadingCatalog(true);
             let query = supabase
                 .from('catalog_items')
-                .select('*, parent:parent_id(name)')
+                .select('*, parent:parent_id(name), empresa:empresa_id(name)')
                 .eq('type', catalogType)
                 .order('name', { ascending: true });
 
@@ -323,8 +329,10 @@ export default function AdminPanel() {
             };
 
             if (catalogType === 'ARTICULO' || catalogType === 'RUBRO') {
-                itemData.parent_id = selectedMinppalId || selectedParentId || null;
+                itemData.parent_id = selectedParentId || null;
+                itemData.empresa_id = selectedMinppalId || null;
                 itemData.precio_referencia = Number(newCatalogPrice) || 0;
+                itemData.precio_privado = Number(newCatalogPricePrivado) || 0;
                 itemData.presentacion = newCatalogPresentation.trim();
             }
 
@@ -348,6 +356,7 @@ export default function AdminPanel() {
             setSelectedParentId('');
             setSelectedMinppalId('');
             setNewCatalogPrice('0');
+            setNewCatalogPricePrivado('0');
             setNewCatalogPresentation('');
             setEditingCatalogId(null);
             fetchCatalogItems();
@@ -365,8 +374,9 @@ export default function AdminPanel() {
         setNewCatalogName(item.name);
         if (catalogType === 'ARTICULO' || catalogType === 'RUBRO') {
             setSelectedParentId(item.parent_id || '');
-            setSelectedMinppalId(''); // Por ahora asumimos que si tiene parent_id lo cargamos en selectedParentId
+            setSelectedMinppalId(item.empresa_id || '');
             setNewCatalogPrice(item.precio_referencia?.toString() || '0');
+            setNewCatalogPricePrivado(item.precio_privado?.toString() || '0');
             setNewCatalogPresentation(item.presentacion || '');
         }
         window.scrollTo({ top: 400, behavior: 'smooth' });
@@ -1043,7 +1053,6 @@ export default function AdminPanel() {
                                                         value={selectedParentId}
                                                         onChange={e => {
                                                             setSelectedParentId(e.target.value);
-                                                            if (e.target.value) setSelectedMinppalId('');
                                                         }}
                                                         className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-100 transition-all appearance-none"
                                                     >
@@ -1064,7 +1073,6 @@ export default function AdminPanel() {
                                                         value={selectedMinppalId}
                                                         onChange={e => {
                                                             setSelectedMinppalId(e.target.value);
-                                                            if (e.target.value) setSelectedParentId('');
                                                         }}
                                                         className="w-full bg-blue-50/30 border-2 border-blue-50 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-blue-200 transition-all appearance-none"
                                                     >
@@ -1093,7 +1101,9 @@ export default function AdminPanel() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Precio Sugerido Nacional (Bs.)</label>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 flex items-center gap-2">
+                                                <DollarSign size={12} /> Precio Sugerido Nacional (Bs.)
+                                            </label>
                                             <div className="relative">
                                                 <span className="absolute left-8 top-1/2 -translate-y-1/2 text-slate-400 font-bold">Bs.</span>
                                                 <input
@@ -1102,6 +1112,36 @@ export default function AdminPanel() {
                                                     value={newCatalogPrice}
                                                     onChange={(e) => setNewCatalogPrice(e.target.value)}
                                                     className="w-full h-[60px] pl-16 pr-8 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 transition-all"
+                                                    placeholder="Ej: 813.39"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center px-4">
+                                                <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-2" title="Referencia del mercado privado para cálculo de ahorro">
+                                                    <Tag size={12} /> Precio Referencia Privado (Bs.)
+                                                </label>
+                                                {Number(newCatalogPricePrivado) > 0 && Number(newCatalogPrice) > 0 && (
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-tighter">
+                                                            Impacto: -Bs. {(Number(newCatalogPricePrivado) - Number(newCatalogPrice)).toFixed(2)}
+                                                        </span>
+                                                        <span className="text-[8px] font-bold text-emerald-500 mr-2">
+                                                            ({(((Number(newCatalogPricePrivado) - Number(newCatalogPrice)) / Number(newCatalogPricePrivado)) * 100).toFixed(0)}% de ahorro)
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="relative">
+                                                <span className="absolute left-8 top-1/2 -translate-y-1/2 text-rose-400 font-bold">Bs.</span>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={newCatalogPricePrivado}
+                                                    onChange={(e) => setNewCatalogPricePrivado(e.target.value)}
+                                                    className="w-full h-[60px] pl-16 pr-8 bg-rose-50/30 border-2 border-rose-100/50 rounded-2xl text-sm font-bold text-rose-900 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition-all placeholder:text-rose-200"
+                                                    placeholder="Ej: 1200.00"
                                                 />
                                             </div>
                                         </div>
@@ -1121,6 +1161,7 @@ export default function AdminPanel() {
                                                 setEditingCatalogId(null);
                                                 setNewCatalogName('');
                                                 setNewCatalogPrice('0');
+                                                setNewCatalogPricePrivado('0');
                                                 setNewCatalogPresentation('');
                                             }}
                                             className="h-[60px] px-8 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-200 transition-all"
@@ -1156,7 +1197,15 @@ export default function AdminPanel() {
                                                         <>
                                                             <span className="text-slate-200">|</span>
                                                             <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest">
-                                                                VINCULADO A: {item.parent.name}
+                                                                RUBRO: {item.parent.name}
+                                                            </p>
+                                                        </>
+                                                    )}
+                                                    {item.empresa && (
+                                                        <>
+                                                            <span className="text-slate-200">|</span>
+                                                            <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">
+                                                                EMPRESA: {item.empresa.name}
                                                             </p>
                                                         </>
                                                     )}

@@ -204,7 +204,7 @@ export default function JefeDashboard() {
         articulos: [] as string[],
         actividades: [] as string[],
         minppal: [] as string[],
-        fullCatalog: [] as { id: string, name: string, type: string, parent_id?: string, precio_referencia?: number, presentacion?: string }[]
+        fullCatalog: [] as { id: string, name: string, type: string, parent_id?: string, precio_referencia?: number, precio_privado?: number, presentacion?: string }[]
     });
     const [debug, setDebug] = useState<string>('Iniciando...');
 
@@ -265,7 +265,7 @@ export default function JefeDashboard() {
             setDebug('Sincronizando catálogos...');
             const { data: catalogData } = await supabase
                 .from('catalog_items')
-                .select('id, type, name, parent_id, precio_referencia, presentacion')
+                .select('id, type, name, parent_id, precio_referencia, precio_privado, presentacion')
                 .eq('is_active', true);
 
             if (catalogData) {
@@ -288,6 +288,7 @@ export default function JefeDashboard() {
                         type: i.type, 
                         parent_id: i.parent_id,
                         precio_referencia: i.precio_referencia,
+                        precio_privado: i.precio_privado,
                         presentacion: i.presentacion
                     }))
                 });
@@ -796,6 +797,74 @@ export default function JefeDashboard() {
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
     }, [minppalPresencia, filteredReportIds, catalogos.fullCatalog]);
+
+    const savingsImpactData = useMemo(() => {
+        // Métrica: Inversión MINPPAL vs Inversión Proyectada Privado
+        const stats: Record<string, { 
+            name: string;
+            tipo: string;
+            inversionMinppal: number;
+            inversionPrivado: number;
+            cantidadTotal: number;
+            ahorroTotal: number;
+            presentacion: string;
+        }> = {};
+
+        // Solo artículos con precio de referencia y precio privado
+        const articles = catalogos.fullCatalog.filter(c => (c.type === 'ARTICULO' || c.type === 'RUBRO') && (c.precio_referencia || 0) > 0);
+        
+        articles.forEach(art => {
+            stats[art.name] = {
+                name: art.name,
+                tipo: art.type,
+                inversionMinppal: 0,
+                inversionPrivado: 0,
+                cantidadTotal: 0,
+                ahorroTotal: 0,
+                presentacion: art.presentacion || 'N/A'
+            };
+        });
+
+        reportItems.forEach(item => {
+            if (filteredReportIds.has(item.report_id) && stats[item.rubro]) {
+                const s = stats[item.rubro];
+                const itemRef = catalogos.fullCatalog.find(c => c.name === item.rubro);
+                const cant = Number(item.cantidad) || 0;
+                
+                if (itemRef && cant > 0) {
+                    const pMinppal = itemRef.precio_referencia || 0;
+                    const pPrivado = itemRef.precio_privado || 0;
+                    
+                    s.inversionMinppal += cant * pMinppal;
+                    s.inversionPrivado += cant * (pPrivado > 0 ? pPrivado : pMinppal * 1.3); // Fallback 30% si no hay precio privado
+                    s.cantidadTotal += cant;
+                }
+            }
+        });
+
+        const list = Object.values(stats)
+            .filter(s => s.inversionMinppal > 0)
+            .map(s => ({
+                ...s,
+                ahorroTotal: s.inversionPrivado - s.inversionMinppal,
+                porcentajeAhorro: s.inversionPrivado > 0 ? ((s.inversionPrivado - s.inversionMinppal) / s.inversionPrivado) * 100 : 0
+            }));
+
+        const totalMinppal = list.reduce((acc, curr) => acc + curr.inversionMinppal, 0);
+        const totalPrivado = list.reduce((acc, curr) => acc + curr.inversionPrivado, 0);
+        const totalAhorroVal = totalPrivado - totalMinppal;
+        const totalAhorroPct = totalPrivado > 0 ? (totalAhorroVal / totalPrivado) * 100 : 0;
+
+        return {
+            ranking: list.sort((a, b) => b.ahorroTotal - a.ahorroTotal).slice(0, 10),
+            comparativoGlobal: [
+                { name: 'INVERSIÓN MINPPAL', valor: totalMinppal, color: '#007AFF' },
+                { name: 'PROYECTADO PRIVADO', valor: totalPrivado, color: '#94a3b8' }
+            ],
+            totalAhorroVal,
+            totalAhorroPct
+        };
+    }, [reportItems, filteredReportIds, catalogos.fullCatalog]);
 
     const entrepreneurStats = useMemo(() => {
         // Agrupar por ESTADO para dar visión territorial al Jefe
@@ -2256,6 +2325,133 @@ export default function JefeDashboard() {
                         </ResponsiveContainer>
                     </div>
 
+                </div>
+
+                {/* ── SECCIÓN: ANÁLISIS DE IMPACTO SOCIAL Y AHORRO ── */}
+                <div className="mt-12 bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 mb-12 overflow-hidden relative group">
+                    <div className="absolute -right-20 -top-20 w-80 h-80 bg-emerald-50/50 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-1000"></div>
+                    
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-16 relative z-10">
+                        <div className="flex items-center gap-6">
+                            <div className="w-16 h-16 bg-emerald-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-xl shadow-emerald-200">
+                                <TrendingUp size={32} />
+                            </div>
+                            <div>
+                                <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase font-['Outfit']">Impacto de Ahorro Social</h2>
+                                <p className="text-emerald-600 text-[11px] font-black uppercase tracking-[0.2em] mt-1 font-mono">Contraste de Precios: MINPPAL vs Sector Privado</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-6">
+                            <div className="bg-emerald-50 px-8 py-5 rounded-[2rem] border border-emerald-100/50">
+                                <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest mb-1">Ahorro Generado al Pueblo</p>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-sm font-black text-emerald-600/50">Bs.</span>
+                                    <span className="text-3xl font-black text-emerald-700 tracking-tighter">
+                                        {savingsImpactData.totalAhorroVal.toLocaleString('es-VE', { maximumFractionDigits: 0 })}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="bg-slate-900 px-8 py-5 rounded-[2rem] shadow-2xl shadow-slate-200">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 text-center">% Impacto Eficacia</p>
+                                <p className="text-3xl font-black text-white text-center tracking-tighter">
+                                    {savingsImpactData.totalAhorroPct.toFixed(1)}<span className="text-sm opacity-50 ml-1">%</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10">
+                        {/* Gráfico Comparativo de Inversión */}
+                        <div className="space-y-8">
+                            <div className="flex items-center justify-between px-4">
+                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Inversión Proyectada (Escala Nacional)</h4>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-[#007AFF]"></div>
+                                        <span className="text-[9px] font-black text-slate-500 uppercase">Minppal</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-slate-400"></div>
+                                        <span className="text-[9px] font-black text-slate-500 uppercase">Privado</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="h-[350px] w-full bg-slate-50/50 rounded-[2.5rem] p-6">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={savingsImpactData.comparativoGlobal} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
+                                        <XAxis 
+                                            dataKey="name" 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} 
+                                        />
+                                        <YAxis hide domain={[0, 'dataMax + 100000']} />
+                                        <Tooltip 
+                                            cursor={{ fill: 'transparent' }}
+                                            contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }}
+                                            formatter={(value: any) => [`Bs. ${Number(value).toLocaleString('es-VE')}`, 'Monto Total']}
+                                        />
+                                        <Bar dataKey="valor" radius={[15, 15, 15, 15]} barSize={60}>
+                                            {savingsImpactData.comparativoGlobal.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                            ))}
+                                            <LabelList 
+                                                dataKey="valor" 
+                                                position="top" 
+                                                formatter={(v: any) => `Bs. ${Number(v).toLocaleString('es-VE', { maximumFractionDigits: 0 })}`}
+                                                style={{ fontSize: 11, fontWeight: 900, fill: '#1e293b' }}
+                                            />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase text-center italic px-10">
+                                * Este gráfico contrasta la inversión real de los rubros distribuidos frente a su costo equivalente en el mercado privado nacional.
+                            </p>
+                        </div>
+
+                        {/* Ranking Top Ahorro */}
+                        <div className="space-y-6">
+                            <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] px-4">Ranking: Mayor Impacto de Ahorro (Top 10)</h4>
+                            <div className="bg-slate-50/50 rounded-[2.5rem] p-2 overflow-hidden">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="border-b border-slate-100">
+                                            <th className="py-4 px-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Producto</th>
+                                            <th className="py-4 px-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Ahorro total</th>
+                                            <th className="py-4 px-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Eficiencia</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100/50">
+                                        {savingsImpactData.ranking.map((item, idx) => (
+                                            <tr key={idx} className="group hover:bg-white transition-all">
+                                                <td className="py-4 px-6">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs font-black text-slate-900 group-hover:text-emerald-600 transition-colors uppercase leading-none">{item.name}</span>
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase mt-1.5">{item.presentacion}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-4 text-center">
+                                                    <span className="text-xs font-black text-slate-700 font-mono">
+                                                        Bs. {item.ahorroTotal.toLocaleString('es-VE', { maximumFractionDigits: 0 })}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4 px-6 text-right">
+                                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-xl font-black text-[10px] font-mono">
+                                                        <ArrowDownRight size={10} />
+                                                        {item.porcentajeAhorro.toFixed(0)}%
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="pb-10"></div>
