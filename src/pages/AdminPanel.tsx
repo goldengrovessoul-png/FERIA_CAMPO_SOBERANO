@@ -304,11 +304,11 @@ export default function AdminPanel() {
                     .order('name', { ascending: true });
                 setRubrosForSelect(rubros || []);
 
-                // También cargar las empresas MINPPAL
+                // También cargar las empresas MINPPAL y ENTES para vincular artículos
                 const { data: minppal } = await supabase
                     .from('catalog_items')
                     .select('id, name')
-                    .eq('type', 'MINPPAL')
+                    .in('type', ['MINPPAL', 'ENTE'])
                     .eq('is_active', true)
                     .order('name', { ascending: true });
                 setMinppalForSelect(minppal || []);

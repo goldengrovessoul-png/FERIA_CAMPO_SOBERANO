@@ -10,7 +10,10 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl, LayerGroup, Circle } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-markercluster';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     LineChart, Line, PieChart, Pie, Cell, Legend, LabelList, ReferenceLine
@@ -62,6 +65,48 @@ const ACTIVITY_COLORS: Record<string, string> = {
 const getMarkerIcon = (type: string) => {
     const color = ACTIVITY_COLORS[type] || '#64748b'; // Slate por defecto
     return createCustomIcon(color);
+};
+
+// Función para iconos de agrupamiento personalizados (Clusters Premium con Glassmorphism)
+const createClusterCustomIcon = (cluster: any) => {
+    const count = cluster.getChildCount();
+    let size = '36px';
+    let color = '#007AFF'; // Azul
+    
+    if (count > 50) {
+        size = '54px';
+        color = '#EF4444'; // Rojo (Crítico)
+    } else if (count > 10) {
+        size = '44px';
+        color = '#F59E0B'; // Ámbar (Medio)
+    }
+
+    return L.divIcon({
+        html: `
+            <div style="
+                background-color: ${color}99;
+                width: ${size};
+                height: ${size};
+                border: 2px solid rgba(255, 255, 255, 0.9);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-family: 'Inter', sans-serif;
+                font-weight: 900;
+                font-size: 13px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            ">
+                ${count}
+            </div>
+        `,
+        className: 'marker-cluster-custom',
+        iconSize: L.point(40, 40, true),
+    });
 };
 
 interface Report {
@@ -204,7 +249,7 @@ export default function JefeDashboard() {
         articulos: [] as string[],
         actividades: [] as string[],
         minppal: [] as string[],
-        fullCatalog: [] as { id: string, name: string, type: string, parent_id?: string, precio_referencia?: number, precio_privado?: number, presentacion?: string }[]
+        fullCatalog: [] as { id: string, name: string, type: string, parent_id?: string, empresa_id?: string, precio_referencia?: number, precio_privado?: number, presentacion?: string }[]
     });
     const [debug, setDebug] = useState<string>('Iniciando...');
 
@@ -265,7 +310,7 @@ export default function JefeDashboard() {
             setDebug('Sincronizando catálogos...');
             const { data: catalogData } = await supabase
                 .from('catalog_items')
-                .select('id, type, name, parent_id, precio_referencia, precio_privado, presentacion')
+                .select('id, type, name, parent_id, empresa_id, precio_referencia, precio_privado, presentacion')
                 .eq('is_active', true);
 
             if (catalogData) {
@@ -287,6 +332,7 @@ export default function JefeDashboard() {
                         name: i.name, 
                         type: i.type, 
                         parent_id: i.parent_id,
+                        empresa_id: i.empresa_id,
                         precio_referencia: i.precio_referencia,
                         precio_privado: i.precio_privado,
                         presentacion: i.presentacion
@@ -498,6 +544,17 @@ export default function JefeDashboard() {
             }
         });
 
+        // Asegurar que el rubro seleccionado aparezca al menos una vez si hay filtro
+        if (filterRubro !== 'Todos' && !stats[filterRubro]) {
+            stats[filterRubro] = {
+                name: filterRubro,
+                presentation: 'N/A',
+                nationalRef: 0,
+                totalPrice: 0,
+                count: 0
+            };
+        }
+
         return Object.values(stats)
             .map(s => {
                 const avgFair = s.count > 0 ? s.totalPrice / s.count : 0;
@@ -509,7 +566,7 @@ export default function JefeDashboard() {
                 };
             })
             .sort((a, b) => b.savings - a.savings);
-    }, [reportItems, filteredReportIds, catalogos.fullCatalog]);
+    }, [reportItems, filteredReportIds, catalogos.fullCatalog, filterRubro]);
 
     const foodDistribution = useMemo(() => {
         const categories = {
@@ -520,18 +577,71 @@ export default function JefeDashboard() {
             'Secos': 0
         };
 
+        // Mapeo dinámico de Artículo -> Categoría (RUBRO)
+        const itemToCategory: Record<string, string> = {};
+        catalogos.fullCatalog.forEach(item => {
+            if (item.type === 'ARTICULO' && item.parent_id) {
+                const parent = catalogos.fullCatalog.find(p => p.id === item.parent_id);
+                if (parent && parent.type === 'RUBRO') {
+                    itemToCategory[item.name.trim().toUpperCase()] = parent.name.trim().toUpperCase();
+                }
+            }
+        });
+
+        const reportsWithTotals = new Set<string>();
+        const isRubroFiltered = filterRubro !== 'Todos';
+
         filteredReports.forEach(r => {
-            categories['Proteínas'] += Number(r.total_proteina) || 0;
-            categories['Frutas'] += Number(r.total_frutas) || 0;
-            categories['Hortalizas'] += Number(r.total_hortalizas) || 0;
-            categories['Verduras'] += Number(r.total_verduras) || 0;
-            categories['Secos'] += Number(r.total_secos) || 0;
+            const sumRow = (Number(r.total_proteina) || 0) + 
+                          (Number(r.total_frutas) || 0) + 
+                          (Number(r.total_hortalizas) || 0) + 
+                          (Number(r.total_verduras) || 0) + 
+                          (Number(r.total_secos) || 0);
+
+            if (sumRow > 0 && !isRubroFiltered) {
+                categories['Proteínas'] += Number(r.total_proteina) || 0;
+                categories['Frutas'] += Number(r.total_frutas) || 0;
+                categories['Hortalizas'] += Number(r.total_hortalizas) || 0;
+                categories['Verduras'] += Number(r.total_verduras) || 0;
+                categories['Secos'] += Number(r.total_secos) || 0;
+                reportsWithTotals.add(r.id);
+            }
+        });
+
+        // Complementar con report_items:
+        // 1. Si hay filtro de rubro, sumamos SOLO ese rubro (PRECISIÓN QUIRÚRGICA)
+        // 2. Si no hay filtro, sumamos ítems de reportes que no tenían totales en la fila
+        reportItems.forEach(item => {
+            if (filteredReportIds.has(item.report_id)) {
+                const isFilteredItem = isRubroFiltered && item.rubro?.trim().toUpperCase() === filterRubro.trim().toUpperCase();
+                
+                if ((isRubroFiltered && isFilteredItem) || (!isRubroFiltered && !reportsWithTotals.has(item.report_id))) {
+                    const cat = itemToCategory[item.rubro?.trim().toUpperCase()];
+                    const qty = Number(item.cantidad) || 0;
+                    const tons = qty / 1000; 
+
+                    if (cat) {
+                        if (cat.includes('PROTE')) categories['Proteínas'] += tons;
+                        else if (cat.includes('FRUTA')) categories['Frutas'] += tons;
+                        else if (cat.includes('HORTA')) categories['Hortalizas'] += tons;
+                        else if (cat.includes('VERDU')) categories['Verduras'] += tons;
+                        else if (cat.includes('SECO')) categories['Secos'] += tons;
+                    } else {
+                        const rubroName = item.rubro?.trim().toUpperCase();
+                        if (rubroName.includes('PROTE')) categories['Proteínas'] += tons;
+                        else if (rubroName.includes('FRUTA')) categories['Frutas'] += tons;
+                        else if (rubroName.includes('HORTA')) categories['Hortalizas'] += tons;
+                        else if (rubroName.includes('VERDU')) categories['Verduras'] += tons;
+                        else if (rubroName.includes('SECO')) categories['Secos'] += tons;
+                    }
+                }
+            }
         });
 
         return Object.entries(categories)
             .map(([name, value]) => ({ name, value }))
             .filter(i => i.value > 0);
-    }, [filteredReports]);
+    }, [filteredReports, filterRubro, reportItems, filteredReportIds, catalogos.fullCatalog]);
 
     const paymentData = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -723,9 +833,9 @@ export default function JefeDashboard() {
 
 
     const rubroPresenceData = useMemo(() => {
-        // Grafico C: Solo productos de terceros/privados (sin parent_id)
+        // Grafico C: Solo productos de terceros/privados (sin padre o con padre RUBRO)
         const RUBROS_LIST = catalogos.fullCatalog
-            .filter(i => i.type === 'ARTICULO' && !i.parent_id)
+            .filter(i => i.type === 'ARTICULO' && (!i.parent_id || catalogos.fullCatalog.find(p => p.id === i.parent_id)?.type === 'RUBRO'))
             .map(i => i.name);
 
         const counts: Record<string, number> = {};
@@ -748,9 +858,9 @@ export default function JefeDashboard() {
     }, [reportItems, filteredReportIds, catalogos.fullCatalog, filteredReports.length]);
 
     const rubroVolumeData = useMemo(() => {
-        // Grafico D: Solo productos de terceros/privados (sin parent_id)
+        // Grafico D: Solo productos de terceros/privados (sin padre o con padre RUBRO)
         const RUBROS_LIST = catalogos.fullCatalog
-            .filter(i => i.type === 'ARTICULO' && !i.parent_id)
+            .filter(i => i.type === 'ARTICULO' && (!i.parent_id || catalogos.fullCatalog.find(p => p.id === i.parent_id)?.type === 'RUBRO'))
             .map(i => i.name);
 
         const sums: Record<string, number> = {};
@@ -775,9 +885,15 @@ export default function JefeDashboard() {
         // Grafico A: Solo productos de entes MINPPAL (con parent_id)
         const productMap: Record<string, { name: string, ente: string }> = {};
         catalogos.fullCatalog.forEach(c => {
-            if (c.type === 'ARTICULO' && c.parent_id) {
-                const ente = catalogos.fullCatalog.find(e => e.id === c.parent_id)?.name || 'ENTE';
-                productMap[c.id] = { name: c.name, ente: ente };
+            if (c.type === 'ARTICULO') {
+                // Prioridad a empresa_id (nueva vinculación), luego a parent_id (legacy)
+                const producerId = c.empresa_id || c.parent_id;
+                if (producerId) {
+                    const parent = catalogos.fullCatalog.find(e => e.id === producerId);
+                    if (parent && (parent.type === 'MINPPAL' || parent.type === 'ENTE')) {
+                        productMap[c.id] = { name: c.name, ente: parent.name };
+                    }
+                }
             }
         });
 
@@ -1316,18 +1432,26 @@ export default function JefeDashboard() {
                     </div>
 
                     <div className="h-full w-full rounded-[3rem] overflow-hidden">
-                        <MapContainer center={[7.0, -66.0] as L.LatLngExpression} zoom={6} style={{ height: '100%', width: '100%' }}>
+                        <MapContainer 
+                            center={[7.0, -66.0] as L.LatLngExpression} 
+                            zoom={6} 
+                            maxZoom={22}
+                            style={{ height: '100%', width: '100%' }}
+                        >
                             <LayersControl position="bottomright">
                                 <LayersControl.BaseLayer checked name="Satélite Premium">
                                     <TileLayer
                                         url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                                         attribution='&copy; Esri'
+                                        maxZoom={22}
+                                        maxNativeZoom={19}
                                     />
                                 </LayersControl.BaseLayer>
                                 <LayersControl.BaseLayer name="Mapa de Calles">
                                     <TileLayer
                                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                                         attribution='&copy; OpenStreetMap'
+                                        maxZoom={19}
                                     />
                                 </LayersControl.BaseLayer>
 
@@ -1336,10 +1460,18 @@ export default function JefeDashboard() {
                                     url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
                                     attribution='&copy; Esri'
                                     zIndex={100}
+                                    maxZoom={22}
+                                    maxNativeZoom={19}
                                 />
 
                                 <LayersControl.Overlay checked name="📍 Jornadas Operativas (Filtradas)">
-                                    <LayerGroup>
+                                    <MarkerClusterGroup
+                                        chunkedLoading
+                                        iconCreateFunction={createClusterCustomIcon}
+                                        maxClusterRadius={50}
+                                        spiderfyOnMaxZoom={true}
+                                        showCoverageOnHover={false}
+                                    >
                                         {filteredReports.filter(r => r.latitud && r.longitud).map(report => {
                                             const activityType = (report.tipo_actividad || '').trim().toUpperCase();
                                             return (
@@ -1373,7 +1505,7 @@ export default function JefeDashboard() {
                                                     </Marker>
                                                 );
                                             })}
-                                    </LayerGroup>
+                                    </MarkerClusterGroup>
                                 </LayersControl.Overlay>
 
                                 <LayersControl.Overlay checked name="⚠️ Zonas de Vulnerabilidad">

@@ -17,6 +17,7 @@ interface CatalogEntry {
     name: string;
     type: string;
     parent_id?: string | null;
+    empresa_id?: string | null;
 }
 
 const METODOS_PAGO = [
@@ -49,7 +50,8 @@ export default function ReportForm() {
         actividades: [] as string[],
         minppal: [] as CatalogEntry[],
         productos_minppal: [] as CatalogEntry[],
-        entrepreneurTypes: [] as string[]
+        entrepreneurTypes: [] as string[],
+        fullCatalog: [] as any[]
     });
     const [customEntrepFields, setCustomEntrepFields] = useState<{id: string, nombre: string, etiqueta: string, tipo: string, requerido: boolean}[]>([]);
 
@@ -148,6 +150,68 @@ export default function ReportForm() {
         reportId, isRestoring, loadingCatalogs
     ]);
 
+    // Recálculo automático de totales por categoría
+    useEffect(() => {
+        if (loadingCatalogs) return;
+
+        const totals = { proteina: 0, frutas: 0, hortalizas: 0, verduras: 0, secos: 0 };
+        
+        rubros.forEach(item => {
+            const qty = Number(item.cantidad) || 0;
+            if (qty <= 0) return;
+
+            // Encontrar el item en el catálogo para saber su categoría (padre)
+            const catItem = catalogos.fullCatalog.find(c => c.name.trim().toUpperCase() === item.rubro.trim().toUpperCase());
+            let categoryName = '';
+
+            if (catItem) {
+                if (catItem.type === 'RUBRO' && !catItem.parent_id) {
+                    categoryName = catItem.name.trim().toUpperCase();
+                } else if (catItem.parent_id) {
+                    const parent = catalogos.fullCatalog.find(p => p.id === catItem.parent_id);
+                    if (parent && parent.type === 'RUBRO') {
+                        categoryName = parent.name.trim().toUpperCase();
+                    }
+                }
+            }
+
+            // Normalización: de la medida seleccionada a TONELADAS
+            let tons = 0;
+            const m = item.medida.toLowerCase();
+            if (m.includes('ton')) tons = qty;
+            else if (m.includes('kg')) tons = qty / 1000;
+            else if (m.includes('gr')) tons = qty / 1000000;
+            else if (m.includes('und') || m.includes('pza') || m.includes('caja') || m.includes('bulto')) {
+                // Para unidades, usamos un peso estimado si no hay más info (ej. 1kg por unidad)
+                // O mejor, el usuario ya debería haber reportado en kg si es peso.
+                // Si es unidad, asumimos 1kg como base conservadora o lo dejamos en 0 si no es pesable.
+                tons = qty / 1000; 
+            }
+
+            if (categoryName.includes('PROTE')) totals.proteina += tons;
+            else if (categoryName.includes('FRUTA')) totals.frutas += tons;
+            else if (categoryName.includes('HORTA')) totals.hortalizas += tons;
+            else if (categoryName.includes('VERDU')) totals.verduras += tons;
+            else if (categoryName.includes('SECO')) totals.secos += tons;
+            else {
+                // Fallback por nombre de rubro directo
+                const name = item.rubro.trim().toUpperCase();
+                if (name.includes('PROTE')) totals.proteina += tons;
+                else if (name.includes('FRUTA')) totals.frutas += tons;
+                else if (name.includes('HORTA')) totals.hortalizas += tons;
+                else if (name.includes('VERDU')) totals.verduras += tons;
+                else if (name.includes('SECO')) totals.secos += tons;
+            }
+        });
+
+        setTotalProteina(Number(totals.proteina.toFixed(3)));
+        setTotalFrutas(Number(totals.frutas.toFixed(3)));
+        setTotalHortalizas(Number(totals.hortalizas.toFixed(3)));
+        setTotalVerduras(Number(totals.verduras.toFixed(3)));
+        setTotalSecos(Number(totals.secos.toFixed(3)));
+
+    }, [rubros, catalogos.fullCatalog, loadingCatalogs]);
+
     function restoreLocalDraft() {
         const savedDraft = localStorage.getItem('fcs_report_draft');
         if (savedDraft) {
@@ -192,7 +256,7 @@ export default function ReportForm() {
         try {
             setLoadingCatalogs(true);
             const [catalogRes, dpaRes] = await Promise.all([
-                supabase.from('catalog_items').select('id, type, name, parent_id').eq('is_active', true).order('name', { ascending: true }),
+                supabase.from('catalog_items').select('id, type, name, parent_id, empresa_id').eq('is_active', true).order('name', { ascending: true }),
                 supabase.from('venezuela_dpa').select('*').limit(2000)
             ]);
 
@@ -206,12 +270,19 @@ export default function ReportForm() {
             const newCatalogs = {
                 estados: data.filter((i: any) => i.type === 'ESTADO').map((i: any) => i.name),
                 empresas: data.filter((i: any) => i.type === 'ENTE').map((i: any) => i.name),
-                rubros: data.filter((i: any) => (i.type === 'ARTICULO' || i.type === 'RUBRO') && !i.parent_id).map((i: any) => i.name),
+                rubros: data.filter((i: any) => (i.type === 'ARTICULO' || i.type === 'RUBRO')).map((i: any) => i.name),
                 medidas: data.filter((i: any) => i.type === 'MEDIDA').map((i: any) => i.name),
                 actividades: data.filter((i: any) => i.type === 'ACTIVIDAD').map((i: any) => i.name),
-                minppal: data.filter((i: any) => i.type === 'MINPPAL').map((i: any) => ({ id: i.id, name: i.name, type: i.type })),
-                productos_minppal: data.filter((i: any) => (i.type === 'ARTICULO' || i.type === 'RUBRO') && i.parent_id !== null).map((i: any) => ({ id: i.id, name: i.name, type: i.type, parent_id: i.parent_id })),
-                entrepreneurTypes: [] as string[]
+                minppal: data.filter((i: any) => i.type === 'MINPPAL' || i.type === 'ENTE').map((i: any) => ({ id: i.id, name: i.name, type: i.type })),
+                productos_minppal: data.filter((i: any) => (i.type === 'ARTICULO' || i.type === 'RUBRO') && (i.parent_id !== null || i.empresa_id !== null)).map((i: any) => ({
+                    id: i.id,
+                    name: i.name,
+                    type: i.type,
+                    parent_id: i.parent_id,
+                    empresa_id: i.empresa_id
+                })),
+                entrepreneurTypes: [] as string[],
+                fullCatalog: data
             };
 
             // Cargar Tipos de Emprendimiento desde la tabla específica
@@ -1260,7 +1331,7 @@ export default function ReportForm() {
                         <div className="space-y-4">
                             {catalogos.minppal.map((ente) => {
                                 const enteSeleccionado = presenciaEntes.find(p => p.enteId === ente.id);
-                                const productosDelEnte = catalogos.productos_minppal.filter(p => p.parent_id === ente.id);
+                                const productosDelEnte = catalogos.productos_minppal.filter(p => p.parent_id === ente.id || p.empresa_id === ente.id);
 
                                 return (
                                     <div key={ente.id} className={`rounded-[2rem] border-2 transition-all overflow-hidden ${enteSeleccionado ? 'border-blue-100 bg-white' : 'border-slate-50 bg-slate-50/50'}`}>
