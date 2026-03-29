@@ -251,6 +251,10 @@ export default function JefeDashboard() {
         minppal: [] as string[],
         fullCatalog: [] as { id: string, name: string, type: string, parent_id?: string, empresa_id?: string, precio_referencia?: number, precio_privado?: number, presentacion?: string }[]
     });
+
+    // Estados para UI interactiva del Mapa
+    const [isMapFilterOpen, setIsMapFilterOpen] = useState(false);
+    const [isMapLegendOpen, setIsMapLegendOpen] = useState(false);
     const [debug, setDebug] = useState<string>('Iniciando...');
 
     // Solo ejecutar fetchData cuando el auth ya esté resuelto y tengamos sesión
@@ -1406,30 +1410,56 @@ export default function JefeDashboard() {
                             </div>
                         </div>
                     </div>
-
                 </div>
                 {/* ── FIN PANEL MINPPAL ─────────────────────────────── */}
 
                 {/* ── MAPA OPERATIVO — Ancho Completo ──────────────────────────── */}
                 <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 relative h-[500px] md:h-[620px] overflow-hidden">
-                    <div className="absolute top-6 left-6 z-[1001] bg-white/95 backdrop-blur-sm p-4 rounded-2xl border border-slate-100 shadow-xl">
-                        <h3 className="text-xs font-black uppercase tracking-widest text-[#007AFF]">Mapa Operativo</h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Ubicación de Jornadas Activas</p>
-                        <p className="text-[10px] font-black text-slate-600 mt-2">
-                            <span className="text-[#007AFF]">{filteredReports.filter(r => r.latitud && r.longitud).length}</span> puntos georeferenciados
-                        </p>
+                    
+                    {/* Botones de Control Flotantes (Mobile Friendly) */}
+                    <div className="absolute top-6 right-6 z-[1001] flex flex-col gap-3">
+                        <button 
+                            onClick={() => setIsMapFilterOpen(!isMapFilterOpen)}
+                            className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl backdrop-blur-md transition-all ${isMapFilterOpen ? 'bg-[#007AFF] text-white' : 'bg-white/90 text-slate-600 border border-slate-100'}`}
+                        >
+                            <Search size={22} />
+                        </button>
+                        <button 
+                            onClick={() => setIsMapLegendOpen(!isMapLegendOpen)}
+                            className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl backdrop-blur-md transition-all ${isMapLegendOpen ? 'bg-[#007AFF] text-white' : 'bg-white/90 text-slate-600 border border-slate-100'}`}
+                        >
+                            <Leaf size={22} />
+                        </button>
                     </div>
 
-                    {/* Leyenda del Mapa */}
-                    <div className="absolute bottom-6 left-6 z-[1001] bg-white/95 backdrop-blur-sm p-4 rounded-2xl border border-slate-100 shadow-xl flex flex-col gap-2.5">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 border-b border-slate-50 pb-2">Leyenda de Actividades</p>
-                        {Object.entries(ACTIVITY_COLORS).map(([type, color]) => (
-                            <div key={type} className="flex items-center gap-3">
-                                <div className="w-3 h-3 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: color }}></div>
-                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-tight">{type}</span>
+                    {/* Cabecera del Mapa (Mobile: Solo visible si no hay paneles abiertos) */}
+                    {!isMapFilterOpen && !isMapLegendOpen && (
+                        <div className="absolute top-6 left-6 z-[1001] bg-white/95 backdrop-blur-sm p-4 rounded-2xl border border-slate-100 shadow-xl hidden sm:block">
+                            <h3 className="text-xs font-black uppercase tracking-widest text-[#007AFF]">Mapa Operativo</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ubicación de Jornadas Activas</p>
+                            <p className="text-[10px] font-black text-slate-600 mt-2">
+                                <span className="text-[#007AFF]">{filteredReports.filter(r => r.latitud && r.longitud).length}</span> puntos georeferenciados
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Leyenda del Mapa (Colapsable) */}
+                    {isMapLegendOpen && (
+                        <div className="absolute bottom-6 left-6 right-6 sm:right-auto z-[1001] bg-white/95 backdrop-blur-sm p-5 rounded-3xl border border-slate-100 shadow-2xl animate-in slide-in-from-bottom-5 duration-300">
+                            <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Leyenda de Actividades</p>
+                                <button onClick={() => setIsMapLegendOpen(false)} className="text-slate-300 hover:text-red-500"><Search size={14} className="rotate-45" /></button>
                             </div>
-                        ))}
-                    </div>
+                            <div className="grid grid-cols-2 sm:flex sm:flex-col gap-3">
+                                {Object.entries(ACTIVITY_COLORS).map(([type, color]) => (
+                                    <div key={type} className="flex items-center gap-3">
+                                        <div className="w-3 h-3 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: color }}></div>
+                                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-tight">{type}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="h-full w-full rounded-[3rem] overflow-hidden">
                         <MapContainer 
@@ -1455,14 +1485,15 @@ export default function JefeDashboard() {
                                     />
                                 </LayersControl.BaseLayer>
 
-                                {/* Capa de referencia de etiquetas siempre visible */}
-                                <TileLayer
-                                    url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-                                    attribution='&copy; Esri'
-                                    zIndex={100}
-                                    maxZoom={22}
-                                    maxNativeZoom={19}
-                                />
+                                <LayersControl.Overlay name="🏷️ Mostrar Nombres de Lugares">
+                                    <TileLayer
+                                        url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                                        attribution='&copy; Esri'
+                                        zIndex={100}
+                                        maxZoom={22}
+                                        maxNativeZoom={19}
+                                    />
+                                </LayersControl.Overlay>
 
                                 <LayersControl.Overlay checked name="📍 Jornadas Operativas (Filtradas)">
                                     <MarkerClusterGroup
@@ -1523,7 +1554,7 @@ export default function JefeDashboard() {
                                                         fillOpacity: 0.6,
                                                         weight: 2
                                                     }}
-                                                    radius={50000} // 50km para que sea visible en zoom nacional
+                                                    radius={50000}
                                                 >
                                                     <Popup>
                                                         <div className="p-3 font-sans min-w-[180px]">
@@ -1547,15 +1578,24 @@ export default function JefeDashboard() {
                                 </LayersControl.Overlay>
                             </LayersControl>
                         </MapContainer>
+                    </div>
                         
-                        {/* Panel de Filtros Flotante del Mapa */}
-                        <div className="absolute top-6 right-16 z-[1001] w-[240px] pointer-events-none">
-                            <div className="bg-white/95 backdrop-blur-sm p-5 rounded-3xl border border-slate-100 shadow-2xl pointer-events-auto space-y-4">
-                                <div className="flex items-center gap-3 border-b border-slate-50 pb-3">
-                                    <div className="w-8 h-8 bg-blue-50 text-[#007AFF] rounded-xl flex items-center justify-center shadow-inner"><Activity size={16} /></div>
-                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Panel de Filtros</h4>
+                    {/* Panel de Filtros Flotante del Mapa (Colapsable) */}
+                    {isMapFilterOpen && (
+                        <div className="absolute top-20 right-6 z-[1001] w-[280px] sm:w-[320px] animate-in slide-in-from-right-5 duration-300">
+                            <div className="bg-white/95 backdrop-blur-sm p-6 rounded-[2rem] border border-slate-100 shadow-2xl space-y-5">
+                                <div className="flex items-center justify-between border-b border-slate-50 pb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-blue-50 text-[#007AFF] rounded-2xl flex items-center justify-center shadow-inner">
+                                            <Activity size={18} />
+                                        </div>
+                                        <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-400 leading-tight">Panel de<br/>Filtros Map</h4>
+                                    </div>
+                                    <button onClick={() => setIsMapFilterOpen(false)} className="text-slate-300 hover:text-red-500">
+                                        <Search size={16} className="rotate-45" />
+                                    </button>
                                 </div>
-                                <div className="space-y-3">
+                                <div className="space-y-4">
                                     <div className="space-y-1.5">
                                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] ml-1">Ente / Empresa</label>
                                         <select 
@@ -1564,7 +1604,9 @@ export default function JefeDashboard() {
                                             className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-200 transition-all text-slate-700"
                                         >
                                             <option value="Todos">🏢 Todos los Entes</option>
-                                            {catalogos.entes.map(e => <option key={`map-ente-${e}`} value={e}>{e}</option>)}
+                                            {catalogos.entes.map(e => (
+                                                <option key={`map-ente-filter-${e}`} value={e}>{e}</option>
+                                            ))}
                                         </select>
                                     </div>
                                     <div className="space-y-1.5">
@@ -1575,7 +1617,9 @@ export default function JefeDashboard() {
                                             className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-200 transition-all text-slate-700"
                                         >
                                             <option value="Todos">⚡ Todas las Act.</option>
-                                            {catalogos.actividades.map(a => <option key={`map-act-${a}`} value={a}>{a}</option>)}
+                                            {catalogos.actividades.map(a => (
+                                                <option key={`map-act-filter-${a}`} value={a}>{a}</option>
+                                            ))}
                                         </select>
                                     </div>
                                     <div className="pt-2">
@@ -1589,7 +1633,7 @@ export default function JefeDashboard() {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
                 {/* ── FIN MAPA ─────────────────────────────────────────────────── */}
 
