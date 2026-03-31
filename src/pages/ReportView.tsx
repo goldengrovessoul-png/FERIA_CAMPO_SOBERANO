@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, MapPin, Calendar, Download, FileText, Printer, User, Users, CheckCircle2, Home, Package, Star } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Download, Printer, User, Users, CheckCircle2, Home, Package, Star } from 'lucide-react';
 
 interface ReportDetails {
     id: string;
@@ -132,34 +132,41 @@ export default function ReportView() {
             {/* DOCUMENTO TIPO PDF */}
             <div className="w-full max-w-4xl bg-white shadow-2xl rounded-[1rem] overflow-hidden border border-slate-200 relative print:shadow-none print:m-0 print:border-none">
 
-                {/* Cabecera del Documento */}
-                <div className="bg-slate-900 text-white p-10 flex flex-col md:flex-row print:flex-row justify-between gap-8 border-b-8 border-blue-600">
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                                <FileText size={28} />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-black uppercase tracking-tighter leading-none">Informe Técnico</h1>
-                                <p className="text-blue-400 text-[10px] font-bold uppercase tracking-widest">Feria del Campo Soberano</p>
-                            </div>
+                <div className="bg-slate-900 text-white p-10 flex flex-col md:flex-row print:flex-row justify-between items-start gap-12 border-b-8 border-blue-600">
+                    {/* Bloque Izquierdo: Logo e Identificación */}
+                    <div className="space-y-8 flex-1">
+                        <div className="flex flex-col gap-6">
+                            <img 
+                                src="/Logo_Minppal.jpeg" 
+                                alt="Logo MINPPAL" 
+                                className="h-28 w-auto object-contain rounded-xl" 
+                            />
                         </div>
                         <div className="space-y-1">
-                            <p className="text-slate-400 text-[10px] font-black uppercase">ID Documento</p>
-                            <p className="font-mono text-xs opacity-70 tracking-widest">{report.id}</p>
+                            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest opacity-60">ID Documento de Control</p>
+                            <p className="font-mono text-[11px] opacity-80 tracking-[0.2em]">{report.id}</p>
                         </div>
                     </div>
 
-                    <div className="text-left md:text-right print:text-right space-y-4">
-                        <div className={`inline-block px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border-2 ${report.estado_reporte === 'enviado' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 print:bg-emerald-100' : 'bg-orange-500/10 border-orange-500 text-orange-400 print:bg-orange-100'}`}>
-                            ESTADO: {report.estado_reporte}
-                        </div>
+                    {/* Bloque Derecho: Título, Estado y Tiempo */}
+                    <div className="text-left md:text-right print:text-right space-y-6 shrink-0 pt-2">
                         <div className="space-y-1">
-                            <p className="text-slate-400 text-[10px] font-black uppercase print:text-slate-300">Fecha de Emisión</p>
-                            <p className="text-sm font-bold flex items-center md:justify-end print:justify-end gap-2 text-white print:text-white">
-                                <Calendar size={14} className="text-blue-500" />
-                                {new Date(report.fecha).toLocaleDateString()} - {new Date(report.fecha).toLocaleTimeString()}
-                            </p>
+                            <h1 className="text-4xl font-black uppercase tracking-tight leading-none text-white">Reporte</h1>
+                            <p className="text-blue-400 text-[10px] font-bold uppercase tracking-widest">Feria del Campo Soberano</p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className={`inline-block px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] border-2 shadow-lg ${report.estado_reporte === 'enviado' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-emerald-500/20' : 'bg-orange-500/10 border-orange-500 text-orange-400 shadow-orange-500/20'}`}>
+                                ESTADO: {report.estado_reporte}
+                            </div>
+                            
+                            <div className="space-y-1">
+                                <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em]">Fecha de Certificación</p>
+                                <p className="text-sm font-bold flex items-center md:justify-end print:justify-end gap-2 text-white">
+                                    <Calendar size={14} className="text-blue-500" />
+                                    {new Date(report.fecha).toLocaleDateString()} - {new Date(report.fecha).toLocaleTimeString()}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
