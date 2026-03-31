@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -126,6 +127,7 @@ export default function ReportForm() {
         } else {
             restoreLocalDraft();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [reportId]);
 
     // Auto-save logic

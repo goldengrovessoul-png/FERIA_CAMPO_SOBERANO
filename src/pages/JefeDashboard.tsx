@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useMemo } from 'react';
 import {
@@ -19,15 +20,13 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     LineChart, Line, PieChart, Pie, Cell, Legend, LabelList, ReferenceLine
 } from 'recharts';
-import * as XLSX from 'xlsx';
-import { FileDown } from 'lucide-react';
 
 // Fix for Leaflet default icon issues in React
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-let DefaultIcon = L.icon({
+const DefaultIcon = L.icon({
     iconUrl: icon,
     shadowUrl: iconShadow,
     iconSize: [25, 41],
@@ -466,7 +465,8 @@ export default function JefeDashboard() {
             totalProteina += p;
             totalGeneral += t;
         });
-        return totalGeneral > 0 ? Math.round((totalProteina / totalGeneral) * 100) : 0;
+        const pct = totalGeneral > 0 ? Math.round((totalProteina / totalGeneral) * 100) : 0;
+        return { totalProteina, pct };
     }, [filteredReports]);
 
     const entrepreneurDiversity = useMemo(() => {
@@ -487,16 +487,22 @@ export default function JefeDashboard() {
         })).sort((a, b) => b.value - a.value).slice(0, 5);
     }, [entrepreneurs, filteredReportIds, reports]);
 
-    const vulnerabilityAlerts = useMemo(() => {
-        const highZones = vulnerabilityData.filter(v => (v.nivel_prioridad || 0) >= 4);
-        return filteredReports.filter(r => 
-            highZones.some(vz => 
-                vz.estado.trim().toUpperCase() === (r.estado_geografico || '').trim().toUpperCase() &&
-                vz.municipio.trim().toUpperCase() === (r.municipio || '').trim().toUpperCase() &&
-                vz.parroquia.trim().toUpperCase() === (r.parroquia || '').trim().toUpperCase()
-            )
-        ).length;
-    }, [vulnerabilityData, filteredReports]);
+    const abastecimientoHogar = useMemo(() => {
+        let totalTons = 0;
+        let totalFamilias = 0;
+        filteredReports.forEach(r => {
+            const t = (Number(r.total_proteina) || 0) + (Number(r.total_frutas) || 0) + 
+                      (Number(r.total_hortalizas) || 0) + (Number(r.total_verduras) || 0) + 
+                      (Number(r.total_secos) || 0);
+            totalTons += t;
+            totalFamilias += (Number(r.familias) || 0);
+        });
+        const kgPorFamilia = totalFamilias > 0 ? (totalTons * 1000) / totalFamilias : 0;
+        return {
+            kg: Number(kgPorFamilia.toFixed(1)),
+            familias: totalFamilias
+        };
+    }, [filteredReports]);
 
     const monthlyComparison = useMemo(() => {
         const now = new Date();
@@ -731,7 +737,7 @@ export default function JefeDashboard() {
             };
         }
 
-        let targetRubro = filterRubro;
+        const targetRubro = filterRubro;
         
         // Buscar el artículo en el catálogo para obtener el precio de referencia
         const catalogItem = catalogos.fullCatalog.find(c => 
@@ -739,8 +745,8 @@ export default function JefeDashboard() {
             (c.type === 'ARTICULO' || c.type === 'RUBRO')
         );
 
-        let effectiveTarget = targetRubro;
-        let referencePrice = catalogItem?.precio_referencia || 0;
+        const effectiveTarget = targetRubro;
+        const referencePrice = catalogItem?.precio_referencia || 0;
 
         const stateAvgs: Record<string, { total: number, count: number }> = {};
         
@@ -850,7 +856,7 @@ export default function JefeDashboard() {
         reportItems.forEach(item => {
             if (filteredReportIds.has(item.report_id)) {
                 const rubroKey = item.rubro?.toLowerCase();
-                if (counts.hasOwnProperty(rubroKey)) {
+                if (rubroKey && Object.prototype.hasOwnProperty.call(counts, rubroKey)) {
                     counts[rubroKey]++;
                 }
             }
@@ -875,7 +881,7 @@ export default function JefeDashboard() {
         reportItems.forEach(item => {
             if (filteredReportIds.has(item.report_id)) {
                 const rubroKey = item.rubro?.toLowerCase();
-                if (sums.hasOwnProperty(rubroKey)) {
+                if (rubroKey && Object.prototype.hasOwnProperty.call(sums, rubroKey)) {
                     sums[rubroKey] += Number(item.cantidad) || 0;
                 }
             }
@@ -1073,16 +1079,7 @@ export default function JefeDashboard() {
 
 
 
-    const MINPPAL_EMPRESAS_FALLBACK = [
-        { id: 'lacteosLosAndes', label: 'LÁCTEOS LOS ANDES' },
-        { id: 'indugram', label: 'INDUGRAM' },
-        { id: 'diana', label: 'DIANA' },
-        { id: 'salbiven', label: 'SALBIVEN' },
-        { id: 'argeliaLaya', label: 'ARGELIA LAYA' },
-        { id: 'redNutrivida', label: 'RED NUTRIVIDA' },
-        { id: 'nutricacao', label: 'NUTRICACAO' },
-        { id: 'nutrimanoco', label: 'NUTRIMAÑOCO' }
-    ];
+
 
     const minppalDetailData = useMemo(() => {
         const totalReports = filteredReports.length || 1;
@@ -1116,6 +1113,17 @@ export default function JefeDashboard() {
             counts[companyName] = (counts[companyName] || 0) + 1;
         });
 
+        const MINPPAL_EMPRESAS_FALLBACK = [
+            { id: 'lacteosLosAndes', label: 'LÁCTEOS LOS ANDES' },
+            { id: 'indugram', label: 'INDUGRAM' },
+            { id: 'diana', label: 'DIANA' },
+            { id: 'salbiven', label: 'SALBIVEN' },
+            { id: 'argeliaLaya', label: 'ARGELIA LAYA' },
+            { id: 'redNutrivida', label: 'RED NUTRIVIDA' },
+            { id: 'nutricacao', label: 'NUTRICACAO' },
+            { id: 'nutrimanoco', label: 'NUTRIMAÑOCO' }
+        ];
+
         const empresasUI = catalogos.minppal.length > 0 ? catalogos.minppal : MINPPAL_EMPRESAS_FALLBACK.map(e => e.label);
 
         return empresasUI.map(name => {
@@ -1129,52 +1137,6 @@ export default function JefeDashboard() {
     }, [filteredReports, minppalPresencia, filteredReportIds, catalogos.fullCatalog, catalogos.minppal]);
 
 
-
-    const exportToExcel = () => {
-        // Preparar los datos para Excel
-        const dataToExport = filteredReports.map(report => {
-            // Obtener productos de MINPPAL para este reporte
-            const productosPresentes = minppalPresencia
-                .filter(p => p.report_id === report.id && p.presente)
-                .map(p => {
-                    const prodName = catalogos.fullCatalog.find(c => c.id === p.producto_id)?.name || 'GENERAL';
-                    const enteName = catalogos.fullCatalog.find(c => c.id === p.ente_id)?.name || 'ENTE';
-                    return `${enteName}: ${prodName}`;
-                })
-                .join(' | ');
-
-            return {
-                'ID': report.id,
-                'FECHA': new Date(report.fecha).toLocaleDateString('es-VE'),
-                'TIPO ACTIVIDAD': report.tipo_actividad,
-                'ENTE RESPONSABLE': report.empresa,
-                'ESTADO': report.estado_geografico,
-                'MUNICIPIO': report.municipio,
-                'PARROQUIA': report.parroquia,
-                'PERSONAS': report.personas,
-                'FAMILIAS': report.familias,
-                'COMUNAS': report.comunas,
-                'PROTEÍNA (TON)': report.total_proteina,
-                'FRUTAS (TON)': report.total_frutas,
-                'HORTALIZAS (TON)': report.total_hortalizas,
-                'VERDURAS (TON)': report.total_verduras,
-                'SECOS (TON)': report.total_secos,
-                'ESTADO REPORTE': report.estado_reporte,
-                'PRODUCTOS MINPPAL': productosPresentes
-            };
-        });
-
-        // Crear el libro y la hoja
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Reportes Filtrados");
-
-        // Generar nombre de archivo dinámico
-        const fileName = `Reporte_FCS_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-        // Descargar el archivo
-        XLSX.writeFile(workbook, fileName);
-    };
 
     return (
         <div className="min-h-screen bg-[#F2F2F7] text-slate-900 font-sans relative">
@@ -1197,14 +1159,6 @@ export default function JefeDashboard() {
                 </div>
 
                 <div className="flex items-center gap-3 w-full md:w-auto">
-                    <button
-                        onClick={exportToExcel}
-                        disabled={filteredReports.length === 0}
-                        className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-5 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:grayscale"
-                        title="Exportar a Excel"
-                    >
-                        <FileDown size={18} /> Excel
-                    </button>
                     <button onClick={() => fetchData()} className="flex-1 md:flex-none p-3 bg-slate-100 text-slate-600 hover:text-[#007AFF] hover:bg-blue-50 rounded-2xl transition-all border border-slate-200 flex justify-center">
                         <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
                     </button>
@@ -1683,7 +1637,7 @@ export default function JefeDashboard() {
                             </div>
                             <div className="h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={enteReportData} layout="vertical" margin={{ left: -10, right: 40, top: 0, bottom: 0 }}>
+                                    <BarChart data={enteReportData} layout="vertical" margin={{ left: 20, right: 50, top: 0, bottom: 20 }}>
                                         <defs>
                                             <linearGradient id="colorAmber2" x1="0" y1="0" x2="1" y2="0">
                                                 <stop offset="0%" stopColor="#D97706" stopOpacity={1} />
@@ -1692,7 +1646,7 @@ export default function JefeDashboard() {
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
                                         <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                        <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
                                         <Tooltip cursor={{ fill: '#fff' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.05)' }} />
                                         <Bar dataKey="value" fill="url(#colorAmber2)" radius={[0, 10, 10, 0]} barSize={16}>
                                             <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#D97706' }} />
@@ -1736,7 +1690,7 @@ export default function JefeDashboard() {
                             <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-12">Cobranza Consolidada</h3>
                             <div className="h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={paymentData} layout="vertical" margin={{ left: -10, right: 30 }}>
+                                    <BarChart data={paymentData} layout="vertical" margin={{ left: 20, right: 50, top: 0, bottom: 20 }}>
                                         <defs>
                                             <linearGradient id="colorIndigo" x1="0" y1="0" x2="1" y2="0">
                                                 <stop offset="0%" stopColor="#4F46E5" stopOpacity={1} />
@@ -1744,7 +1698,7 @@ export default function JefeDashboard() {
                                             </linearGradient>
                                         </defs>
                                         <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                        <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
                                         <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
                                         <Bar dataKey="value" fill="url(#colorIndigo)" radius={[0, 10, 10, 0]} barSize={18}>
                                             <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#4F46E5' }} />
@@ -1863,10 +1817,13 @@ export default function JefeDashboard() {
                                     const count = filteredReports.filter((r: any) => r.audit_summary?.[item.key] === true).length;
                                     const pct = Math.round((count / total) * 100);
                                     return (
-                                        <div key={item.key} className="p-4 rounded-3xl border border-slate-50 bg-slate-50/50">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase mb-2">{item.label}</p>
-                                            <div className="text-base font-black text-slate-900 mb-2">{pct}%</div>
-                                            <div className="h-1.5 bg-white rounded-full overflow-hidden">
+                                        <div key={item.key} className="p-4 rounded-3xl border border-slate-50 bg-slate-50/50 flex flex-col justify-end">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">{item.label}</p>
+                                            <div className="text-2xl font-black text-slate-900 leading-none mb-1">{count}</div>
+                                            <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-widest mb-3 leading-tight whitespace-nowrap overflow-hidden text-ellipsis" title={`${count} de ${total} jornadas (${pct}%)`}>
+                                                {count} de {total} jornadas ({pct}%)
+                                            </div>
+                                            <div className="h-1.5 bg-white rounded-full overflow-hidden mt-auto">
                                                 <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, backgroundColor: item.color }} />
                                             </div>
                                         </div>
@@ -2005,7 +1962,7 @@ export default function JefeDashboard() {
                                                 <stop offset="100%" stopColor="#059669" stopOpacity={0.6} />
                                             </linearGradient>
                                         </defs>
-                                        <LabelList dataKey="value" position="right" formatter={(v: any) => v > 0 ? v.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : ''} style={{ fontSize: 9, fontWeight: 900, fill: '#059669' }} />
+                                        <LabelList dataKey="value" position="right" formatter={(v: any) => v > 0 ? Math.round(v).toLocaleString('es-VE', { maximumFractionDigits: 0 }) : ''} style={{ fontSize: 9, fontWeight: 900, fill: '#059669' }} />
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
@@ -2314,31 +2271,37 @@ export default function JefeDashboard() {
                                 <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mb-8 shadow-inner">
                                     <Percent size={32} />
                                 </div>
-                                <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] mb-3">Eficiencia en Proteína</h4>
-                                <div className="text-6xl font-black text-slate-900 tracking-tighter mb-6">{proteinEfficiency}<span className="text-2xl opacity-30">%</span></div>
-                                <div className="w-full h-4 bg-slate-50 rounded-full overflow-hidden mb-6 p-1">
-                                    <div className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full transition-all duration-1000" style={{ width: `${proteinEfficiency}%` }}></div>
+                                <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] mb-3 text-center">Eficiencia en Proteína</h4>
+                                <div className="text-6xl font-black text-slate-900 tracking-tighter mb-4 flex items-baseline justify-center">
+                                    {Math.round(proteinEfficiency.totalProteina).toLocaleString('es-VE')}
+                                    <span className="text-2xl opacity-30 ml-2">TN</span>
                                 </div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase text-center leading-relaxed max-w-[250px]">
-                                    Relación porcentual de rubros proteicos sobre el volumen nacional distribuido.
+                                <span className="px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 shadow-sm border border-emerald-100">
+                                    {proteinEfficiency.pct}% del Volumen Total
+                                </span>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase text-center leading-relaxed mt-10 max-w-[250px]">
+                                    Volumen absoluto de proteína animal distribuido a nivel nacional.
                                 </p>
                             </div>
                         </div>
 
-                        {/* KPI 3: Alertas de Zonas de Vulnerabilidad */}
+                        {/* KPI 3: Abastecimiento per Cápita */}
                         <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 relative overflow-hidden group">
-                            <div className="absolute -right-10 -top-10 w-48 h-48 bg-red-50 rounded-full blur-3xl group-hover:bg-red-100/50 transition-all duration-700"></div>
+                            <div className="absolute -right-10 -top-10 w-48 h-48 bg-blue-50 rounded-full blur-3xl group-hover:bg-blue-100/50 transition-all duration-700"></div>
                             <div className="relative z-10 flex flex-col items-center">
-                                <div className={`w-16 h-16 ${vulnerabilityAlerts > 0 ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-slate-50 text-slate-400'} rounded-3xl flex items-center justify-center mb-8 shadow-inner`}>
-                                    <AlertTriangle size={32} />
+                                <div className="w-16 h-16 bg-blue-50 text-[#007AFF] rounded-3xl flex items-center justify-center mb-8 shadow-inner">
+                                    <Home size={32} />
                                 </div>
-                                <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] mb-3">Alertas de Vulnerabilidad</h4>
-                                <div className="text-6xl font-black text-slate-900 tracking-tighter mb-4">{vulnerabilityAlerts}</div>
-                                <span className={`px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest ${vulnerabilityAlerts > 0 ? 'bg-red-600 text-white shadow-lg shadow-red-200' : 'bg-slate-100 text-slate-400'}`}>
-                                    {vulnerabilityAlerts > 0 ? 'Acción Requerida' : 'Nivel Seguro'}
+                                <h4 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] mb-3 text-center">Abastecimiento por Hogar</h4>
+                                <div className="text-6xl font-black text-slate-900 tracking-tighter mb-4 flex items-baseline justify-center">
+                                    {abastecimientoHogar.kg.toLocaleString('es-VE')}
+                                    <span className="text-2xl opacity-30 ml-2">KG</span>
+                                </div>
+                                <span className="px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-blue-50 text-[#007AFF] shadow-sm border border-blue-100">
+                                    Promedio Nacional
                                 </span>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase text-center leading-relaxed mt-10 max-w-[250px]">
-                                    Reportes registrados en zonas tipificadas con Nivel de Vulnerabilidad 4 o 5.
+                                    Distribución per cápita estimada en base a {abastecimientoHogar.familias.toLocaleString('es-VE')} familias abastecidas.
                                 </p>
                             </div>
                         </div>

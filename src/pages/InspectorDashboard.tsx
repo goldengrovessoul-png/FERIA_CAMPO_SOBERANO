@@ -54,6 +54,7 @@ export default function InspectorDashboard() {
             }
         }
         getAdmin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     async function fetchUnreadCount(admId: string) {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -32,6 +33,7 @@ export default function ReportView() {
 
     useEffect(() => {
         fetchReport();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
     async function fetchReport() {

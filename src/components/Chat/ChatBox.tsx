@@ -25,25 +25,22 @@ const ChatBox: React.FC<Exclude<ChatBoxProps, 'isAdminView'>> = ({ receiverId, r
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    /**
-     * Cargar mensajes del servidor
-     */
-    const loadMessages = async () => {
-        if (!profile?.id) return;
-        try {
-            const data = await ChatService.getMessages(profile.id, receiverId);
-            setMessages(data);
-            setLoading(false);
-            scrollToBottom();
-
-            // Marcar como leídos al cargar
-            await ChatService.markAsRead(profile.id, receiverId);
-        } catch (err) {
-            console.error('Error cargando mensajes:', err);
-        }
-    };
-
     useEffect(() => {
+        const loadMessages = async () => {
+            if (!profile?.id) return;
+            try {
+                const data = await ChatService.getMessages(profile.id, receiverId);
+                setMessages(data);
+                setLoading(false);
+                scrollToBottom();
+
+                // Marcar como leídos al cargar
+                await ChatService.markAsRead(profile.id, receiverId);
+            } catch (err) {
+                console.error('Error cargando mensajes:', err);
+            }
+        };
+
         loadMessages();
 
         // Suscripción en tiempo real

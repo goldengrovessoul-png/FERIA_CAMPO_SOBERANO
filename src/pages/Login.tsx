@@ -22,7 +22,7 @@ export default function Login() {
         return cNorm.replace(/^[VEJGvejg]-?/, ''); // Quita prefijo
     };
 
-    const withTimeout = (promise: PromiseLike<any> | Promise<any>, ms: number = 10000) => {
+    const withTimeout = <T,>(promise: PromiseLike<T> | Promise<T>, ms: number = 10000) => {
         return Promise.race([
             Promise.resolve(promise),
             new Promise<'TIMEOUT'>((resolve) => setTimeout(() => resolve('TIMEOUT'), ms))
@@ -160,9 +160,9 @@ export default function Login() {
                 else navigate('/app');
             }
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Error de autenticación capturado:', err);
-            setError(err.message || 'Error grave de conexión o timeout. Verifica tu internet e intenta de nuevo.');
+            setError(err instanceof Error && err.message ? err.message : 'Error grave de conexión o timeout. Verifica tu internet e intenta de nuevo.');
         } finally {
             if (!success) setLoading(false);
         }

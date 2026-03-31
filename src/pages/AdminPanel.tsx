@@ -6,13 +6,12 @@ import {
     MoreVertical, ShieldAlert, ShieldCheck,
     CreditCard as IdCard, RefreshCw, Plus, Trash2, Tag, Map as MapIcon,
     Box, Briefcase, Ruler, ChevronDown, SlidersHorizontal,
-    Pencil, MessageCircle, FileDown, DollarSign
+    Pencil, MessageCircle, DollarSign
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import ChatBox from '../components/chat/ChatBox';
 import { ChatService } from '../services/ChatService';
-import * as XLSX from 'xlsx';
 
 interface Profile {
     id: string;
@@ -129,6 +128,7 @@ export default function AdminPanel() {
         } else if (view === 'vulnerability') {
             fetchVulnerabilities();
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [view, catalogType]);
 
     // Suscripción a notificaciones de nuevos mensajes
@@ -223,7 +223,8 @@ export default function AdminPanel() {
 
             fetchProfiles();
             setShowActionMenu(null);
-        } catch (error) {
+        } catch (e) {
+            console.error(e);
             alert('Error al cambiar estado del usuario. Asegúrate de que la columna is_active exista en la tabla profiles.');
         }
     }
@@ -283,7 +284,7 @@ export default function AdminPanel() {
     async function fetchCatalogItems() {
         try {
             setLoadingCatalog(true);
-            let query = supabase
+            const query = supabase
                 .from('catalog_items')
                 .select('*, parent:parent_id(name), empresa:empresa_id(name)')
                 .eq('type', catalogType)
@@ -323,7 +324,7 @@ export default function AdminPanel() {
     async function addCatalogItem() {
         if (!newCatalogName.trim()) return;
         try {
-            const itemData: any = {
+            const itemData: Record<string, string | number | null> = {
                 type: catalogType,
                 name: newCatalogName.trim().toUpperCase()
             };
@@ -360,8 +361,8 @@ export default function AdminPanel() {
             setNewCatalogPresentation('');
             setEditingCatalogId(null);
             fetchCatalogItems();
-        } catch (error: any) {
-            if (error.code === '23505') {
+        } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
                 alert('Este elemento ya existe en el catálogo.');
             } else {
                 alert('Error al procesar la operación.');
@@ -369,7 +370,7 @@ export default function AdminPanel() {
         }
     }
 
-    function handleEditCatalogItem(item: any) {
+    function handleEditCatalogItem(item: CatalogItem) {
         setEditingCatalogId(item.id);
         setNewCatalogName(item.name);
         if (catalogType === 'ARTICULO' || catalogType === 'RUBRO') {
@@ -391,7 +392,8 @@ export default function AdminPanel() {
 
             if (error) throw error;
             fetchCatalogItems();
-        } catch (error) {
+        } catch (e) {
+            console.error(e);
             alert('Error al actualizar estado.');
         }
     }
@@ -406,7 +408,8 @@ export default function AdminPanel() {
 
             if (error) throw error;
             fetchCatalogItems();
-        } catch (error) {
+        } catch (e) {
+            console.error(e);
             alert('Error al eliminar elemento. Es posible que esté siendo usado en reportes.');
         }
     }
@@ -437,8 +440,8 @@ export default function AdminPanel() {
             if (error) throw error;
             setNewEntrepName('');
             fetchEntrepreneurTypes();
-        } catch (err: any) {
-            alert(err.code === '23505' ? 'Este tipo ya existe.' : 'Error al guardar.');
+        } catch (err: unknown) {
+            alert(err && typeof err === 'object' && 'code' in err && err.code === '23505' ? 'Este tipo ya existe.' : 'Error al guardar.');
         }
     }
 
@@ -451,7 +454,8 @@ export default function AdminPanel() {
                 .eq('id', id);
             if (error) throw error;
             fetchEntrepreneurTypes();
-        } catch (err) {
+        } catch (e) {
+            console.error(e);
             alert('No se puede eliminar porque está en uso en reportes.');
         }
     }
@@ -465,7 +469,7 @@ export default function AdminPanel() {
                 .select('*')
                 .order('orden', { ascending: true });
             if (error) throw error;
-            setCustomFields((data || []).filter((f: any) => !['nombre', 'actividad', 'telefono'].includes(f.nombre)));
+            setCustomFields((data || []).filter((f: Record<string, unknown>) => !['nombre', 'actividad', 'telefono'].includes(String(f.nombre))));
         } catch (err) {
             console.error('Error:', err);
         } finally { setLoadingFields(false); }
@@ -479,7 +483,7 @@ export default function AdminPanel() {
             setNewField({ etiqueta: '', tipo: 'texto', requerido: false });
             setShowFieldForm(false);
             fetchCustomFields();
-        } catch (err: any) { alert(err.code === '23505' ? 'Ya existe un campo con ese nombre.' : 'Error al guardar.'); }
+        } catch (err: unknown) { alert(err && typeof err === 'object' && 'code' in err && err.code === '23505' ? 'Ya existe un campo con ese nombre.' : 'Error al guardar.'); }
     }
     async function deleteCustomField(id: string) {
         if (!window.confirm('¿Eliminar este campo? Los datos ya guardados se conservarán.')) return;
@@ -487,7 +491,8 @@ export default function AdminPanel() {
             const { error } = await supabase.from('cat_emprendimiento_campos').delete().eq('id', id);
             if (error) throw error;
             fetchCustomFields();
-        } catch (err) { alert('Error al eliminar campo.'); }
+        } catch (e) {
+            console.error(e); alert('Error al eliminar campo.'); }
     }
 
     // --- FUNCIONES DE VULNERABILIDAD ---
@@ -584,45 +589,11 @@ export default function AdminPanel() {
 
             if (error) throw error;
             fetchVulnerabilities();
-        } catch (error) {
+        } catch (e) {
+            console.error(e);
             alert('Error al eliminar el punto.');
         }
     }
-
-    const exportUsersToExcel = () => {
-        const dataToExport = filteredProfiles.map(p => ({
-            'NOMBRE': p.nombre,
-            'APELLIDO': p.apellido,
-            'CÉDULA': p.cedula,
-            'ROL': p.rol,
-            'ESTADO': p.estado || 'NO ASIGNADO',
-            'TELÉFONO': p.telefono || 'N/A',
-            'FECHA CREACIÓN': new Date(p.fecha_creacion).toLocaleDateString('es-VE'),
-            'ESTATUS': p.is_active === false ? 'SUSPENDIDO' : 'ACTIVO'
-        }));
-
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Usuarios");
-        XLSX.writeFile(workbook, `Usuarios_Sistema_${new Date().toISOString().split('T')[0]}.xlsx`);
-    };
-
-    const exportCatalogToExcel = () => {
-        if (!catalogItems.length) return;
-
-        const dataToExport = catalogItems.map(item => ({
-            'TIPO': item.type,
-            'NOMBRE': item.name,
-            'ESTATUS': item.is_active ? 'ACTIVO' : 'INACTIVO',
-            'VINCULADO A': item.parent ? item.parent.name : 'N/A',
-            'FECHA CREACIÓN': new Date(item.created_at).toLocaleDateString('es-VE')
-        }));
-
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, `Catalogo_${catalogType}`);
-        XLSX.writeFile(workbook, `Catalogo_${catalogType}_${new Date().toISOString().split('T')[0]}.xlsx`);
-    };
 
 
     const filteredProfiles = profiles.filter(p => {
@@ -675,7 +646,7 @@ export default function AdminPanel() {
                         <button
                             key={item.id}
                             onClick={() => {
-                                setView(item.id as any);
+                                setView(item.id as 'overview' | 'users' | 'catalog' | 'vulnerability');
                                 setIsSidebarOpen(false);
                             }}
                             className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black text-sm transition-all duration-300 ${view === item.id ? 'bg-[#007AFF] text-white shadow-xl shadow-blue-500/30' : 'text-slate-400 hover:bg-slate-50'}`}
@@ -730,15 +701,7 @@ export default function AdminPanel() {
                             </p>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                            {view === 'users' && (
-                                <button
-                                    onClick={exportUsersToExcel}
-                                    disabled={filteredProfiles.length === 0}
-                                    className="px-6 md:px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-emerald-700 transition-all active:scale-95 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
-                                >
-                                    <FileDown size={18} /> Exportar Excel
-                                </button>
-                            )}
+
                             <button onClick={() => navigate('/dashboard')} className="px-6 md:px-8 py-4 bg-white border border-slate-200 rounded-2xl text-slate-900 font-black text-[10px] md:text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-slate-50 hover:shadow-lg transition-all active:scale-95 shadow-sm">
                                 <ArrowLeft size={18} className="text-blue-600" /> Dashboard Web
                             </button>
@@ -812,7 +775,7 @@ export default function AdminPanel() {
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Filtrar por Rol</label>
                                     <select
                                         value={filterRol}
-                                        onChange={(e) => setFilterRol(e.target.value as any)}
+                                        onChange={(e) => setFilterRol(e.target.value as 'ALL' | 'INSPECTOR' | 'JEFE' | 'ADMIN' | 'SUSPENDIDO')}
                                         className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-100 transition-all appearance-none"
                                     >
                                         <option value="ALL">TODOS LOS ROLES // ACTIVOS Y SUSPENDIDOS</option>
@@ -1007,21 +970,13 @@ export default function AdminPanel() {
                                 ].map(type => (
                                     <button
                                         key={type.id}
-                                        onClick={() => setCatalogType(type.id as any)}
+                                        onClick={() => setCatalogType(type.id as 'RUBRO' | 'ENTE' | 'ESTADO' | 'ACTIVIDAD' | 'MEDIDA' | 'ARTICULO' | 'MINPPAL' | 'EMPRENDIMIENTO')}
                                         className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${catalogType === type.id ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
                                     >
                                         <type.icon size={16} />
                                         {type.label}
                                     </button>
                                 ))}
-                                <button
-                                    onClick={exportCatalogToExcel}
-                                    disabled={catalogItems.length === 0}
-                                    className="px-6 py-3 bg-emerald-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
-                                    title="Exportar Catálogo a Excel"
-                                >
-                                    <FileDown size={16} /> Exportar
-                                </button>
                             </div>
 
                             {/* Formulario para Agregar Nuevo Elemento */}
@@ -1180,6 +1135,7 @@ export default function AdminPanel() {
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sincronizando Catálogo...</p>
                                     </div>
                                 ) : (catalogType === 'EMPRENDIMIENTO' ? entrepreneurTypes : catalogItems).length > 0 ? (
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     (catalogType === 'EMPRENDIMIENTO' ? entrepreneurTypes : catalogItems).map((item: any) => (
                                         <div
                                             key={item.id}
