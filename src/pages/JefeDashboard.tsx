@@ -5,7 +5,7 @@ import {
     TrendingUp, Package,
     Activity, RefreshCw, Home,
     ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight,
-    Leaf, UserPlus
+    Leaf, UserPlus, MapPin
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -1071,16 +1071,7 @@ export default function JefeDashboard() {
         return Math.round(totalPercentageSum / standards.length);
     }, [filteredReports]);
 
-    const minppalPresenceSummary = useMemo(() => {
-        const totalReports = filteredReports.length || 1;
-        // Ahora usamos la tabla relacional minppalPresencia para este cálculo, es más fiable y ya está cargada
-        const distinctReportIdsWithMinppal = new Set(
-            minppalPresencia
-                .filter(p => p.presente && filteredReportIds.has(p.report_id))
-                .map(p => p.report_id)
-        );
-        return Math.round((distinctReportIdsWithMinppal.size / totalReports) * 100);
-    }, [filteredReports, minppalPresencia, filteredReportIds]);
+
 
     const MINPPAL_EMPRESAS_FALLBACK = [
         { id: 'lacteosLosAndes', label: 'LÁCTEOS LOS ANDES' },
@@ -1101,12 +1092,28 @@ export default function JefeDashboard() {
             if (c.type === 'MINPPAL') entesMap[c.id] = c.name;
         });
 
-        const counts: Record<string, number> = {};
+        const presencePerReport = new Set<string>();
+
+        // 1. Contar por organización (Ente Líder)
+        filteredReports.forEach(report => {
+            if (report.empresa) {
+                presencePerReport.add(`${report.id}_${report.empresa}`);
+            }
+        });
+
+        // 2. Contar por presencia (Invitados/Apoyo)
         minppalPresencia.forEach(pres => {
             if (filteredReportIds.has(pres.report_id) && pres.presente) {
                 const name = entesMap[pres.ente_id] || 'DESCONOCIDO';
-                counts[name] = (counts[name] || 0) + 1;
+                presencePerReport.add(`${pres.report_id}_${name}`);
             }
+        });
+
+        // 3. Consolidar conteos por nombre
+        const counts: Record<string, number> = {};
+        presencePerReport.forEach(key => {
+            const companyName = key.split('_')[1];
+            counts[companyName] = (counts[companyName] || 0) + 1;
         });
 
         const empresasUI = catalogos.minppal.length > 0 ? catalogos.minppal : MINPPAL_EMPRESAS_FALLBACK.map(e => e.label);
@@ -1118,7 +1125,7 @@ export default function JefeDashboard() {
                 count,
                 pct: Math.round((count / totalReports) * 100)
             };
-        }).sort((a, b) => b.count - a.count);
+        }).filter(item => item.count > 0).sort((a, b) => b.count - a.count);
     }, [filteredReports, minppalPresencia, filteredReportIds, catalogos.fullCatalog, catalogos.minppal]);
 
 
@@ -1310,7 +1317,7 @@ export default function JefeDashboard() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
                     {[
                         { label: 'Jornadas Ejecutadas', value: filteredReports.length, icon: <Activity size={20} />, color: 'text-[#007AFF]', bg: 'bg-blue-50' },
-                        { label: 'Presencia MINPPAL', value: `${minppalPresenceSummary}% `, icon: <Award size={20} />, color: 'text-amber-600', bg: 'bg-amber-50' },
+                        { label: 'Comunas Atendidas', value: filteredReports.reduce((acc, r) => acc + (r.comunas || 0), 0).toLocaleString(), icon: <MapPin size={20} />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
                         { label: 'Familias Beneficiadas', value: filteredReports.reduce((acc, r) => acc + (r.familias || 0), 0).toLocaleString(), icon: <Home size={20} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
                         { label: 'Habitantes Atendidos', value: filteredReports.reduce((acc, r) => acc + (r.personas || 0), 0).toLocaleString(), icon: <Users size={20} />, color: 'text-sky-600', bg: 'bg-sky-50' },
                     ].map((kpi) => (
@@ -1333,13 +1340,8 @@ export default function JefeDashboard() {
                                 <Building2 size={22} />
                             </div>
                             <div>
-                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Presencia de Empresas MINPPAL</h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Por jornadas con registro positivo</p>
+                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Presencia de Entes MINPPAL con Productos</h3>
                             </div>
-                        </div>
-                        <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 px-5 py-3 rounded-2xl">
-                            <span className="text-2xl font-black text-amber-600">{minppalPresenceSummary}%</span>
-                            <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest leading-tight">Cobertura<br />Global</span>
                         </div>
                     </div>
 
@@ -1356,8 +1358,8 @@ export default function JefeDashboard() {
                                 >
                                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-tight">{emp.name}</p>
                                     <p className={`text-2xl font-black tracking-tighter leading-none ${emp.count > 0 ? 'text-amber-600' : 'text-slate-300'
-                                        }`}>{emp.pct}%</p>
-                                    <p className="text-[9px] font-bold text-slate-400">{emp.count} jornada{emp.count !== 1 ? 's' : ''}</p>
+                                        }`}>{emp.count}</p>
+                                    <p className="text-[9px] font-bold text-slate-400">Jornadas ({emp.pct}% de cobertura)</p>
                                     {/* Mini barra */}
                                     <div className="w-full h-1.5 bg-slate-200/60 rounded-full overflow-hidden">
                                         <div
@@ -1401,10 +1403,12 @@ export default function JefeDashboard() {
                                                 </linearGradient>
                                             </defs>
                                             <LabelList
-                                                dataKey="pct"
+                                                dataKey="count"
                                                 position="right"
-                                                formatter={(v: any) => `${v}% `}
-                                                style={{ fontSize: 9, fontWeight: 900, fill: '#92400e' }}
+                                                formatter={(v: any) => `${v} j`}
+                                                fontSize={10}
+                                                fontWeight={900}
+                                                fill="#64748b"
                                             />
                                         </Bar>
                                     </BarChart>
@@ -1673,8 +1677,8 @@ export default function JefeDashboard() {
                             <div className="flex items-center gap-4 mb-6">
                                 <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 shadow-inner"><Building2 size={20} /></div>
                                 <div>
-                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Despliegue Ente MINPPAL</h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Participación en jornadas</p>
+                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Actividades Organizadas (por Ente)</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Distribución de Liderazgo Operativo</p>
                                 </div>
                             </div>
                             <div className="h-[300px]">
