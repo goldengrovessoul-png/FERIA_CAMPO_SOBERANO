@@ -10,6 +10,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl, LayerGroup, Circle } from 'react-leaflet';
+import { MapStateController } from '../components/MapStateController';
 import MarkerClusterGroup from 'react-leaflet-markercluster';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -255,6 +256,7 @@ export default function JefeDashboard() {
     // Estados para UI interactiva del Mapa
     const [isMapFilterOpen, setIsMapFilterOpen] = useState(false);
     const [isMapLegendOpen, setIsMapLegendOpen] = useState(false);
+
     const [debug, setDebug] = useState<string>('Iniciando...');
 
     // Solo ejecutar fetchData cuando el auth ya esté resuelto y tengamos sesión
@@ -1468,6 +1470,10 @@ export default function JefeDashboard() {
                             maxZoom={22}
                             style={{ height: '100%', width: '100%' }}
                         >
+                            {/* Controlador de zoom y resaltado del Estado seleccionado */}
+                            <MapStateController
+                                selectedState={filterEstado === 'Todos' ? '' : filterEstado}
+                            />
                             <LayersControl position="bottomright">
                                 <LayersControl.BaseLayer checked name="Satélite Premium">
                                     <TileLayer
