@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from 'react';
 import { useMap, GeoJSON } from 'react-leaflet';
 import L from 'leaflet';
@@ -171,7 +172,7 @@ export function MapStateController({ selectedState }: MapStateControllerProps) {
                             ]]
                         },
                         properties: { name: selectedState }
-                    }}
+                    } as any}
                     style={{
                         color: '#007AFF',
                         weight: 2,
