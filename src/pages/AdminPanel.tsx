@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import ChatBox from '../components/chat/ChatBox';
 import { ChatService } from '../services/ChatService';
+import AdminPlanningView from '../components/AdminPlanningView';
 
 interface Profile {
     id: string;
@@ -55,7 +56,7 @@ interface VulnerabilityData {
 export default function AdminPanel() {
     const navigate = useNavigate();
     const { profile: currentUser, fetchProfile } = useAuth();
-    const [view, setView] = useState<'overview' | 'users' | 'catalog' | 'vulnerability'>('overview');
+    const [view, setView] = useState<'overview' | 'users' | 'catalog' | 'vulnerability' | 'planning'>('overview');
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -642,11 +643,12 @@ export default function AdminPanel() {
                         { id: 'users', label: 'Gestión de Usuarios', icon: <UserPlus size={20} /> },
                         { id: 'catalog', label: 'Control de Catálogos', icon: <FileText size={20} /> },
                         { id: 'vulnerability', label: 'Mapa Vulnerabilidad', icon: <ShieldAlert size={20} /> },
+                        { id: 'planning', label: 'Planificación', icon: <Box size={20} /> },
                     ].map((item) => (
                         <button
                             key={item.id}
                             onClick={() => {
-                                setView(item.id as 'overview' | 'users' | 'catalog' | 'vulnerability');
+                                setView(item.id as 'overview' | 'users' | 'catalog' | 'vulnerability' | 'planning');
                                 setIsSidebarOpen(false);
                             }}
                             className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black text-sm transition-all duration-300 ${view === item.id ? 'bg-[#007AFF] text-white shadow-xl shadow-blue-500/30' : 'text-slate-400 hover:bg-slate-50'}`}
@@ -690,14 +692,14 @@ export default function AdminPanel() {
                         <div>
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="px-3 py-1 bg-blue-50 text-[#007AFF] text-[10px] font-black rounded-full uppercase tracking-widest border border-blue-100">
-                                    {view === 'overview' ? 'DASHBOARD' : view === 'users' ? 'SEGURIDAD' : view === 'catalog' ? 'CATÁLOGOS' : 'ALERTAS'}
+                                    {view === 'overview' ? 'DASHBOARD' : view === 'users' ? 'SEGURIDAD' : view === 'catalog' ? 'CATÁLOGOS' : view === 'planning' ? 'PLANIFICACIÓN' : 'ALERTAS'}
                                 </div>
                             </div>
                             <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase leading-none">
-                                {view === 'overview' ? 'Panel Control' : view === 'users' ? 'Gestión Usuarios' : view === 'catalog' ? 'Catálogos Sistema' : 'Vulnerabilidad Geográfica'}
+                                {view === 'overview' ? 'Panel Control' : view === 'users' ? 'Gestión Usuarios' : view === 'catalog' ? 'Catálogos Sistema' : view === 'planning' ? 'Planificación Semanal' : 'Vulnerabilidad Geográfica'}
                             </h2>
                             <p className="text-slate-400 font-bold uppercase text-[9px] md:text-[11px] tracking-widest mt-3">
-                                {view === 'overview' ? 'Configuración global y métricas del sistema.' : view === 'users' ? 'Administración de accesos y roles de inspectores.' : view === 'catalog' ? 'Gestión de listas dinámicas del sistema.' : 'Carga de puntos estratégicos de vulnerabilidad para contraste operativo.'}
+                                {view === 'overview' ? 'Configuración global y métricas del sistema.' : view === 'users' ? 'Administración de accesos y roles de inspectores.' : view === 'catalog' ? 'Gestión de listas dinámicas del sistema.' : view === 'planning' ? 'Carga de asignaciones y planificación por estado.' : 'Carga de puntos estratégicos de vulnerabilidad para contraste operativo.'}
                             </p>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -751,6 +753,10 @@ export default function AdminPanel() {
                                 </div>
                             </div>
                         </div>
+                    )}
+
+                    {view === 'planning' && (
+                        <AdminPlanningView />
                     )}
 
                     {/* VISTA: USERS (Paso 1 del Plan) */}

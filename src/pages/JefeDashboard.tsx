@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl, LayerGroup, Circle } from 'react-leaflet';
 import { MapStateController } from '../components/MapStateController';
+import JefePlanningTable from '../components/JefePlanningTable';
 import MarkerClusterGroup from 'react-leaflet-markercluster';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -1159,6 +1160,11 @@ export default function JefeDashboard() {
                 </div>
 
                 <div className="flex items-center gap-3 w-full md:w-auto">
+                    {session?.user?.user_metadata?.rol === 'ADMIN' && (
+                        <button onClick={() => navigate('/admin')} className="flex-[2] md:flex-none flex items-center justify-center gap-2 bg-amber-500 text-white hover:bg-amber-600 px-5 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-amber-500/30">
+                            Volver al Admin
+                        </button>
+                    )}
                     <button onClick={() => fetchData()} className="flex-1 md:flex-none p-3 bg-slate-100 text-slate-600 hover:text-[#007AFF] hover:bg-blue-50 rounded-2xl transition-all border border-slate-200 flex justify-center">
                         <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
                     </button>
@@ -2601,6 +2607,15 @@ export default function JefeDashboard() {
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <div className="max-w-[1400px] mx-auto px-4 lg:px-0">
+                    <JefePlanningTable 
+                        filterEstado={filterEstado} 
+                        reportItems={reportItems} 
+                        filteredReportIds={filteredReportIds} 
+                        catalog={catalogos.fullCatalog} 
+                    />
                 </div>
 
                 <div className="pb-10"></div>
