@@ -575,19 +575,22 @@ export default function ReportForm() {
 
             if (!isValidStr(sector)) errors.sector = true;
             if (!isValidStr(nombreComuna)) errors.nombreComuna = true;
-            if (!isValidNumber(comunas)) errors.comunas = true;
-            if (!isValidNumber(familias)) errors.familias = true;
-            if (!isValidNumber(personas)) errors.personas = true;
+            
+            if (!isValidNumber(comunas) || (comunas as any) === 0) errors.comunas = true;
+            if (!isValidNumber(familias) || (familias as any) === 0 || !isValidNumber(personas) || (personas as any) === 0) errors.social_stats = true;
 
-            if (!isValidStr(responsableActividad.nombre)) errors.resp_act_nombre = true;
-            if (!isValidStr(responsableActividad.cedula)) errors.resp_act_cedula = true;
-            if (!isValidStr(responsableActividad.telefono)) errors.resp_act_telefono = true;
+            if (!isValidStr(responsableActividad.nombre) || !isValidStr(responsableActividad.cedula)) errors.responsableActividad = true;
+            if (!isValidStr(responsableComuna.nombre) || !isValidStr(responsableComuna.cedula)) errors.responsableComuna = true;
 
-            if (!isValidStr(responsableComuna.nombre)) errors.resp_com_nombre = true;
-            if (!isValidStr(responsableComuna.cedula)) errors.resp_com_cedula = true;
-            if (!isValidStr(responsableComuna.telefono)) errors.resp_com_telefono = true;
+            const totalToneladasSum = (Number(totalProteina) || 0) + (Number(totalFrutas) || 0) + (Number(totalHortalizas) || 0) + (Number(totalVerduras) || 0) + (Number(totalSecos) || 0);
+            if (totalToneladasSum <= 0) errors.toneladas = true;
 
             if (rubros.length === 0) errors.rubros = true;
+            if (presenciaEntes.length === 0) errors.presenciaEntes = true;
+            
+            const hasCondition = Object.values(condiciones).some(v => v === true);
+            if (!hasCondition) errors.condiciones = true;
+
             if (metodosPago.length === 0) errors.metodosPago = true;
             if (photos.length === 0) errors.photos = true;
 
@@ -1505,8 +1508,8 @@ export default function ReportForm() {
                             <h2 className="text-lg font-black text-black uppercase tracking-tighter">Presencia productos MINPPAL</h2>
                         </div>
                         <p className="text-[9px] font-black text-black uppercase tracking-widest mb-8 ml-13">Vincule los entes presentes y sus respectivos productos</p>
-
-                        <div className="space-y-4">
+ 
+                        <div className={`space-y-4 p-4 rounded-[1.5rem] transition-all ${errorClass('presenciaEntes')}`}>
                             {catalogos.minppal.map((ente) => {
                                 const enteSeleccionado = presenciaEntes.find(p => p.enteId === ente.id);
                                 const productosDelEnte = catalogos.productos_minppal.filter(p => {
@@ -1519,7 +1522,10 @@ export default function ReportForm() {
                                     <div key={ente.id} className={`rounded-[2rem] border-2 transition-all overflow-hidden ${enteSeleccionado ? 'border-blue-100 bg-white' : 'border-slate-50 bg-slate-50/50'}`}>
                                         <button
                                             type="button"
-                                            onClick={() => toggleEnte(ente.id)}
+                                            onClick={() => {
+                                                toggleEnte(ente.id);
+                                                clearError('presenciaEntes');
+                                            }}
                                             className={`w-full flex items-center gap-4 p-5 transition-all ${enteSeleccionado ? 'bg-blue-50/50' : ''}`}
                                         >
                                             <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all shadow-sm ${enteSeleccionado ? 'bg-blue-600 text-white' : 'bg-white text-black border border-slate-100'}`}>
@@ -1582,7 +1588,7 @@ export default function ReportForm() {
                             <h2 className="text-lg font-black text-black uppercase tracking-tighter">Condiciones del Punto</h2>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-3">
+                        <div className={`grid grid-cols-1 gap-3 p-4 rounded-[1.5rem] transition-all ${errorClass('condiciones')}`}>
                             {[
                                 { id: 'bodegaLimpia', label: 'Estructura y punto de venta limpio' },
                                 { id: 'personalSuficiente', label: 'Personal suficiente para la atención' },
@@ -1595,7 +1601,10 @@ export default function ReportForm() {
                                 <button
                                     key={cond.id}
                                     type="button"
-                                    onClick={() => setCondiciones({ ...condiciones, [cond.id]: !condiciones[cond.id as keyof typeof condiciones] })}
+                                    onClick={() => {
+                                        setCondiciones({ ...condiciones, [cond.id]: !condiciones[cond.id as keyof typeof condiciones] });
+                                        clearError('condiciones');
+                                    }}
                                     className={`flex items-center gap-4 p-4 rounded-2xl transition-all border-2 ${condiciones[cond.id as keyof typeof condiciones] ? 'bg-teal-50 border-teal-200 text-teal-700' : 'bg-slate-50 border-transparent text-black'}`}
                                 >
                                     <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${condiciones[cond.id as keyof typeof condiciones] ? 'bg-teal-600 text-white' : 'bg-slate-200 text-transparent'}`}>
