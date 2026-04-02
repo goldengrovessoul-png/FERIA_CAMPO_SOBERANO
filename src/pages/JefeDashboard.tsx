@@ -6,7 +6,7 @@ import {
     TrendingUp, Package,
     Activity, RefreshCw, Home,
     ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight,
-    Leaf, UserPlus, MapPin
+    Leaf, UserPlus, MapPin, Globe, Map, Navigation
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -1137,6 +1137,43 @@ export default function JefeDashboard() {
         }).filter(item => item.count > 0).sort((a, b) => b.count - a.count);
     }, [filteredReports, minppalPresencia, filteredReportIds, catalogos.fullCatalog, catalogos.minppal]);
 
+    const totalEstados = useMemo(() => {
+        const estados = new Set(filteredReports.map(r => (r.estado_geografico || '').trim().toUpperCase()).filter(e => e !== ''));
+        return estados.size;
+    }, [filteredReports]);
+
+    const totalMunicipios = useMemo(() => {
+        const municipios = new Set(filteredReports.map(r => (r.municipio || '').trim().toUpperCase()).filter(m => m !== ''));
+        return municipios.size;
+    }, [filteredReports]);
+
+    const totalParroquias = useMemo(() => {
+        const parroquias = new Set(filteredReports.map(r => (r.parroquia || '').trim().toUpperCase()).filter(p => p !== ''));
+        return parroquias.size;
+    }, [filteredReports]);
+
+    const comunasByStateData = useMemo(() => {
+        const counts: Record<string, number> = {};
+        filteredReports.forEach(r => {
+            const estado = (r.estado_geografico || 'SIN ESTADO').trim().toUpperCase();
+            counts[estado] = (counts[estado] || 0) + (Number(r.comunas) || 0);
+        });
+        return Object.entries(counts)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+    }, [filteredReports]);
+
+    const familiasByStateData = useMemo(() => {
+        const counts: Record<string, number> = {};
+        filteredReports.forEach(r => {
+            const estado = (r.estado_geografico || 'SIN ESTADO').trim().toUpperCase();
+            counts[estado] = (counts[estado] || 0) + (Number(r.familias) || 0);
+        });
+        return Object.entries(counts)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+    }, [filteredReports]);
+
 
 
     return (
@@ -1290,6 +1327,128 @@ export default function JefeDashboard() {
                         </div>
                     ))}
                 </div>
+
+                {/* Cobertura Territorial */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+                    {[
+                        { label: 'Total Estados Atendidos', value: totalEstados.toLocaleString(), icon: <Globe size={20} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                        { label: 'Total Municipios Atendidos', value: totalMunicipios.toLocaleString(), icon: <Map size={20} />, color: 'text-amber-600', bg: 'bg-amber-50' },
+                        { label: 'Total Parroquias Atendidas', value: totalParroquias.toLocaleString(), icon: <Navigation size={20} />, color: 'text-rose-600', bg: 'bg-rose-50' },
+                    ].map((kpi) => (
+                        <div key={kpi.label} className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 flex items-center justify-between group hover:border-slate-200 transition-all">
+                            <div>
+                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 leading-none">{kpi.label}</p>
+                                <p className="text-3xl font-black text-slate-900 tracking-tighter">{kpi.value}</p>
+                            </div>
+                            <div className={`w-14 h-14 ${kpi.bg} ${kpi.color} rounded-2xl flex items-center justify-center shadow-inner`}>{kpi.icon}</div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* PANEL ANALÍTICO TERRITORIAL */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Gráfico de Comunas por Estado */}
+                    <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 flex flex-col h-full">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 border-b border-slate-50 pb-6">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner">
+                                    <MapPin size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Comunas por Estado</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Distribución territorial de organizaciones</p>
+                                </div>
+                            </div>
+                            <div className="bg-emerald-600 px-6 py-2 rounded-full shadow-lg shadow-emerald-200">
+                                <p className="text-white text-[11px] font-black uppercase tracking-widest leading-none">
+                                    Total: {comunasByStateData.reduce((acc, curr) => acc + curr.value, 0).toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="h-[500px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={comunasByStateData} layout="vertical" margin={{ left: 10, right: 80, top: 0, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorEmeraldH" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
+                                            <stop offset="100%" stopColor="#10B981" stopOpacity={0.6} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                    <XAxis type="number" hide />
+                                    <YAxis
+                                        dataKey="name"
+                                        type="category"
+                                        width={140}
+                                        tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }}
+                                        interval={0}
+                                        axisLine={false}
+                                        tickLine={false}
+                                    />
+                                    <Tooltip
+                                        cursor={{ fill: '#f8fafc' }}
+                                        contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
+                                        formatter={(value: any) => [value, 'Comunas']}
+                                    />
+                                    <Bar dataKey="value" fill="url(#colorEmeraldH)" radius={[0, 12, 12, 0]} barSize={16}>
+                                        <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#059669' }} />
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* Gráfico de Familias por Estado */}
+                    <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 flex flex-col h-full">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 border-b border-slate-50 pb-6">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner">
+                                    <Home size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Familias por Estado</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Impacto habitacional y social</p>
+                                </div>
+                            </div>
+                            <div className="bg-indigo-600 px-6 py-2 rounded-full shadow-lg shadow-indigo-200">
+                                <p className="text-white text-[11px] font-black uppercase tracking-widest leading-none">
+                                    Total: {familiasByStateData.reduce((acc, curr) => acc + curr.value, 0).toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="h-[500px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={familiasByStateData} layout="vertical" margin={{ left: 10, right: 80, top: 0, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorIndigoH" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stopColor="#6366F1" stopOpacity={1} />
+                                            <stop offset="100%" stopColor="#6366F1" stopOpacity={0.6} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                    <XAxis type="number" hide />
+                                    <YAxis
+                                        dataKey="name"
+                                        type="category"
+                                        width={140}
+                                        tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }}
+                                        interval={0}
+                                        axisLine={false}
+                                        tickLine={false}
+                                    />
+                                    <Tooltip
+                                        cursor={{ fill: '#f8fafc' }}
+                                    contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
+                                    formatter={(value: any) => [value.toLocaleString(), 'Familias']}
+                                />
+                                <Bar dataKey="value" fill="url(#colorIndigoH)" radius={[0, 12, 12, 0]} barSize={16}>
+                                    <LabelList dataKey="value" position="right" formatter={(v: any) => v.toLocaleString()} style={{ fontSize: 11, fontWeight: 900, fill: '#4F46E5' }} />
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
 
                 {/* ── PANEL MINPPAL ─────────────────────────────────── */}
                 <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
