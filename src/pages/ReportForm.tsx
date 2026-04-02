@@ -114,6 +114,22 @@ export default function ReportForm() {
     const [photos, setPhotos] = useState<string[]>([]);
     const [rubrosSearch, setRubrosSearch] = useState('');
     const [isRestoring, setIsRestoring] = useState(false);
+    const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
+
+    const isInvalid = (field: string) => validationErrors[field];
+    const errorClass = (field: string) => isInvalid(field) 
+        ? 'border-[3px] border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.15)] bg-red-50/10' 
+        : 'border-transparent';
+
+    const clearError = (field: string) => {
+        if (validationErrors[field]) {
+            setValidationErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[field];
+                return newErrors;
+            });
+        }
+    };
 
     // Guía SICA (Opcional)
     const [guiaSicaEstado, setGuiaSicaEstado] = useState('');
@@ -545,21 +561,41 @@ export default function ReportForm() {
             const isValidStr = (s: string | undefined | null) => s && s.trim().length > 0;
             const isValidNumber = (n: number | undefined | null) => n !== undefined && n !== null && n >= 0;
             
-            const isAllValid = 
-                isValidStr(tipoActividad) && isValidStr(empresa) &&
-                isValidStr(estadoGeo) && 
-                (estadoGeo.toUpperCase() === 'PETARE' || estadoGeo.toUpperCase() === 'DEPENDENCIAS FEDERALES' || (isValidStr(municipio) && isValidStr(parroquia))) && 
-                isValidStr(sector) &&
-                isValidStr(nombreComuna) && 
-                isValidNumber(comunas) && isValidNumber(familias) && isValidNumber(personas) &&
-                isValidStr(responsableActividad.nombre) && isValidStr(responsableActividad.cedula) && isValidStr(responsableActividad.telefono) &&
-                isValidStr(responsableComuna.nombre) && isValidStr(responsableComuna.cedula) && isValidStr(responsableComuna.telefono) &&
-                rubros.length > 0 && 
-                rubros.every(r => isValidStr(r.rubro) && isValidStr(r.empaque) && isValidStr(r.medida) && isValidNumber(r.cantidad) && r.cantidad > 0 && isValidStr(r.precio)) &&
-                metodosPago.length > 0 && photos.length > 0;
+            const errors: Record<string, boolean> = {};
+
+            if (!isValidStr(tipoActividad)) errors.tipoActividad = true;
+            if (!isValidStr(empresa)) errors.empresa = true;
+            if (!isValidStr(estadoGeo)) errors.estadoGeo = true;
+            
+            const isDPASpecial = estadoGeo.toUpperCase() === 'PETARE' || estadoGeo.toUpperCase() === 'DEPENDENCIAS FEDERALES';
+            if (!isDPASpecial) {
+                if (!isValidStr(municipio)) errors.municipio = true;
+                if (!isValidStr(parroquia)) errors.parroquia = true;
+            }
+
+            if (!isValidStr(sector)) errors.sector = true;
+            if (!isValidStr(nombreComuna)) errors.nombreComuna = true;
+            if (!isValidNumber(comunas)) errors.comunas = true;
+            if (!isValidNumber(familias)) errors.familias = true;
+            if (!isValidNumber(personas)) errors.personas = true;
+
+            if (!isValidStr(responsableActividad.nombre)) errors.resp_act_nombre = true;
+            if (!isValidStr(responsableActividad.cedula)) errors.resp_act_cedula = true;
+            if (!isValidStr(responsableActividad.telefono)) errors.resp_act_telefono = true;
+
+            if (!isValidStr(responsableComuna.nombre)) errors.resp_com_nombre = true;
+            if (!isValidStr(responsableComuna.cedula)) errors.resp_com_cedula = true;
+            if (!isValidStr(responsableComuna.telefono)) errors.resp_com_telefono = true;
+
+            if (rubros.length === 0) errors.rubros = true;
+            if (metodosPago.length === 0) errors.metodosPago = true;
+            if (photos.length === 0) errors.photos = true;
+
+            setValidationErrors(errors);
+            const hasErrors = Object.keys(errors).length > 0;
                 
-            if (!isAllValid) {
-                alert('INFORMACIÓN INCOMPLETA: Todos los campos del formulario, responsables, rubros, métodos de pago y al menos 1 fotografía son obligatorios (Excepto "Guía SICA"). Por favor, verifíquelos.');
+            if (hasErrors) {
+                alert('INFORMACIÓN INCOMPLETA: Se han resaltado en ROJO los campos obligatorios que faltan por completar (Excepto "Guía SICA"). Por favor, verifíquelos.');
                 return;
             }
 
@@ -784,12 +820,15 @@ export default function ReportForm() {
                         <div className="space-y-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Tipo de Actividad</label>
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className={`grid grid-cols-2 gap-3 p-1 rounded-[1.5rem] transition-all ${errorClass('tipoActividad')}`}>
                                     {catalogos.actividades.map(tipo => (
                                         <button
                                             key={tipo}
                                             type="button"
-                                            onClick={() => setTipoActividad(tipo)}
+                                            onClick={() => {
+                                                setTipoActividad(tipo);
+                                                clearError('tipoActividad');
+                                            }}
                                             className={`p-4 rounded-2xl text-[10px] font-black text-center uppercase tracking-widest transition-all border-2 ${tipoActividad === tipo ? 'bg-blue-600 border-blue-600 text-white shadow-xl shadow-blue-500/20' : 'bg-slate-50 border-transparent text-black'}`}
                                         >
                                             {tipo}
@@ -800,11 +839,14 @@ export default function ReportForm() {
 
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Empresa / Ente Responsable</label>
-                                <div className="relative">
+                                <div className={`relative rounded-2xl transition-all ${errorClass('empresa')}`}>
                                     <select
                                         translate="no"
                                         value={empresa}
-                                        onChange={(e) => setEmpresa(e.target.value)}
+                                        onChange={(e) => {
+                                            setEmpresa(e.target.value);
+                                            clearError('empresa');
+                                        }}
                                         className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 appearance-none transition-all notranslate"
                                     >
                                         <option value="">-- Seleccionar --</option>
@@ -828,12 +870,13 @@ export default function ReportForm() {
                         <div className="space-y-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Estado</label>
-                                <div className="relative">
+                                <div className={`relative rounded-2xl transition-all ${errorClass('estadoGeo')}`}>
                                     <select
                                         value={estadoGeo}
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             setEstadoGeo(val);
+                                            clearError('estadoGeo');
                                             if (val.toUpperCase() === 'PETARE') {
                                                 setMunicipio('');
                                                 setParroquia('');
@@ -858,12 +901,13 @@ export default function ReportForm() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Municipio</label>
-                                        <div className="relative">
+                                        <div className={`relative rounded-2xl transition-all ${errorClass('municipio')}`}>
                                             <select
                                                 value={municipio}
                                                 onChange={(e) => {
                                                     setMunicipio(e.target.value);
                                                     setParroquia('');
+                                                    clearError('municipio');
                                                 }}
                                                 disabled={!estadoGeo}
                                                 className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-black focus:ring-4 focus:ring-blue-500/10 appearance-none transition-all disabled:opacity-50"
@@ -876,10 +920,13 @@ export default function ReportForm() {
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Parroquia</label>
-                                        <div className="relative">
+                                        <div className={`relative rounded-2xl transition-all ${errorClass('parroquia')}`}>
                                             <select
                                                 value={parroquia}
-                                                onChange={(e) => setParroquia(e.target.value)}
+                                                onChange={(e) => {
+                                                    setParroquia(e.target.value);
+                                                    clearError('parroquia');
+                                                }}
                                                 disabled={!municipio}
                                                 className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-black focus:ring-4 focus:ring-blue-500/10 appearance-none transition-all disabled:opacity-50"
                                             >
@@ -894,12 +941,30 @@ export default function ReportForm() {
 
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Sector</label>
-                                <input type="text" value={sector} onChange={(e) => setSector(e.target.value.toUpperCase())} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all" placeholder="Ej: Jose Félix Ribas" />
+                                <input 
+                                    type="text" 
+                                    value={sector} 
+                                    onChange={(e) => {
+                                        setSector(e.target.value.toUpperCase());
+                                        clearError('sector');
+                                    }} 
+                                    className={`w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all ${errorClass('sector')}`} 
+                                    placeholder="Ej: Jose Félix Ribas" 
+                                />
                             </div>
 
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Nombre de la Comuna Beneficiaria</label>
-                                <input type="text" value={nombreComuna} onChange={(e) => setNombreComuna(e.target.value.toUpperCase())} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all" placeholder="Ej: Comuna Lanceros de la Patria" />
+                                <input 
+                                    type="text" 
+                                    value={nombreComuna} 
+                                    onChange={(e) => {
+                                        setNombreComuna(e.target.value.toUpperCase());
+                                        clearError('nombreComuna');
+                                    }} 
+                                    className={`w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all ${errorClass('nombreComuna')}`} 
+                                    placeholder="Ej: Comuna Lanceros de la Patria" 
+                                />
                             </div>
                         </div>
                     </section>
@@ -917,11 +982,38 @@ export default function ReportForm() {
                             {/* Responsable de Actividad */}
                             <div className="space-y-4">
                                 <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-3 py-1 rounded-full w-fit">Persona Responsable</p>
-                                <div className="space-y-4">
-                                    <input type="text" value={responsableActividad.nombre} onChange={(e) => setResponsableActividad({ ...responsableActividad, nombre: e.target.value.toUpperCase() })} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" placeholder="Nombre Completo" />
+                                <div className={`space-y-4 p-4 rounded-[1.5rem] transition-all ${errorClass('responsableActividad')}`}>
+                                    <input 
+                                        type="text" 
+                                        value={responsableActividad.nombre} 
+                                        onChange={(e) => {
+                                            setResponsableActividad({ ...responsableActividad, nombre: e.target.value.toUpperCase() });
+                                            clearError('responsableActividad');
+                                        }} 
+                                        className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
+                                        placeholder="Nombre Completo" 
+                                    />
                                     <div className="grid grid-cols-2 gap-4">
-                                        <input type="text" value={responsableActividad.cedula} onChange={(e) => setResponsableActividad({ ...responsableActividad, cedula: e.target.value })} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" placeholder="Cédula" />
-                                        <input type="text" value={responsableActividad.telefono} onChange={(e) => setResponsableActividad({ ...responsableActividad, telefono: e.target.value })} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" placeholder="Teléfono" />
+                                        <input 
+                                            type="text" 
+                                            value={responsableActividad.cedula} 
+                                            onChange={(e) => {
+                                                setResponsableActividad({ ...responsableActividad, cedula: e.target.value });
+                                                clearError('responsableActividad');
+                                            }} 
+                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
+                                            placeholder="Cédula" 
+                                        />
+                                        <input 
+                                            type="text" 
+                                            value={responsableActividad.telefono} 
+                                            onChange={(e) => {
+                                                setResponsableActividad({ ...responsableActividad, telefono: e.target.value });
+                                                clearError('responsableActividad');
+                                            }} 
+                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
+                                            placeholder="Teléfono" 
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -929,11 +1021,38 @@ export default function ReportForm() {
                             {/* Responsable de Comuna */}
                             <div className="space-y-4">
                                 <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full w-fit">Poder Popular / Comuna</p>
-                                <div className="space-y-4">
-                                    <input type="text" value={responsableComuna.nombre} onChange={(e) => setResponsableComuna({ ...responsableComuna, nombre: e.target.value.toUpperCase() })} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" placeholder="Nombre Completo" />
+                                <div className={`space-y-4 p-4 rounded-[1.5rem] transition-all ${errorClass('responsableComuna')}`}>
+                                    <input 
+                                        type="text" 
+                                        value={responsableComuna.nombre} 
+                                        onChange={(e) => {
+                                            setResponsableComuna({ ...responsableComuna, nombre: e.target.value.toUpperCase() });
+                                            clearError('responsableComuna');
+                                        }} 
+                                        className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
+                                        placeholder="Nombre Completo" 
+                                    />
                                     <div className="grid grid-cols-2 gap-4">
-                                        <input type="text" value={responsableComuna.cedula} onChange={(e) => setResponsableComuna({ ...responsableComuna, cedula: e.target.value })} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" placeholder="Cédula" />
-                                        <input type="text" value={responsableComuna.telefono} onChange={(e) => setResponsableComuna({ ...responsableComuna, telefono: e.target.value })} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" placeholder="Teléfono" />
+                                        <input 
+                                            type="text" 
+                                            value={responsableComuna.cedula} 
+                                            onChange={(e) => {
+                                                setResponsableComuna({ ...responsableComuna, cedula: e.target.value });
+                                                clearError('responsableComuna');
+                                            }} 
+                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
+                                            placeholder="Cédula" 
+                                        />
+                                        <input 
+                                            type="text" 
+                                            value={responsableComuna.telefono} 
+                                            onChange={(e) => {
+                                                setResponsableComuna({ ...responsableComuna, telefono: e.target.value });
+                                                clearError('responsableComuna');
+                                            }} 
+                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
+                                            placeholder="Teléfono" 
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -950,28 +1069,52 @@ export default function ReportForm() {
                         </div>
 
                         <div className="grid grid-cols-1 gap-6">
-                            <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-3xl group transition-all hover:bg-slate-100">
+                            <div className={`flex items-center gap-4 bg-slate-50 p-4 rounded-3xl group transition-all hover:bg-slate-100 ${errorClass('comunas')}`}>
                                 <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-black group-focus-within:text-blue-600 transition-colors">
                                     <Home size={24} />
                                 </div>
                                 <div className="flex-1">
                                     <label className="text-[10px] font-black text-black uppercase tracking-widest">Comunas / Consejos Comunales</label>
-                                    <input type="number" value={comunas} onChange={(e) => setComunas(Number(e.target.value))} className="w-full bg-transparent border-none p-0 text-2xl font-black text-black focus:ring-0" />
+                                    <input 
+                                        type="number" 
+                                        value={comunas} 
+                                        onChange={(e) => {
+                                            setComunas(Number(e.target.value));
+                                            clearError('comunas');
+                                        }} 
+                                        className="w-full bg-transparent border-none p-0 text-2xl font-black text-black focus:ring-0" 
+                                    />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-3xl">
+                                <div className={`flex items-center gap-4 bg-slate-50 p-4 rounded-3xl transition-all ${errorClass('social_stats')}`}>
                                     <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-black">
                                         <Users size={24} />
                                     </div>
                                     <div className="flex-1 text-center">
                                         <label className="text-[10px] font-black text-black uppercase tracking-widest whitespace-nowrap">Familias</label>
-                                        <input type="number" value={familias} onChange={(e) => setFamilias(Number(e.target.value))} className="w-full bg-transparent border-none p-0 text-xl font-black text-black text-center focus:ring-0" />
+                                        <input 
+                                            type="number" 
+                                            value={familias} 
+                                            onChange={(e) => {
+                                                setFamilias(Number(e.target.value));
+                                                clearError('social_stats');
+                                            }} 
+                                            className="w-full bg-transparent border-none p-0 text-xl font-black text-black text-center focus:ring-0" 
+                                        />
                                     </div>
                                     <div className="flex-1 text-right border-l border-slate-200">
                                         <label className="text-[10px] font-black text-black uppercase tracking-widest mr-4">Personas</label>
-                                        <input type="number" value={personas} onChange={(e) => setPersonas(Number(e.target.value))} className="w-full bg-transparent border-none p-0 text-xl font-black text-black text-right pr-4 focus:ring-0" />
+                                        <input 
+                                            type="number" 
+                                            value={personas} 
+                                            onChange={(e) => {
+                                                setPersonas(Number(e.target.value));
+                                                clearError('social_stats');
+                                            }} 
+                                            className="w-full bg-transparent border-none p-0 text-xl font-black text-black text-right pr-4 focus:ring-0" 
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -1095,7 +1238,7 @@ export default function ReportForm() {
                             <h2 className="text-lg font-black text-black uppercase tracking-tighter">Distribución Consolidada (Toneladas)</h2>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className={`grid grid-cols-2 gap-4 p-4 rounded-[1.5rem] transition-all ${errorClass('toneladas')}`}>
                             {[
                                 { label: 'Proteína', value: totalProteina, setter: setTotalProteina, color: 'blue' },
                                 { label: 'Frutas', value: totalFrutas, setter: setTotalFrutas, color: 'amber' },
@@ -1110,7 +1253,10 @@ export default function ReportForm() {
                                             type="number"
                                             step="0.01"
                                             value={cat.value}
-                                            onChange={(e) => cat.setter(Number(e.target.value))}
+                                            onChange={(e) => {
+                                                cat.setter(Number(e.target.value));
+                                                clearError('toneladas');
+                                            }}
                                             className="w-full bg-transparent border-none p-0 text-lg font-black text-black focus:ring-0 font-mono"
                                             placeholder="0.00"
                                         />
@@ -1233,7 +1379,7 @@ export default function ReportForm() {
                             </div>
 
                             {/* Lista de Rubros (Filtrada) */}
-                            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-hide">
+                            <div className={`space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-hide p-2 rounded-[2rem] transition-all ${errorClass('rubros')}`}>
                                 {filteredItems.map((item: any) => {
                                     const r = rubros.find(rub => rub.rubro === item.name);
                                     const isPresent = !!r;
@@ -1246,7 +1392,10 @@ export default function ReportForm() {
                                             <div className="flex items-center gap-4">
                                                 <button
                                                     type="button"
-                                                    onClick={() => toggleRubroPresencia(item)}
+                                                    onClick={() => {
+                                                        toggleRubroPresencia(item);
+                                                        clearError('rubros');
+                                                    }}
                                                     className={`h-12 w-20 flex items-center justify-center rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all ${isPresent ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white text-black border border-slate-200'}`}
                                                 >
                                                     {isPresent ? 'SI' : 'NO'}
@@ -1461,12 +1610,15 @@ export default function ReportForm() {
                     {/* Sección 7: Métodos de Pago */}
                     <section className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/40 border border-white">
                         <h2 className="text-lg font-black text-black uppercase tracking-tighter mb-6">Métodos de Pago</h2>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className={`grid grid-cols-2 gap-3 p-4 rounded-[1.5rem] transition-all ${errorClass('metodosPago')}`}>
                             {METODOS_PAGO.map(metodo => (
                                 <button
                                     key={metodo}
                                     type="button"
-                                    onClick={() => toggleMetodoPago(metodo)}
+                                    onClick={() => {
+                                        toggleMetodoPago(metodo);
+                                        clearError('metodosPago');
+                                    }}
                                     className={`p-4 rounded-2xl text-[10px] font-black text-center uppercase tracking-widest transition-all border-2 ${metodosPago.includes(metodo) ? 'bg-blue-600 border-blue-600 text-white shadow-xl shadow-blue-500/20' : 'bg-slate-50 border-transparent text-black'}`}
                                 >
                                     {metodo}
@@ -1484,7 +1636,7 @@ export default function ReportForm() {
                             <h2 className="text-lg font-black text-black uppercase tracking-tighter">Evidencias Fotográficas</h2>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3 mb-8">
+                        <div className={`grid grid-cols-3 gap-3 mb-8 p-4 rounded-[1.5rem] transition-all ${errorClass('photos')}`}>
                             {photos.map((photo, index) => (
                                 <div key={index} className="aspect-square rounded-2xl overflow-hidden relative border border-slate-100 shadow-sm bg-slate-50">
                                     <img src={photo} alt={`Captura ${index + 1}`} className="w-full h-full object-cover" />

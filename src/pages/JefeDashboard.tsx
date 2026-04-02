@@ -6,7 +6,7 @@ import {
     TrendingUp, Package,
     Activity, RefreshCw, Home,
     ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight,
-    Leaf, UserPlus, MapPin, Globe, Map, Navigation
+    Leaf, UserPlus, MapPin, Globe, Map, Navigation, Check
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -1167,24 +1167,7 @@ export default function JefeDashboard() {
 
 
 
-    const qualitySummary = useMemo(() => {
-        const standards = [
-            'bodegaLimpia', 'entornoLimpio', 'personalSuficiente',
-            'comunidadNotificada', 'presenciaProteina',
-            'presenciaHortalizas', 'presenciaFrutas'
-        ];
-        const totalReports = filteredReports.length || 1;
-        let totalPercentageSum = 0;
-        
-        standards.forEach(key => {
-            const count = filteredReports.filter((r: Report) => {
-                const cond = r.audit_summary;
-                return cond?.[key] === true;
-            }).length;
-            totalPercentageSum += (count / totalReports) * 100;
-        });
-        return Math.round(totalPercentageSum / standards.length);
-    }, [filteredReports]);
+
 
 
 
@@ -1648,6 +1631,30 @@ export default function JefeDashboard() {
 
                 {/* ── MAPA OPERATIVO — Ancho Completo ──────────────────────────── */}
                 <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 relative h-[500px] md:h-[620px] overflow-hidden">
+                    <style>{`
+                        .premium-popup .leaflet-popup-content-wrapper {
+                            background: rgba(255, 255, 255, 0.95);
+                            backdrop-filter: blur(12px) saturate(180%);
+                            -webkit-backdrop-filter: blur(12px) saturate(180%);
+                            border-radius: 2.5rem;
+                            padding: 0;
+                            overflow: hidden;
+                            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.25);
+                            border: 1px solid rgba(255, 255, 255, 0.3);
+                        }
+                        .premium-popup .leaflet-popup-content {
+                            margin: 0 !important;
+                            width: 280px !important;
+                        }
+                        .premium-popup .leaflet-popup-tip-container {
+                            display: none;
+                        }
+                        .premium-popup .leaflet-popup-close-button {
+                            padding: 20px 20px 0 0 !important;
+                            color: white !important;
+                            font-size: 20px !important;
+                        }
+                    `}</style>
                     
                     {/* Botones de Control Flotantes (Mobile Friendly) */}
                     <div className="absolute top-6 right-6 z-[1001] flex flex-col gap-3">
@@ -1748,28 +1755,114 @@ export default function JefeDashboard() {
                                                     position={[report.latitud, report.longitud]}
                                                     icon={getMarkerIcon(activityType)}
                                                 >
-                                                    <Popup>
-                                                        <div className="p-3 font-sans min-w-[200px]">
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <div
-                                                                    className="w-2.5 h-2.5 rounded-full shadow-sm"
-                                                                    style={{ backgroundColor: ACTIVITY_COLORS[activityType] || '#64748b' }}
-                                                                ></div>
-                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{activityType}</p>
+                                                    <Popup className="premium-popup">
+                                                        <div className="p-0 font-sans min-w-[280px] overflow-hidden rounded-[2rem]">
+                                                            {/* Cabecera Enriquecida */}
+                                                            <div className="bg-slate-900 p-5 text-white">
+                                                                <div className="flex justify-between items-start mb-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div
+                                                                            className="w-2.5 h-2.5 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+                                                                            style={{ backgroundColor: ACTIVITY_COLORS[activityType] || '#64748b' }}
+                                                                        ></div>
+                                                                        <p className="text-[9px] font-black opacity-70 uppercase tracking-[0.2em]">{activityType}</p>
+                                                                    </div>
+                                                                    <span className="bg-emerald-500/20 text-emerald-400 text-[8px] font-black px-2 py-0.5 rounded-full border border-emerald-500/30 tracking-widest animate-pulse">
+                                                                        ACTIVA
+                                                                    </span>
+                                                                </div>
+                                                                <h4 className="text-lg font-black uppercase tracking-tight leading-tight">{report.parroquia}</h4>
+                                                                <p className="text-[10px] opacity-60 font-bold uppercase tracking-widest mt-1">
+                                                                    {report.municipio}, {report.estado_geografico}
+                                                                </p>
                                                             </div>
-                                                            <p className="text-sm font-black text-slate-800 uppercase leading-tight">{report.parroquia}</p>
-                                                            <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5 text-[9px] font-bold text-slate-500 uppercase">
-                                                                <p className="flex justify-between"><span>Ente:</span> <span className="text-blue-600 font-black">{report.empresa}</span></p>
-                                                                <p className="flex justify-between"><span>Estado:</span> <span className="text-slate-900">{report.estado_geografico}</span></p>
-                                                                <p className="flex justify-between"><span>Municipio:</span> <span className="text-slate-900">{report.municipio}</span></p>
-                                                                <p className="flex justify-between"><span>Personas:</span> <span className="text-slate-900 font-black">{report.personas}</span></p>
-                                                                    <div className="mt-1 pt-1 border-t border-slate-50 flex justify-between items-center text-emerald-600 font-black">
-                                                                        <span>TOTAL:</span>
-                                                                        <span>{((Number(report.total_proteina) || 0) + (Number(report.total_frutas) || 0) + (Number(report.total_hortalizas) || 0) + (Number(report.total_verduras) || 0) + (Number(report.total_secos) || 0)).toLocaleString('es-VE')} TN</span>
+
+                                                            <div className="p-5 space-y-5 bg-white">
+                                                                {/* Distribución de Carga (Rubros con iconos) */}
+                                                                <div>
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Distribución de Carga</p>
+                                                                    <div className="grid grid-cols-3 gap-2">
+                                                                        <div className="bg-amber-50 p-2 rounded-2xl border border-amber-100/50 flex flex-col items-center">
+                                                                            <Award size={14} className="text-amber-600 mb-1" />
+                                                                            <span className="text-[10px] font-black text-amber-700">{(Number(report.total_proteina) || 0).toLocaleString('es-VE')} TN</span>
+                                                                            <span className="text-[7px] font-bold text-amber-400 uppercase">Proteína</span>
+                                                                        </div>
+                                                                        <div className="bg-emerald-50 p-2 rounded-2xl border border-emerald-100/50 flex flex-col items-center">
+                                                                            <Leaf size={14} className="text-emerald-600 mb-1" />
+                                                                            <span className="text-[10px] font-black text-emerald-700">{(Number(report.total_hortalizas) + Number(report.total_verduras) || 0).toLocaleString('es-VE')} TN</span>
+                                                                            <span className="text-[7px] font-bold text-emerald-400 uppercase">Vegetales</span>
+                                                                        </div>
+                                                                        <div className="bg-pink-50 p-2 rounded-2xl border border-pink-100/50 flex flex-col items-center">
+                                                                            <Star size={14} className="text-pink-600 mb-1" />
+                                                                            <span className="text-[10px] font-black text-pink-700">{(Number(report.total_frutas) || 0).toLocaleString('es-VE')} TN</span>
+                                                                            <span className="text-[7px] font-bold text-pink-400 uppercase">Frutas</span>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
+
+                                                                {/* Auditoría Técnica (Semáforo con Etiquetas) */}
+                                                                <div>
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Auditoría Técnica</p>
+                                                                    <div className="flex justify-between">
+                                                                        {[
+                                                                            { key: 'bodegaLimpia', color: '#3B82F6', label: 'Higiene' },
+                                                                            { key: 'personalSuficiente', color: '#8B5CF6', label: 'Personal' },
+                                                                            { key: 'entornoLimpio', color: '#10B981', label: 'Entorno' },
+                                                                            { key: 'comunidadNotificada', color: '#F59E0B', label: 'Comunidad' }
+                                                                        ].map((step) => {
+                                                                            const active = report.audit_summary?.[step.key] === true;
+                                                                            return (
+                                                                                <div key={step.key} className="flex flex-col items-center gap-1.5 flex-1">
+                                                                                    <div 
+                                                                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border-2 ${active ? 'border-white shadow-lg' : 'bg-slate-50 border-transparent opacity-20 text-slate-300'}`}
+                                                                                        style={{ backgroundColor: active ? step.color : undefined, color: active ? 'white' : undefined }}
+                                                                                    >
+                                                                                        {active ? <Check size={12} strokeWidth={4} /> : <div className="w-1 h-1 rounded-full bg-slate-300" />}
+                                                                                    </div>
+                                                                                    <span className={`text-[7px] font-black uppercase tracking-tighter ${active ? 'text-slate-900' : 'text-slate-300'}`}>
+                                                                                        {step.label}
+                                                                                    </span>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Atención Social (KPIs Reales) */}
+                                                                <div className="pt-4 border-t border-slate-50">
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Atención Social Consolidada</p>
+                                                                    <div className="grid grid-cols-3 gap-2">
+                                                                        <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 flex flex-col items-center">
+                                                                            <span className="text-[11px] font-black text-slate-900">{(report.comunas || 0).toLocaleString()}</span>
+                                                                            <span className="text-[7px] font-bold text-slate-400 uppercase">Comunas</span>
+                                                                        </div>
+                                                                        <div className="bg-blue-50 p-2.5 rounded-2xl border border-blue-100/50 flex flex-col items-center">
+                                                                            <span className="text-[11px] font-black text-blue-700">{(report.familias || 0).toLocaleString()}</span>
+                                                                            <span className="text-[7px] font-bold text-blue-400 uppercase tracking-tighter">Familias</span>
+                                                                        </div>
+                                                                        <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 flex flex-col items-center">
+                                                                            <span className="text-[11px] font-black text-slate-900">{(report.personas || 0).toLocaleString()}</span>
+                                                                            <span className="text-[7px] font-bold text-slate-400 uppercase">Personas</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Footer con Ente y Link de Navegación */}
+                                                                <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Building2 size={12} className="text-slate-400" />
+                                                                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-tighter">{report.empresa}</span>
+                                                                    </div>
+                                                                    <button 
+                                                                        onClick={() => navigate(`/ver-reporte/${report.id}`)}
+                                                                        className="text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1"
+                                                                    >
+                                                                        Ver Informe →
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                        </Popup>
+                                                        </div>
+                                                    </Popup>
                                                     </Marker>
                                                 );
                                             })}
