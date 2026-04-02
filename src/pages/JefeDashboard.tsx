@@ -1057,6 +1057,114 @@ export default function JefeDashboard() {
             .sort((a, b) => b.value - a.value);
     }, [filteredReports]);
 
+    const proteinPresenceStats = useMemo(() => {
+        let presenceCount = 0;
+        let absenceCount = 0;
+        const byState: Record<string, number> = {};
+
+        catalogos.estados.forEach(e => {
+            byState[e.trim().toUpperCase()] = 0;
+        });
+
+        filteredReports.forEach(r => {
+            const hasPresence = r.audit_summary?.presenciaProteina === true || (Number(r.total_proteina) || 0) > 0;
+            const state = (r.estado_geografico || 'DESCONOCIDO').trim().toUpperCase();
+
+            if (hasPresence) {
+                presenceCount++;
+                byState[state] = (byState[state] || 0) + 1;
+            } else {
+                absenceCount++;
+            }
+        });
+
+        const stateChartData = Object.entries(byState)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+
+        const globalChartData = [
+            { name: 'PRESENTE', value: presenceCount, color: '#F59E0B' },
+            { name: 'AUSENTE', value: absenceCount, color: '#f3f4f6' }
+        ];
+
+        const total = presenceCount + absenceCount;
+        const pct = total > 0 ? Math.round((presenceCount / total) * 100) : 0;
+
+        return { globalChartData, stateChartData, total, presenceCount, absenceCount, pct };
+    }, [filteredReports, catalogos.estados]);
+
+    const hortalizasPresenceStats = useMemo(() => {
+        let presenceCount = 0;
+        let absenceCount = 0;
+        const byState: Record<string, number> = {};
+
+        catalogos.estados.forEach(e => {
+            byState[e.trim().toUpperCase()] = 0;
+        });
+
+        filteredReports.forEach(r => {
+            const hasPresence = r.audit_summary?.presenciaHortalizas === true || (Number(r.total_hortalizas) || 0) > 0 || (Number(r.total_verduras) || 0) > 0;
+            const state = (r.estado_geografico || 'DESCONOCIDO').trim().toUpperCase();
+
+            if (hasPresence) {
+                presenceCount++;
+                byState[state] = (byState[state] || 0) + 1;
+            } else {
+                absenceCount++;
+            }
+        });
+
+        const stateChartData = Object.entries(byState)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+
+        const globalChartData = [
+            { name: 'PRESENTE', value: presenceCount, color: '#84CC16' },
+            { name: 'AUSENTE', value: absenceCount, color: '#f3f4f6' }
+        ];
+
+        const total = presenceCount + absenceCount;
+        const pct = total > 0 ? Math.round((presenceCount / total) * 100) : 0;
+
+        return { globalChartData, stateChartData, total, presenceCount, absenceCount, pct };
+    }, [filteredReports, catalogos.estados]);
+
+    const frutasPresenceStats = useMemo(() => {
+        let presenceCount = 0;
+        let absenceCount = 0;
+        const byState: Record<string, number> = {};
+
+        catalogos.estados.forEach(e => {
+            byState[e.trim().toUpperCase()] = 0;
+        });
+
+        filteredReports.forEach(r => {
+            const hasPresence = r.audit_summary?.presenciaFrutas === true || (Number(r.total_frutas) || 0) > 0;
+            const state = (r.estado_geografico || 'DESCONOCIDO').trim().toUpperCase();
+
+            if (hasPresence) {
+                presenceCount++;
+                byState[state] = (byState[state] || 0) + 1;
+            } else {
+                absenceCount++;
+            }
+        });
+
+        const stateChartData = Object.entries(byState)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+
+        const globalChartData = [
+            { name: 'PRESENTE', value: presenceCount, color: '#EC4899' },
+            { name: 'AUSENTE', value: absenceCount, color: '#f3f4f6' }
+        ];
+
+        const total = presenceCount + absenceCount;
+        const pct = total > 0 ? Math.round((presenceCount / total) * 100) : 0;
+
+        return { globalChartData, stateChartData, total, presenceCount, absenceCount, pct };
+    }, [filteredReports, catalogos.estados]);
+
 
 
     const qualitySummary = useMemo(() => {
@@ -1959,37 +2067,45 @@ export default function JefeDashboard() {
 
                     <div className="lg:col-span-4">
                         <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 h-full flex flex-col">
-                            <div className="flex justify-between items-center mb-10">
-                                <div>
-                                    <h3 className="text-[11px] font-black uppercase text-[#007AFF] tracking-[0.25em] mb-1">Auditoría</h3>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Estándares</p>
-                                </div>
-                                <div className="bg-blue-50 px-4 py-2 rounded-2xl">
-                                    <span className="text-2xl font-black text-[#007AFF] tracking-tighter">{qualitySummary}%</span>
-                                </div>
+                            <div className="mb-10">
+                                <h3 className="text-[11px] font-black uppercase text-[#007AFF] tracking-[0.25em] mb-1">Auditoría</h3>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Estándares de Control Interno</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            
+                            <div className="flex flex-col gap-5 flex-grow">
                                 {[
-                                    { label: 'Higiene', key: 'bodegaLimpia', icon: <Package size={16} />, color: '#3B82F6' },
-                                    { label: 'Entorno', key: 'entornoLimpio', icon: <Activity size={16} />, color: '#10B981' },
-                                    { label: 'Comunidad', key: 'comunidadNotificada', icon: <Users size={16} />, color: '#6366F1' },
-                                    { label: 'Personal', key: 'personalSuficiente', icon: <UserPlus size={16} />, color: '#8B5CF6' },
-                                    { label: 'Proteína', key: 'presenciaProteina', icon: <Award size={16} />, color: '#F59E0B' },
-                                    { label: 'Hortalizas', key: 'presenciaHortalizas', icon: <Leaf size={16} />, color: '#84CC16' },
-                                    { label: 'Frutas', key: 'presenciaFrutas', icon: <Star size={16} />, color: '#EC4899' }
+                                    { label: 'Higiene de Bodega', key: 'bodegaLimpia', icon: <Package size={20} />, color: '#3B82F6', light: '#eff6ff' },
+                                    { label: 'Entorno Limpio', key: 'entornoLimpio', icon: <Activity size={20} />, color: '#10B981', light: '#ecfdf5' },
+                                    { label: 'Notificación Comunitaria', key: 'comunidadNotificada', icon: <Users size={20} />, color: '#6366F1', light: '#eef2ff' },
+                                    { label: 'Personal Suficiente', key: 'personalSuficiente', icon: <UserPlus size={20} />, color: '#8B5CF6', light: '#f5f3ff' }
                                 ].map((item) => {
                                     const total = filteredReports.length || 1;
                                     const count = filteredReports.filter((r: any) => r.audit_summary?.[item.key] === true).length;
                                     const pct = Math.round((count / total) * 100);
                                     return (
-                                        <div key={item.key} className="p-4 rounded-3xl border border-slate-50 bg-slate-50/50 flex flex-col justify-end">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">{item.label}</p>
-                                            <div className="text-2xl font-black text-slate-900 leading-none mb-1">{count}</div>
-                                            <div className="text-[8.5px] font-bold text-slate-400 uppercase tracking-widest mb-3 leading-tight whitespace-nowrap overflow-hidden text-ellipsis" title={`${count} de ${total} jornadas (${pct}%)`}>
-                                                {count} de {total} jornadas ({pct}%)
+                                        <div key={item.key} className="p-6 rounded-[2rem] border border-slate-50 bg-slate-50/50 flex items-center gap-6 group hover:bg-white hover:shadow-xl hover:shadow-slate-100/50 transition-all duration-500">
+                                            <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner shrink-0" style={{ backgroundColor: item.light, color: item.color }}>
+                                                {item.icon}
                                             </div>
-                                            <div className="h-1.5 bg-white rounded-full overflow-hidden mt-auto">
-                                                <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, backgroundColor: item.color }} />
+                                            <div className="flex-grow">
+                                                <div className="flex justify-between items-end mb-2">
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{item.label}</p>
+                                                        <div className="text-3xl font-black text-slate-900 leading-none tracking-tighter">{count}</div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-[10px] font-black text-slate-900 bg-white px-2 py-0.5 rounded-lg shadow-sm border border-slate-100">
+                                                            {pct}%
+                                                        </span>
+                                                        <p className="text-[8px] font-bold text-slate-300 uppercase mt-1">Cumplimiento</p>
+                                                    </div>
+                                                </div>
+                                                <div className="h-2 bg-white rounded-full overflow-hidden mt-3 shadow-inner p-[1px]">
+                                                    <div className="h-full rounded-full transition-all duration-1000 shadow-sm" style={{ width: `${pct}%`, backgroundColor: item.color }} />
+                                                </div>
+                                                <p className="text-[8.5px] font-bold text-slate-400 uppercase tracking-widest mt-2">
+                                                    Presente en {count} de {total} (Total Jornadas)
+                                                </p>
                                             </div>
                                         </div>
                                     );
@@ -1997,6 +2113,129 @@ export default function JefeDashboard() {
                             </div>
                         </div>
                     </div>
+                </div>
+
+                {/* NUEVA SECCIÓN: ANALÍTICA DETALLADA DE RUBROS CRÍTICOS */}
+                <div className="lg:col-span-12 space-y-8">
+                    {[
+                        { 
+                            title: 'Sostenibilidad de Proteína Animal', 
+                            stats: proteinPresenceStats, 
+                            color: '#F59E0B', 
+                            lightColor: '#FEF3C7',
+                            icon: <Award size={22} />
+                        },
+                        { 
+                            title: 'Sostenibilidad de Hortalizas y Verduras', 
+                            stats: hortalizasPresenceStats, 
+                            color: '#84CC16', 
+                            lightColor: '#F7FEE7',
+                            icon: <Leaf size={22} />
+                        },
+                        { 
+                            title: 'Sostenibilidad de Frutas', 
+                            stats: frutasPresenceStats, 
+                            color: '#EC4899', 
+                            lightColor: '#FDF2F8',
+                            icon: <Star size={22} />
+                        }
+                    ].map((category, idx) => (
+                        <div key={idx} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 overflow-hidden">
+                            <div className="flex items-center gap-4 mb-8 border-b border-slate-50 pb-6">
+                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner" style={{ backgroundColor: category.lightColor, color: category.color }}>
+                                    {category.icon}
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black uppercase text-slate-900 tracking-tight">{category.title}</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                        Presente en {category.stats.presenceCount} de {category.stats.total} jornadas (corresponde al {category.stats.pct}% del total)
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                                <div className="lg:col-span-4 flex flex-col items-center justify-center">
+                                    <div className="h-[240px] w-full relative">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={category.stats.globalChartData}
+                                                    innerRadius={60}
+                                                    outerRadius={90}
+                                                    paddingAngle={5}
+                                                    dataKey="value"
+                                                    stroke="none"
+                                                    cornerRadius={6}
+                                                >
+                                                    {category.stats.globalChartData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip 
+                                                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
+                                                    formatter={(value: any) => [value, 'Jornadas']}
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-[-5px]">
+                                            <span className="text-3xl font-black text-slate-900 tracking-tighter" style={{ color: category.color }}>
+                                                {category.stats.presenceCount}
+                                            </span>
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Jornadas SI</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-6 mt-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }}></div>
+                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">SI ({category.stats.presenceCount})</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full bg-slate-100"></div>
+                                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">NO ({category.stats.absenceCount})</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="lg:col-span-8">
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Presencia Efectiva por Entidad Federal (Monto Numérico)</p>
+                                    <div className="h-[350px]">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={category.stats.stateChartData} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                                <XAxis type="number" hide />
+                                                <YAxis
+                                                    dataKey="name"
+                                                    type="category"
+                                                    width={140}
+                                                    tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }}
+                                                    interval={0}
+                                                    axisLine={false}
+                                                    tickLine={false}
+                                                />
+                                                <Tooltip 
+                                                    cursor={{ fill: '#f8fafc' }}
+                                                    contentStyle={{ borderRadius: '16px', border: 'none' }}
+                                                    formatter={(value: any) => [value, 'Jornadas con Presencia']}
+                                                />
+                                                <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={12}>
+                                                    {category.stats.stateChartData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={category.color} fillOpacity={0.1 + (0.9 * (entry.value / (Math.max(...category.stats.stateChartData.map(d => d.value)) || 1)))} />
+                                                    ))}
+                                                    <LabelList 
+                                                        dataKey="value" 
+                                                        position="right" 
+                                                        style={{ fontSize: 10, fontWeight: 900, fill: category.color }} 
+                                                        formatter={(v: any) => v > 0 ? v : ''}
+                                                    />
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+
 
                     {/* FILA 4: Productividad (Ancho Completo) */}
                     <div className="lg:col-span-12">
