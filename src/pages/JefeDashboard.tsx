@@ -6,109 +6,21 @@ import {
     TrendingUp, Package,
     Activity, RefreshCw, Home,
     ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight,
-    Leaf, UserPlus, MapPin, Globe, Map, Navigation, Check, X, Calendar, Clock
+    Leaf, UserPlus, X, Calendar, Clock, MapPin, Globe, Map as MapIcon, Navigation
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import { MapContainer, TileLayer, Marker, Popup, LayersControl, LayerGroup, Circle } from 'react-leaflet';
-import { MapStateController } from '../components/MapStateController';
+import TerritorialMap from '../components/dashboard/TerritorialMap';
+import KpiSection from '../components/dashboard/KpiSection';
+import AnalyticsCharts from '../components/dashboard/AnalyticsCharts';
+import MinppalPresence from '../components/dashboard/MinppalPresence';
+
 import JefePlanningTable from '../components/JefePlanningTable';
-import MarkerClusterGroup from 'react-leaflet-markercluster';
-import 'leaflet/dist/leaflet.css';
-import 'leaflet.markercluster/dist/MarkerCluster.css';
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     LineChart, Line, PieChart, Pie, Cell, Legend, LabelList, ReferenceLine
 } from 'recharts';
 
-// Fix for Leaflet default icon issues in React
-import L from 'leaflet';
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-const DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-
-// Función para generar iconos de colores dinámicos (estética Apple/Moderno)
-const createCustomIcon = (color: string) => {
-    return L.divIcon({
-        className: 'custom-div-icon',
-        html: `
-            <div style="
-                background-color: ${color};
-                width: 14px;
-                height: 14px;
-                border: 3px solid white;
-                border-radius: 50%;
-                box-shadow: 0 0 15px ${color}88, 0 4px 10px rgba(0,0,0,0.2);
-                transition: all 0.3s ease;
-            "></div>
-        `,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-        popupAnchor: [0, -10]
-    });
-};
-
-const ACTIVITY_COLORS: Record<string, string> = {
-    'FCS': '#EF4444',             // Rojo
-    'FCS - Emblemática': '#10B981', // Verde
-    'Bodega móvil': '#007AFF',     // Azul
-    'Cielo Abierto': '#6366F1'     // Indigo
-};
-
-const getMarkerIcon = (type: string) => {
-    const color = ACTIVITY_COLORS[type] || '#64748b'; // Slate por defecto
-    return createCustomIcon(color);
-};
-
-// Función para iconos de agrupamiento personalizados (Clusters Premium con Glassmorphism)
-const createClusterCustomIcon = (cluster: any) => {
-    const count = cluster.getChildCount();
-    let size = '36px';
-    let color = '#007AFF'; // Azul
-
-    if (count > 50) {
-        size = '54px';
-        color = '#EF4444'; // Rojo (Crítico)
-    } else if (count > 10) {
-        size = '44px';
-        color = '#F59E0B'; // Ámbar (Medio)
-    }
-
-    return L.divIcon({
-        html: `
-            <div style="
-                background-color: ${color}99;
-                width: ${size};
-                height: ${size};
-                border: 2px solid rgba(255, 255, 255, 0.9);
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-family: 'Inter', sans-serif;
-                font-weight: 900;
-                font-size: 13px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                backdrop-filter: blur(8px);
-                -webkit-backdrop-filter: blur(8px);
-                text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-            ">
-                ${count}
-            </div>
-        `,
-        className: 'marker-cluster-custom',
-        iconSize: L.point(40, 40, true),
-    });
-};
 
 interface Report {
     id: string;
@@ -1436,637 +1348,59 @@ export default function JefeDashboard() {
                     </div>
                 </div>
 
-                {/* KPIs Principales */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
-                    {[
-                        { label: 'Jornadas Ejecutadas', value: filteredReports.length, icon: <Activity size={20} />, color: 'text-[#007AFF]', bg: 'bg-blue-50' },
-                        { label: 'Comunas Atendidas', value: filteredReports.reduce((acc, r) => acc + (r.comunas || 0), 0).toLocaleString(), icon: <MapPin size={20} />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                        { label: 'Familias Beneficiadas', value: filteredReports.reduce((acc, r) => acc + (r.familias || 0), 0).toLocaleString(), icon: <Home size={20} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                        { label: 'Habitantes Atendidos', value: filteredReports.reduce((acc, r) => acc + (r.personas || 0), 0).toLocaleString(), icon: <Users size={20} />, color: 'text-sky-600', bg: 'bg-sky-50' },
-                    ].map((kpi) => (
-                        <div key={kpi.label} className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 flex items-center justify-between group hover:border-[#007AFF]/20 transition-all">
-                            <div>
-                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 leading-none">{kpi.label}</p>
-                                <p className="text-3xl font-black text-slate-900 tracking-tighter">{kpi.value.toString()}</p>
-                            </div>
-                            <div className={`w-14 h-14 ${kpi.bg} ${kpi.color} rounded-2xl flex items-center justify-center shadow-inner`}>{kpi.icon}</div>
-                        </div>
-                    ))}
-                </div>
+                {/* KPIs y Cobertura Territorial (Modularizado) */}
+                <KpiSection 
+                    filteredReports={filteredReports}
+                    totalEstados={totalEstados}
+                    totalMunicipios={totalMunicipios}
+                    totalParroquias={totalParroquias}
+                />
 
-                {/* Cobertura Territorial */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
-                    {[
-                        { label: 'Total Estados Atendidos', value: totalEstados.toLocaleString(), icon: <Globe size={20} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                        { label: 'Total Municipios Atendidos', value: totalMunicipios.toLocaleString(), icon: <Map size={20} />, color: 'text-amber-600', bg: 'bg-amber-50' },
-                        { label: 'Total Parroquias Atendidas', value: totalParroquias.toLocaleString(), icon: <Navigation size={20} />, color: 'text-rose-600', bg: 'bg-rose-50' },
-                    ].map((kpi) => (
-                        <div key={kpi.label} className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 flex items-center justify-between group hover:border-slate-200 transition-all">
-                            <div>
-                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 leading-none">{kpi.label}</p>
-                                <p className="text-3xl font-black text-slate-900 tracking-tighter">{kpi.value}</p>
-                            </div>
-                            <div className={`w-14 h-14 ${kpi.bg} ${kpi.color} rounded-2xl flex items-center justify-center shadow-inner`}>{kpi.icon}</div>
-                        </div>
-                    ))}
-                </div>
 
-                {/* PANEL ANALÍTICO TERRITORIAL */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Gráfico de Comunas por Estado */}
-                    <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 flex flex-col h-full">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 border-b border-slate-50 pb-6">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shadow-inner">
-                                    <MapPin size={24} />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Comunas por Estado</h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Distribución territorial de organizaciones</p>
-                                </div>
-                            </div>
-                            <div className="bg-emerald-600 px-6 py-2 rounded-full shadow-lg shadow-emerald-200">
-                                <p className="text-white text-[11px] font-black uppercase tracking-widest leading-none">
-                                    Total: {comunasByStateData.reduce((acc, curr) => acc + curr.value, 0).toLocaleString()}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="h-[500px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={comunasByStateData} layout="vertical" margin={{ left: 10, right: 80, top: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="colorEmeraldH" x1="0" y1="0" x2="1" y2="0">
-                                            <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
-                                            <stop offset="100%" stopColor="#10B981" stopOpacity={0.6} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
-                                    <XAxis type="number" hide />
-                                    <YAxis
-                                        dataKey="name"
-                                        type="category"
-                                        width={140}
-                                        tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }}
-                                        interval={0}
-                                        axisLine={false}
-                                        tickLine={false}
-                                    />
-                                    <Tooltip
-                                        cursor={{ fill: '#f8fafc' }}
-                                        contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
-                                        formatter={(value: any) => [value, 'Comunas']}
-                                    />
-                                    <Bar 
-                                        dataKey="value" 
-                                        fill="url(#colorEmeraldH)" 
-                                        radius={[0, 12, 12, 0]} 
-                                        barSize={16}
-                                        style={{ cursor: 'pointer' }}
-                                        onClick={(data) => {
-                                            if (data && data.name) {
-                                                setSelectedEstado(data.name);
-                                                setIsDrillDownOpen(false); // Cerrar el de entes
-                                                setIsStateDrillDownOpen(true);
-                                            }
-                                        }}
-                                    >
-                                        <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#059669' }} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
+                {/* PANEL ANALÍTICO TERRITORIAL (Modularizado) */}
+                <AnalyticsCharts 
+                    comunasByStateData={comunasByStateData}
+                    familiasByStateData={familiasByStateData}
+                    setSelectedEstado={setSelectedEstado}
+                    setIsDrillDownOpen={setIsDrillDownOpen}
+                    setIsStateDrillDownOpen={setIsStateDrillDownOpen}
+                />
 
-                    {/* Gráfico de Familias por Estado */}
-                    <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 flex flex-col h-full">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 border-b border-slate-50 pb-6">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner">
-                                    <Home size={24} />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Familias por Estado</h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Impacto habitacional y social</p>
-                                </div>
-                            </div>
-                            <div className="bg-indigo-600 px-6 py-2 rounded-full shadow-lg shadow-indigo-200">
-                                <p className="text-white text-[11px] font-black uppercase tracking-widest leading-none">
-                                    Total: {familiasByStateData.reduce((acc, curr) => acc + curr.value, 0).toLocaleString()}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="h-[500px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={familiasByStateData} layout="vertical" margin={{ left: 10, right: 80, top: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="colorIndigoH" x1="0" y1="0" x2="1" y2="0">
-                                            <stop offset="0%" stopColor="#6366F1" stopOpacity={1} />
-                                            <stop offset="100%" stopColor="#6366F1" stopOpacity={0.6} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
-                                    <XAxis type="number" hide />
-                                    <YAxis
-                                        dataKey="name"
-                                        type="category"
-                                        width={140}
-                                        tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }}
-                                        interval={0}
-                                        axisLine={false}
-                                        tickLine={false}
-                                    />
-                                    <Tooltip
-                                        cursor={{ fill: '#f8fafc' }}
-                                        contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
-                                        formatter={(value: any) => [value.toLocaleString(), 'Familias']}
-                                    />
-                                    <Bar 
-                                        dataKey="value" 
-                                        fill="url(#colorIndigoH)" 
-                                        radius={[0, 12, 12, 0]} 
-                                        barSize={16}
-                                        style={{ cursor: 'pointer' }}
-                                        onClick={(data) => {
-                                            if (data && data.name) {
-                                                setSelectedEstado(data.name);
-                                                setIsDrillDownOpen(false); // Cerrar el otro si está abierto
-                                                setIsStateDrillDownOpen(true);
-                                            }
-                                        }}
-                                    >
-                                        <LabelList dataKey="value" position="right" formatter={(v: any) => v.toLocaleString()} style={{ fontSize: 11, fontWeight: 900, fill: '#4F46E5' }} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                </div>
+                {/* PANEL MINPPAL (Modularizado) */}
+                <MinppalPresence 
+                    minppalDetailData={minppalDetailData}
+                    setSelectedEnte={setSelectedEnte}
+                    setIsDrillDownOpen={setIsDrillDownOpen}
+                    setIsStateDrillDownOpen={setIsStateDrillDownOpen}
+                />
 
-                {/* ── PANEL MINPPAL ─────────────────────────────────── */}
-                <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-                    {/* Cabecera */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-8 pt-8 pb-6 border-b border-slate-50">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center shadow-inner">
-                                <Building2 size={22} />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Presencia de Entes MINPPAL con Productos</h3>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-slate-50">
-                        {/* Izquierda: tarjetas por empresa */}
-                        <div className="p-6 md:p-8 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-4">
-                            {minppalDetailData.map((emp) => (
-                                <div
-                                    key={emp.name}
-                                    onClick={() => {
-                                        setSelectedEnte(emp.name);
-                                        setIsStateDrillDownOpen(false); // Cerrar el otro si está abierto
-                                        setIsDrillDownOpen(true);
-                                    }}
-                                    className={`p-5 rounded-3xl border-2 flex flex-col gap-2 transition-all cursor-pointer hover:shadow-lg active:scale-95 ${emp.count > 0
-                                        ? 'bg-amber-50 border-amber-100 hover:border-amber-300'
-                                        : 'bg-slate-50 border-slate-100'
-                                        }`}
-                                >
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-tight">{emp.name}</p>
-                                    <p className={`text-2xl font-black tracking-tighter leading-none ${emp.count > 0 ? 'text-amber-600' : 'text-slate-300'
-                                        }`}>{emp.count}</p>
-                                    <p className="text-[9px] font-bold text-slate-400">Jornadas ({emp.pct}% de cobertura)</p>
-                                    {/* Mini barra */}
-                                    <div className="w-full h-1.5 bg-slate-200/60 rounded-full overflow-hidden">
-                                        <div
-                                            className={`h-full rounded-full transition-all duration-700 ${emp.count > 0 ? 'bg-amber-400' : 'bg-slate-200'
-                                                }`}
-                                            style={{ width: `${emp.pct}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
 
-                        {/* Derecha: gráfica de barras horizontal */}
-                        <div className="p-6 md:p-8 flex flex-col justify-center">
-                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Comparativo de Presencia (Jornadas)</p>
-                            <div className="h-[280px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={minppalDetailData} layout="vertical" margin={{ left: 10, right: 60, top: 10, bottom: 10 }}>
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.08} />
-                                        <XAxis type="number" hide />
-                                        <YAxis
-                                            dataKey="name"
-                                            type="category"
-                                            width={140}
-                                            tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }}
-                                            axisLine={false}
-                                            tickLine={false}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
-                                            formatter={(value: any, _name: any, props: any) => [
-                                                `${value} jornadas(${props.payload.pct} %)`,
-                                                'Presencia'
-                                            ]}
-                                        />
-                                        <Bar
-                                            dataKey="count"
-                                            fill="url(#colorAmber)"
-                                            radius={[0, 8, 8, 0]}
-                                            barSize={14}
-                                            style={{ cursor: 'pointer' }}
-                                            onClick={(data) => {
-                                                if (data && data.name) {
-                                                    setSelectedEnte(data.name);
-                                                    setIsStateDrillDownOpen(false); // Cerrar el otro si está abierto
-                                                    setIsDrillDownOpen(true);
-                                                }
-                                            }}
-                                        >
-                                            <defs>
-                                                <linearGradient id="colorAmber" x1="0" y1="0" x2="1" y2="0">
-                                                    <stop offset="0%" stopColor="#F59E0B" stopOpacity={1} />
-                                                    <stop offset="100%" stopColor="#F59E0B" stopOpacity={0.6} />
-                                                </linearGradient>
-                                            </defs>
-                                            <LabelList
-                                                dataKey="count"
-                                                position="right"
-                                                formatter={(v: any) => `${v} j`}
-                                                fontSize={10}
-                                                fontWeight={900}
-                                                fill="#64748b"
-                                            />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {/* ── FIN PANEL MINPPAL ─────────────────────────────── */}
+                {/* ── MAPA OPERATIVO (Modularizado) ──────────────────────────── */}
+                <TerritorialMap 
+                    filteredReports={filteredReports}
+                    filterEstado={filterEstado}
+                    filterTipo={filterTipo}
+                    setFilterTipo={setFilterTipo}
+                    selectedEnte={selectedEnte}
+                    selectedEstado={selectedEstado}
+                    minppalPresencia={minppalPresencia}
+                    vulnerabilityData={vulnerabilityData}
+                    catalogos={catalogos}
+                    isMapFilterOpen={isMapFilterOpen}
+                    setIsMapFilterOpen={setIsMapFilterOpen}
+                    isMapLegendOpen={isMapLegendOpen}
+                    setIsMapLegendOpen={setIsMapLegendOpen}
+                    filterEnte={filterEnte}
+                    setFilterEnte={setFilterEnte}
+                    setSelectedEstado={setSelectedEstado}
+                    setSelectedEnte={setSelectedEnte}
+                    setIsDrillDownOpen={setIsDrillDownOpen}
+                    setIsStateDrillDownOpen={setIsStateDrillDownOpen}
+                    clearFilters={clearFilters}
+                    navigate={navigate}
+                />
 
-                {/* ── MAPA OPERATIVO — Ancho Completo ──────────────────────────── */}
-                <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 relative h-[500px] md:h-[620px] overflow-hidden">
-                    <style>{`
-                        .premium-popup .leaflet-popup-content-wrapper {
-                            background: rgba(255, 255, 255, 0.95);
-                            backdrop-filter: blur(12px) saturate(180%);
-                            -webkit-backdrop-filter: blur(12px) saturate(180%);
-                            border-radius: 2.5rem;
-                            padding: 0;
-                            overflow: hidden;
-                            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.25);
-                            border: 1px solid rgba(255, 255, 255, 0.3);
-                        }
-                        .premium-popup .leaflet-popup-content {
-                            margin: 0 !important;
-                            width: 280px !important;
-                        }
-                        .premium-popup .leaflet-popup-tip-container {
-                            display: none;
-                        }
-                        .premium-popup .leaflet-popup-close-button {
-                            padding: 20px 20px 0 0 !important;
-                            color: white !important;
-                            font-size: 20px !important;
-                        }
-                    `}</style>
-
-                    {/* Botones de Control Flotantes (Mobile Friendly) */}
-                    <div className="absolute top-6 right-6 z-[1001] flex flex-col gap-3">
-                        <button
-                            onClick={() => setIsMapFilterOpen(!isMapFilterOpen)}
-                            className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl backdrop-blur-md transition-all ${isMapFilterOpen ? 'bg-[#007AFF] text-white' : 'bg-white/90 text-slate-600 border border-slate-100'}`}
-                        >
-                            <Search size={22} />
-                        </button>
-                        <button
-                            onClick={() => setIsMapLegendOpen(!isMapLegendOpen)}
-                            className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl backdrop-blur-md transition-all ${isMapLegendOpen ? 'bg-[#007AFF] text-white' : 'bg-white/90 text-slate-600 border border-slate-100'}`}
-                        >
-                            <Leaf size={22} />
-                        </button>
-                    </div>
-
-                    {/* Cabecera del Mapa (Mobile: Solo visible si no hay paneles abiertos) */}
-                    {!isMapFilterOpen && !isMapLegendOpen && (
-                        <div className="absolute top-6 left-6 z-[1001] bg-white/95 backdrop-blur-sm p-4 rounded-2xl border border-slate-100 shadow-xl hidden sm:block">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-[#007AFF]">Mapa Operativo</h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ubicación de Jornadas Activas</p>
-                            <p className="text-[10px] font-black text-slate-600 mt-2">
-                                <span className="text-[#007AFF]">{filteredReports.filter(r => r.latitud && r.longitud).length}</span> puntos georeferenciados
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Leyenda del Mapa (Colapsable) */}
-                    {isMapLegendOpen && (
-                        <div className="absolute bottom-6 left-6 right-6 sm:right-auto z-[1001] bg-white/95 backdrop-blur-sm p-5 rounded-3xl border border-slate-100 shadow-2xl animate-in slide-in-from-bottom-5 duration-300">
-                            <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Leyenda de Actividades</p>
-                                <button onClick={() => setIsMapLegendOpen(false)} className="text-slate-300 hover:text-red-500"><Search size={14} className="rotate-45" /></button>
-                            </div>
-                            <div className="grid grid-cols-2 sm:flex sm:flex-col gap-3">
-                                {Object.entries(ACTIVITY_COLORS).map(([type, color]) => (
-                                    <div key={type} className="flex items-center gap-3">
-                                        <div className="w-3 h-3 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: color }}></div>
-                                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-tight">{type}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="h-full w-full rounded-[3rem] overflow-hidden">
-                        <MapContainer
-                            center={[7.0, -66.0] as L.LatLngExpression}
-                            zoom={6}
-                            maxZoom={22}
-                            style={{ height: '100%', width: '100%' }}
-                        >
-                            {/* Controlador de zoom y resaltado del Estado seleccionado */}
-                            <MapStateController
-                                selectedState={filterEstado === 'Todos' ? '' : filterEstado}
-                            />
-                            <LayersControl position="bottomright">
-                                <LayersControl.BaseLayer checked name="Satélite Premium">
-                                    <TileLayer
-                                        url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                                        attribution='&copy; Esri'
-                                        maxZoom={22}
-                                        maxNativeZoom={19}
-                                    />
-                                </LayersControl.BaseLayer>
-                                <LayersControl.BaseLayer name="Mapa de Calles">
-                                    <TileLayer
-                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                        attribution='&copy; OpenStreetMap'
-                                        maxZoom={19}
-                                    />
-                                </LayersControl.BaseLayer>
-
-                                <LayersControl.Overlay name="🏷️ Mostrar Nombres de Lugares">
-                                    <TileLayer
-                                        url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-                                        attribution='&copy; Esri'
-                                        zIndex={100}
-                                        maxZoom={22}
-                                        maxNativeZoom={19}
-                                    />
-                                </LayersControl.Overlay>
-
-                                <LayersControl.Overlay checked name="📍 Jornadas Operativas (Filtradas)">
-                                    <MarkerClusterGroup
-                                        chunkedLoading
-                                        iconCreateFunction={createClusterCustomIcon}
-                                        maxClusterRadius={50}
-                                        spiderfyOnMaxZoom={true}
-                                        showCoverageOnHover={false}
-                                    >
-                                        {filteredReports
-                                            .filter(r => r.latitud && r.longitud)
-                                            .filter(r => {
-                                                // 1. Filtrado por Ente (Drill-down Ente)
-                                                if (selectedEnte) {
-                                                    const isLeader = r.empresa?.trim().toUpperCase() === selectedEnte.trim().toUpperCase();
-                                                    const isInvited = minppalPresencia.some(pres =>
-                                                        pres.report_id === r.id &&
-                                                        pres.presente &&
-                                                        pres.ente_name?.trim().toUpperCase() === selectedEnte.trim().toUpperCase()
-                                                    );
-                                                    if (!(isLeader || isInvited)) return false;
-                                                }
-
-                                                // 2. Filtrado por Estado (Drill-down Estado)
-                                                if (selectedEstado) {
-                                                    const isSameState = (r.estado_geografico || '').trim().toUpperCase() === selectedEstado.trim().toUpperCase();
-                                                    if (!isSameState) return false;
-                                                }
-
-                                                return true;
-                                            })
-                                            .map(report => {
-                                            const activityType = (report.tipo_actividad || '').trim().toUpperCase();
-                                            return (
-                                                <Marker
-                                                    key={`filtered-${report.id}`}
-                                                    position={[report.latitud, report.longitud]}
-                                                    icon={getMarkerIcon(activityType)}
-                                                >
-                                                    <Popup className="premium-popup">
-                                                        <div className="p-0 font-sans min-w-[280px] overflow-hidden rounded-[2rem]">
-                                                            {/* Cabecera Enriquecida */}
-                                                            <div className="bg-slate-900 p-5 text-white">
-                                                                <div className="flex justify-between items-start mb-2">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div
-                                                                            className="w-2.5 h-2.5 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.5)]"
-                                                                            style={{ backgroundColor: ACTIVITY_COLORS[activityType] || '#64748b' }}
-                                                                        ></div>
-                                                                        <p className="text-[9px] font-black opacity-70 uppercase tracking-[0.2em]">{activityType}</p>
-                                                                    </div>
-                                                                    <span className="bg-emerald-500/20 text-emerald-400 text-[8px] font-black px-2 py-0.5 rounded-full border border-emerald-500/30 tracking-widest animate-pulse">
-                                                                        ACTIVA
-                                                                    </span>
-                                                                </div>
-                                                                <h4 className="text-lg font-black uppercase tracking-tight leading-tight">{report.parroquia}</h4>
-                                                                <p className="text-[10px] opacity-60 font-bold uppercase tracking-widest mt-1">
-                                                                    {report.municipio}, {report.estado_geografico}
-                                                                </p>
-                                                            </div>
-
-                                                            <div className="p-5 space-y-5 bg-white">
-                                                                {/* Distribución de Carga (Rubros con iconos) */}
-                                                                <div>
-                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Distribución de Carga</p>
-                                                                    <div className="grid grid-cols-3 gap-2">
-                                                                        <div className="bg-amber-50 p-2 rounded-2xl border border-amber-100/50 flex flex-col items-center">
-                                                                            <Award size={14} className="text-amber-600 mb-1" />
-                                                                            <span className="text-[10px] font-black text-amber-700">{(Number(report.total_proteina) || 0).toLocaleString('es-VE')} TN</span>
-                                                                            <span className="text-[7px] font-bold text-amber-400 uppercase">Proteína</span>
-                                                                        </div>
-                                                                        <div className="bg-emerald-50 p-2 rounded-2xl border border-emerald-100/50 flex flex-col items-center">
-                                                                            <Leaf size={14} className="text-emerald-600 mb-1" />
-                                                                            <span className="text-[10px] font-black text-emerald-700">{(Number(report.total_hortalizas) + Number(report.total_verduras) || 0).toLocaleString('es-VE')} TN</span>
-                                                                            <span className="text-[7px] font-bold text-emerald-400 uppercase">Vegetales</span>
-                                                                        </div>
-                                                                        <div className="bg-pink-50 p-2 rounded-2xl border border-pink-100/50 flex flex-col items-center">
-                                                                            <Star size={14} className="text-pink-600 mb-1" />
-                                                                            <span className="text-[10px] font-black text-pink-700">{(Number(report.total_frutas) || 0).toLocaleString('es-VE')} TN</span>
-                                                                            <span className="text-[7px] font-bold text-pink-400 uppercase">Frutas</span>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Auditoría Técnica (Semáforo con Etiquetas) */}
-                                                                <div>
-                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Auditoría Técnica</p>
-                                                                    <div className="flex justify-between">
-                                                                        {[
-                                                                            { key: 'bodegaLimpia', color: '#3B82F6', label: 'Higiene' },
-                                                                            { key: 'personalSuficiente', color: '#8B5CF6', label: 'Personal' },
-                                                                            { key: 'entornoLimpio', color: '#10B981', label: 'Entorno' },
-                                                                            { key: 'comunidadNotificada', color: '#F59E0B', label: 'Comunidad' }
-                                                                        ].map((step) => {
-                                                                            const active = report.audit_summary?.[step.key] === true;
-                                                                            return (
-                                                                                <div key={step.key} className="flex flex-col items-center gap-1.5 flex-1">
-                                                                                    <div
-                                                                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border-2 ${active ? 'border-white shadow-lg' : 'bg-slate-50 border-transparent opacity-20 text-slate-300'}`}
-                                                                                        style={{ backgroundColor: active ? step.color : undefined, color: active ? 'white' : undefined }}
-                                                                                    >
-                                                                                        {active ? <Check size={12} strokeWidth={4} /> : <div className="w-1 h-1 rounded-full bg-slate-300" />}
-                                                                                    </div>
-                                                                                    <span className={`text-[7px] font-black uppercase tracking-tighter ${active ? 'text-slate-900' : 'text-slate-300'}`}>
-                                                                                        {step.label}
-                                                                                    </span>
-                                                                                </div>
-                                                                            );
-                                                                        })}
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Atención Social (KPIs Reales) */}
-                                                                <div className="pt-4 border-t border-slate-50">
-                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Atención Social Consolidada</p>
-                                                                    <div className="grid grid-cols-3 gap-2">
-                                                                        <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 flex flex-col items-center">
-                                                                            <span className="text-[11px] font-black text-slate-900">{(report.comunas || 0).toLocaleString()}</span>
-                                                                            <span className="text-[7px] font-bold text-slate-400 uppercase">Comunas</span>
-                                                                        </div>
-                                                                        <div className="bg-blue-50 p-2.5 rounded-2xl border border-blue-100/50 flex flex-col items-center">
-                                                                            <span className="text-[11px] font-black text-blue-700">{(report.familias || 0).toLocaleString()}</span>
-                                                                            <span className="text-[7px] font-bold text-blue-400 uppercase tracking-tighter">Familias</span>
-                                                                        </div>
-                                                                        <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 flex flex-col items-center">
-                                                                            <span className="text-[11px] font-black text-slate-900">{(report.personas || 0).toLocaleString()}</span>
-                                                                            <span className="text-[7px] font-bold text-slate-400 uppercase">Personas</span>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Footer con Ente y Link de Navegación */}
-                                                                <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <Building2 size={12} className="text-slate-400" />
-                                                                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-tighter">{report.empresa}</span>
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={() => navigate(`/ver-reporte/${report.id}`)}
-                                                                        className="text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1"
-                                                                    >
-                                                                        Ver Informe →
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </Popup>
-                                                </Marker>
-                                            );
-                                        })}
-                                    </MarkerClusterGroup>
-                                </LayersControl.Overlay>
-
-                                <LayersControl.Overlay checked name="⚠️ Zonas de Vulnerabilidad">
-                                    <LayerGroup>
-                                        {vulnerabilityData.map(v => {
-                                            const colors = ['#10B981', '#FBBF24', '#F59E0B', '#EF4444', '#7F1D1D'];
-                                            const color = colors[v.nivel_prioridad - 1] || '#EF4444';
-                                            return (
-                                                <Circle
-                                                    key={`vuln-${v.id}`}
-                                                    center={[v.latitud, v.longitud]}
-                                                    pathOptions={{
-                                                        fillColor: color,
-                                                        color: color,
-                                                        fillOpacity: 0.6,
-                                                        weight: 2
-                                                    }}
-                                                    radius={50000}
-                                                >
-                                                    <Popup>
-                                                        <div className="p-3 font-sans min-w-[180px]">
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }}></div>
-                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">VULNERABILIDAD NIVEL {v.nivel_prioridad}</p>
-                                                            </div>
-                                                            <p className="text-sm font-black text-slate-800 uppercase leading-tight">{v.parroquia || v.municipio}</p>
-                                                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">{v.estado}</p>
-                                                            <div className="mt-3 pt-3 border-t border-slate-100">
-                                                                <p className="text-[10px] leading-relaxed text-slate-600 italic">
-                                                                    "{v.descripcion_problema}"
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </Popup>
-                                                </Circle>
-                                            );
-                                        })}
-                                    </LayerGroup>
-                                </LayersControl.Overlay>
-                            </LayersControl>
-                        </MapContainer>
-                    </div>
-
-                    {/* Panel de Filtros Flotante del Mapa (Colapsable) */}
-                    {isMapFilterOpen && (
-                        <div className="absolute top-20 right-6 z-[1001] w-[280px] sm:w-[320px] animate-in slide-in-from-right-5 duration-300">
-                            <div className="bg-white/95 backdrop-blur-sm p-6 rounded-[2rem] border border-slate-100 shadow-2xl space-y-5">
-                                <div className="flex items-center justify-between border-b border-slate-50 pb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-blue-50 text-[#007AFF] rounded-2xl flex items-center justify-center shadow-inner">
-                                            <Activity size={18} />
-                                        </div>
-                                        <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-400 leading-tight">Panel de<br />Filtros Map</h4>
-                                    </div>
-                                    <button onClick={() => setIsMapFilterOpen(false)} className="text-slate-300 hover:text-red-500">
-                                        <Search size={16} className="rotate-45" />
-                                    </button>
-                                </div>
-                                <div className="space-y-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] ml-1">Ente / Empresa</label>
-                                        <select
-                                            value={filterEnte}
-                                            onChange={(e) => setFilterEnte(e.target.value)}
-                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-200 transition-all text-slate-700"
-                                        >
-                                            <option value="Todos">🏢 Todos los Entes</option>
-                                            {catalogos.entes.map(e => (
-                                                <option key={`map-ente-filter-${e}`} value={e}>{e}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] ml-1">Tipo de Actividad</label>
-                                        <select
-                                            value={filterTipo}
-                                            onChange={(e) => setFilterTipo(e.target.value)}
-                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-200 transition-all text-slate-700"
-                                        >
-                                            <option value="Todos">⚡ Todas las Act.</option>
-                                            {catalogos.actividades.map(a => (
-                                                <option key={`map-act-filter-${a}`} value={a}>{a}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="pt-2">
-                                        <button
-                                            onClick={clearFilters}
-                                            className="w-full py-2 bg-slate-100/50 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
-                                        >
-                                            Restablecer
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                {/* ── FIN MAPA ─────────────────────────────────────────────────── */}
 
 
                 {/* Grid Analítico Principal Reestructurado para Simetría */}
@@ -3467,7 +2801,7 @@ export default function JefeDashboard() {
                                 <div className="relative z-10">
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center border border-white/10">
-                                            <Map size={20} className="text-white" />
+                                            <MapIcon size={20} className="text-white" />
                                         </div>
                                         <p className="text-[10px] font-black text-emerald-100 uppercase tracking-[0.2em]">Geo-Localización Estratégica</p>
                                     </div>
