@@ -6,7 +6,7 @@ import {
     TrendingUp, Package,
     Activity, RefreshCw, Home,
     ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight,
-    Leaf, UserPlus, MapPin, Globe, Map, Navigation, Check
+    Leaf, UserPlus, MapPin, Globe, Map, Navigation, Check, X, Calendar, Clock
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -73,7 +73,7 @@ const createClusterCustomIcon = (cluster: any) => {
     const count = cluster.getChildCount();
     let size = '36px';
     let color = '#007AFF'; // Azul
-    
+
     if (count > 50) {
         size = '54px';
         color = '#EF4444'; // Rojo (Crítico)
@@ -121,6 +121,7 @@ interface Report {
     personas: number;
     familias: number;
     comunas: number;
+    nombre_comuna?: string;
     total_proteina: number;
     total_frutas: number;
     total_hortalizas: number;
@@ -128,7 +129,7 @@ interface Report {
     total_secos: number;
     latitud: number;
     longitud: number;
-    datos_formulario?: any; 
+    datos_formulario?: any;
     rating_value?: number;
     audit_summary?: any;
     estado_reporte: string;
@@ -257,6 +258,12 @@ export default function JefeDashboard() {
     const [isMapFilterOpen, setIsMapFilterOpen] = useState(false);
     const [isMapLegendOpen, setIsMapLegendOpen] = useState(false);
 
+    // Estados para el Drill-down del Jefe (Funcionalidad Premium)
+    const [selectedEnte, setSelectedEnte] = useState<string | null>(null);
+    const [isDrillDownOpen, setIsDrillDownOpen] = useState(false);
+    const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
+    const [isStateDrillDownOpen, setIsStateDrillDownOpen] = useState(false);
+
     const [debug, setDebug] = useState<string>('Iniciando...');
 
     // Solo ejecutar fetchData cuando el auth ya esté resuelto y tengamos sesión
@@ -270,11 +277,11 @@ export default function JefeDashboard() {
         try {
             setLoading(true);
             setDebug('Iniciando carga inteligente...');
-            
+
             // 1. Carga Paginada de Reportes (ULTRA-LITE con Caching de DB)
             const allReports: Report[] = [];
             let page = 0;
-            const pageSize = 20; 
+            const pageSize = 20;
             let keepFetching = true;
 
             setDebug('Conectando con base de datos...');
@@ -284,7 +291,7 @@ export default function JefeDashboard() {
                 // Usamos las nuevas columnas rating_value y audit_summary que cree en la DB
                 const { data: pageData, error: pageError } = await supabase
                     .from('reports')
-                    .select('id, fecha, tipo_actividad, empresa, estado_geografico, municipio, parroquia, personas, familias, comunas, total_proteina, total_frutas, total_hortalizas, total_verduras, total_secos, latitud, longitud, estado_reporte, inspector_id, guia_sica_estado, rating_value, audit_summary')
+                    .select('id, fecha, tipo_actividad, empresa, estado_geografico, municipio, parroquia, personas, familias, comunas, nombre_comuna, total_proteina, total_frutas, total_hortalizas, total_verduras, total_secos, latitud, longitud, estado_reporte, inspector_id, guia_sica_estado, rating_value, audit_summary')
                     .eq('estado_reporte', 'enviado')
                     .order('fecha', { ascending: false })
                     .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -293,9 +300,9 @@ export default function JefeDashboard() {
 
                 if (pageData && pageData.length > 0) {
                     allReports.push(...(pageData as any[]));
-                    setReports([...allReports]); 
+                    setReports([...allReports]);
                     setDebug(`Lote ${page + 1}: ${allReports.length} jornadas...`);
-                    
+
                     // Pequeña pausa para permitir que la UI respire y procese los useMemo
                     await new Promise(r => setTimeout(r, 100));
 
@@ -333,10 +340,10 @@ export default function JefeDashboard() {
                     articulos: normalize(catalogData, 'ARTICULO'),
                     actividades: normalize(catalogData, 'ACTIVIDAD'),
                     minppal: normalize(catalogData, 'MINPPAL'),
-                    fullCatalog: catalogData.map((i: any) => ({ 
-                        id: i.id, 
-                        name: i.name, 
-                        type: i.type, 
+                    fullCatalog: catalogData.map((i: any) => ({
+                        id: i.id,
+                        name: i.name,
+                        type: i.type,
                         parent_id: i.parent_id,
                         empresa_id: i.empresa_id,
                         precio_referencia: i.precio_referencia,
@@ -357,7 +364,7 @@ export default function JefeDashboard() {
             for (let i = 0; i < reportIds.length; i += chunkSize) {
                 const chunk = reportIds.slice(i, i + chunkSize);
                 setDebug(`Detalles: ${Math.round((i / reportIds.length) * 100)}%...`);
-                
+
                 const [itemsRes, paymentRes, presRes, entRes] = await Promise.all([
                     supabase.from('report_items').select('report_id,rubro,cantidad,precio_unitario').in('report_id', chunk),
                     supabase.from('report_payment_methods').select('report_id,metodo').in('report_id', chunk),
@@ -460,9 +467,9 @@ export default function JefeDashboard() {
         let totalGeneral = 0;
         filteredReports.forEach(r => {
             const p = Number(r.total_proteina) || 0;
-            const t = (Number(r.total_proteina) || 0) + (Number(r.total_frutas) || 0) + 
-                      (Number(r.total_hortalizas) || 0) + (Number(r.total_verduras) || 0) + 
-                      (Number(r.total_secos) || 0);
+            const t = (Number(r.total_proteina) || 0) + (Number(r.total_frutas) || 0) +
+                (Number(r.total_hortalizas) || 0) + (Number(r.total_verduras) || 0) +
+                (Number(r.total_secos) || 0);
             totalProteina += p;
             totalGeneral += t;
         });
@@ -492,9 +499,9 @@ export default function JefeDashboard() {
         let totalTons = 0;
         let totalFamilias = 0;
         filteredReports.forEach(r => {
-            const t = (Number(r.total_proteina) || 0) + (Number(r.total_frutas) || 0) + 
-                      (Number(r.total_hortalizas) || 0) + (Number(r.total_verduras) || 0) + 
-                      (Number(r.total_secos) || 0);
+            const t = (Number(r.total_proteina) || 0) + (Number(r.total_frutas) || 0) +
+                (Number(r.total_hortalizas) || 0) + (Number(r.total_verduras) || 0) +
+                (Number(r.total_secos) || 0);
             totalTons += t;
             totalFamilias += (Number(r.familias) || 0);
         });
@@ -525,17 +532,17 @@ export default function JefeDashboard() {
     }, [reports]);
 
     const priceTrackingData = useMemo(() => {
-        const stats: Record<string, { 
-            name: string, 
-            presentation: string, 
-            nationalRef: number, 
-            totalPrice: number, 
-            count: number 
+        const stats: Record<string, {
+            name: string,
+            presentation: string,
+            nationalRef: number,
+            totalPrice: number,
+            count: number
         }> = {};
 
         // Obtener solo artículos del catálogo que tengan precio de referencia > 0 (incluye tipo RUBRO)
         const articles = catalogos.fullCatalog.filter(c => (c.type === 'ARTICULO' || c.type === 'RUBRO') && (c.precio_referencia || 0) > 0);
-        
+
         articles.forEach(art => {
             stats[art.name] = {
                 name: art.name,
@@ -605,11 +612,11 @@ export default function JefeDashboard() {
         const isRubroFiltered = filterRubro !== 'Todos';
 
         filteredReports.forEach(r => {
-            const sumRow = (Number(r.total_proteina) || 0) + 
-                          (Number(r.total_frutas) || 0) + 
-                          (Number(r.total_hortalizas) || 0) + 
-                          (Number(r.total_verduras) || 0) + 
-                          (Number(r.total_secos) || 0);
+            const sumRow = (Number(r.total_proteina) || 0) +
+                (Number(r.total_frutas) || 0) +
+                (Number(r.total_hortalizas) || 0) +
+                (Number(r.total_verduras) || 0) +
+                (Number(r.total_secos) || 0);
 
             if (sumRow > 0 && !isRubroFiltered) {
                 categories['Proteínas'] += Number(r.total_proteina) || 0;
@@ -627,11 +634,11 @@ export default function JefeDashboard() {
         reportItems.forEach(item => {
             if (filteredReportIds.has(item.report_id)) {
                 const isFilteredItem = isRubroFiltered && item.rubro?.trim().toUpperCase() === filterRubro.trim().toUpperCase();
-                
+
                 if ((isRubroFiltered && isFilteredItem) || (!isRubroFiltered && !reportsWithTotals.has(item.report_id))) {
                     const cat = itemToCategory[item.rubro?.trim().toUpperCase()];
                     const qty = Number(item.cantidad) || 0;
-                    const tons = qty / 1000; 
+                    const tons = qty / 1000;
 
                     if (cat) {
                         if (cat.includes('PROTE')) categories['Proteínas'] += tons;
@@ -726,7 +733,7 @@ export default function JefeDashboard() {
             }))
             .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
     }, [filteredReports, catalogos.estados]);
-    
+
     // Nueva métrica: Comparativa de Precio Promedio por Estado vs Referencia Nacional
     const priceComparisonByState = useMemo(() => {
         // Si no hay rubro seleccionado (está en 'Todos'), devolvemos datos vacíos
@@ -739,10 +746,10 @@ export default function JefeDashboard() {
         }
 
         const targetRubro = filterRubro;
-        
+
         // Buscar el artículo en el catálogo para obtener el precio de referencia
-        const catalogItem = catalogos.fullCatalog.find(c => 
-            (c.name.trim().toUpperCase() === targetRubro.trim().toUpperCase()) && 
+        const catalogItem = catalogos.fullCatalog.find(c =>
+            (c.name.trim().toUpperCase() === targetRubro.trim().toUpperCase()) &&
             (c.type === 'ARTICULO' || c.type === 'RUBRO')
         );
 
@@ -750,7 +757,7 @@ export default function JefeDashboard() {
         const referencePrice = catalogItem?.precio_referencia || 0;
 
         const stateAvgs: Record<string, { total: number, count: number }> = {};
-        
+
         // Inicializar estados
         catalogos.estados.forEach(e => {
             stateAvgs[e.trim().toUpperCase()] = { total: 0, count: 0 };
@@ -758,10 +765,10 @@ export default function JefeDashboard() {
 
         // Calcular promedios por estado
         reportItems.forEach(item => {
-            if (filteredReportIds.has(item.report_id) && 
+            if (filteredReportIds.has(item.report_id) &&
                 item.rubro?.trim().toUpperCase() === effectiveTarget.trim().toUpperCase() &&
                 (item.precio_unitario || 0) > 0) {
-                
+
                 const rep = reports.find(r => r.id === item.report_id);
                 if (rep) {
                     const state = (rep.estado_geografico || 'DESCONOCIDO').trim().toUpperCase();
@@ -814,7 +821,7 @@ export default function JefeDashboard() {
             const estadoSica = r.guia_sica_estado;
             const label = (r.estado_geografico || 'Desconocido').trim();
             const formalLabel = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
-            
+
             if (!byState[formalLabel]) {
                 byState[formalLabel] = { si: 0, no: 0 };
             }
@@ -867,7 +874,7 @@ export default function JefeDashboard() {
             name,
             value: counts[name.toLowerCase()] || 0,
             total: filteredReports.length
-        })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
+        })).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
     }, [reportItems, filteredReportIds, catalogos.fullCatalog, filteredReports.length]);
 
     const rubroVolumeData = useMemo(() => {
@@ -891,7 +898,7 @@ export default function JefeDashboard() {
         return RUBROS_LIST.map(name => ({
             name,
             value: sums[name.toLowerCase()] || 0
-        })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
+        })).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
     }, [reportItems, filteredReportIds, catalogos.fullCatalog]);
 
     const minppalProductsPresenceData = useMemo(() => {
@@ -929,7 +936,7 @@ export default function JefeDashboard() {
 
     const savingsImpactData = useMemo(() => {
         // Métrica: Inversión MINPPAL vs Inversión Proyectada Privado
-        const stats: Record<string, { 
+        const stats: Record<string, {
             name: string;
             tipo: string;
             inversionMinppal: number;
@@ -941,7 +948,7 @@ export default function JefeDashboard() {
 
         // Solo artículos con precio de referencia y precio privado
         const articles = catalogos.fullCatalog.filter(c => (c.type === 'ARTICULO' || c.type === 'RUBRO') && (c.precio_referencia || 0) > 0);
-        
+
         articles.forEach(art => {
             stats[art.name] = {
                 name: art.name,
@@ -959,11 +966,11 @@ export default function JefeDashboard() {
                 const s = stats[item.rubro];
                 const itemRef = catalogos.fullCatalog.find(c => c.name === item.rubro);
                 const cant = Number(item.cantidad) || 0;
-                
+
                 if (itemRef && cant > 0) {
                     const pMinppal = itemRef.precio_referencia || 0;
                     const pPrivado = itemRef.precio_privado || 0;
-                    
+
                     s.inversionMinppal += cant * pMinppal;
                     s.inversionPrivado += cant * (pPrivado > 0 ? pPrivado : pMinppal * 1.3); // Fallback 30% si no hay precio privado
                     s.cantidadTotal += cant;
@@ -1016,7 +1023,7 @@ export default function JefeDashboard() {
     const ratingData = useMemo(() => {
         const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
         filteredReports.forEach((r: Report) => {
-            const rating = Number(r.rating_value); 
+            const rating = Number(r.rating_value);
             if (!isNaN(rating) && rating >= 1 && rating <= 5) {
                 counts[rating as keyof typeof counts]++;
             }
@@ -1175,7 +1182,7 @@ export default function JefeDashboard() {
 
     const minppalDetailData = useMemo(() => {
         const totalReports = filteredReports.length || 1;
-        
+
         const entesMap: Record<string, string> = {};
         catalogos.fullCatalog.forEach(c => {
             if (c.type === 'MINPPAL') entesMap[c.id] = c.name;
@@ -1227,6 +1234,34 @@ export default function JefeDashboard() {
             };
         }).filter(item => item.count > 0).sort((a, b) => b.count - a.count);
     }, [filteredReports, minppalPresencia, filteredReportIds, catalogos.fullCatalog, catalogos.minppal]);
+
+    // Lógica para obtener las jornadas específicas de un Ente seleccionado (Drill-down)
+    const enteJornadasDetails = useMemo(() => {
+        if (!selectedEnte) return [];
+
+        const reportsForEnte = filteredReports.filter(report => {
+            // Caso 1: Es el ente líder de la jornada
+            if (report.empresa?.trim().toUpperCase() === selectedEnte.trim().toUpperCase()) return true;
+
+            // Caso 2: Está presente como invitado
+            return minppalPresencia.some(pres =>
+                pres.report_id === report.id &&
+                pres.presente &&
+                pres.ente_name?.trim().toUpperCase() === selectedEnte.trim().toUpperCase()
+            );
+        });
+
+        return reportsForEnte.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+    }, [selectedEnte, filteredReports, minppalPresencia]);
+
+    const estadoJornadasDetails = useMemo(() => {
+        if (!selectedEstado) return [];
+        const estadoNombre = selectedEstado.trim().toUpperCase();
+        
+        return filteredReports.filter(report => 
+            (report.estado_geografico || '').trim().toUpperCase() === estadoNombre
+        ).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+    }, [selectedEstado, filteredReports]);
 
     const totalEstados = useMemo(() => {
         const estados = new Set(filteredReports.map(r => (r.estado_geografico || '').trim().toUpperCase()).filter(e => e !== ''));
@@ -1481,7 +1516,20 @@ export default function JefeDashboard() {
                                         contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
                                         formatter={(value: any) => [value, 'Comunas']}
                                     />
-                                    <Bar dataKey="value" fill="url(#colorEmeraldH)" radius={[0, 12, 12, 0]} barSize={16}>
+                                    <Bar 
+                                        dataKey="value" 
+                                        fill="url(#colorEmeraldH)" 
+                                        radius={[0, 12, 12, 0]} 
+                                        barSize={16}
+                                        style={{ cursor: 'pointer' }}
+                                        onClick={(data) => {
+                                            if (data && data.name) {
+                                                setSelectedEstado(data.name);
+                                                setIsDrillDownOpen(false); // Cerrar el de entes
+                                                setIsStateDrillDownOpen(true);
+                                            }
+                                        }}
+                                    >
                                         <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#059669' }} />
                                     </Bar>
                                 </BarChart>
@@ -1529,17 +1577,30 @@ export default function JefeDashboard() {
                                     />
                                     <Tooltip
                                         cursor={{ fill: '#f8fafc' }}
-                                    contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
-                                    formatter={(value: any) => [value.toLocaleString(), 'Familias']}
-                                />
-                                <Bar dataKey="value" fill="url(#colorIndigoH)" radius={[0, 12, 12, 0]} barSize={16}>
-                                    <LabelList dataKey="value" position="right" formatter={(v: any) => v.toLocaleString()} style={{ fontSize: 11, fontWeight: 900, fill: '#4F46E5' }} />
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+                                        contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
+                                        formatter={(value: any) => [value.toLocaleString(), 'Familias']}
+                                    />
+                                    <Bar 
+                                        dataKey="value" 
+                                        fill="url(#colorIndigoH)" 
+                                        radius={[0, 12, 12, 0]} 
+                                        barSize={16}
+                                        style={{ cursor: 'pointer' }}
+                                        onClick={(data) => {
+                                            if (data && data.name) {
+                                                setSelectedEstado(data.name);
+                                                setIsDrillDownOpen(false); // Cerrar el otro si está abierto
+                                                setIsStateDrillDownOpen(true);
+                                            }
+                                        }}
+                                    >
+                                        <LabelList dataKey="value" position="right" formatter={(v: any) => v.toLocaleString()} style={{ fontSize: 11, fontWeight: 900, fill: '#4F46E5' }} />
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </div>
-            </div>
 
                 {/* ── PANEL MINPPAL ─────────────────────────────────── */}
                 <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -1561,8 +1622,13 @@ export default function JefeDashboard() {
                             {minppalDetailData.map((emp) => (
                                 <div
                                     key={emp.name}
-                                    className={`p-5 rounded-3xl border-2 flex flex-col gap-2 transition-all ${emp.count > 0
-                                        ? 'bg-amber-50 border-amber-100'
+                                    onClick={() => {
+                                        setSelectedEnte(emp.name);
+                                        setIsStateDrillDownOpen(false); // Cerrar el otro si está abierto
+                                        setIsDrillDownOpen(true);
+                                    }}
+                                    className={`p-5 rounded-3xl border-2 flex flex-col gap-2 transition-all cursor-pointer hover:shadow-lg active:scale-95 ${emp.count > 0
+                                        ? 'bg-amber-50 border-amber-100 hover:border-amber-300'
                                         : 'bg-slate-50 border-slate-100'
                                         }`}
                                 >
@@ -1605,7 +1671,20 @@ export default function JefeDashboard() {
                                                 'Presencia'
                                             ]}
                                         />
-                                        <Bar dataKey="count" fill="url(#colorAmber)" radius={[0, 8, 8, 0]} barSize={14}>
+                                        <Bar
+                                            dataKey="count"
+                                            fill="url(#colorAmber)"
+                                            radius={[0, 8, 8, 0]}
+                                            barSize={14}
+                                            style={{ cursor: 'pointer' }}
+                                            onClick={(data) => {
+                                                if (data && data.name) {
+                                                    setSelectedEnte(data.name);
+                                                    setIsStateDrillDownOpen(false); // Cerrar el otro si está abierto
+                                                    setIsDrillDownOpen(true);
+                                                }
+                                            }}
+                                        >
                                             <defs>
                                                 <linearGradient id="colorAmber" x1="0" y1="0" x2="1" y2="0">
                                                     <stop offset="0%" stopColor="#F59E0B" stopOpacity={1} />
@@ -1655,16 +1734,16 @@ export default function JefeDashboard() {
                             font-size: 20px !important;
                         }
                     `}</style>
-                    
+
                     {/* Botones de Control Flotantes (Mobile Friendly) */}
                     <div className="absolute top-6 right-6 z-[1001] flex flex-col gap-3">
-                        <button 
+                        <button
                             onClick={() => setIsMapFilterOpen(!isMapFilterOpen)}
                             className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl backdrop-blur-md transition-all ${isMapFilterOpen ? 'bg-[#007AFF] text-white' : 'bg-white/90 text-slate-600 border border-slate-100'}`}
                         >
                             <Search size={22} />
                         </button>
-                        <button 
+                        <button
                             onClick={() => setIsMapLegendOpen(!isMapLegendOpen)}
                             className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl backdrop-blur-md transition-all ${isMapLegendOpen ? 'bg-[#007AFF] text-white' : 'bg-white/90 text-slate-600 border border-slate-100'}`}
                         >
@@ -1702,9 +1781,9 @@ export default function JefeDashboard() {
                     )}
 
                     <div className="h-full w-full rounded-[3rem] overflow-hidden">
-                        <MapContainer 
-                            center={[7.0, -66.0] as L.LatLngExpression} 
-                            zoom={6} 
+                        <MapContainer
+                            center={[7.0, -66.0] as L.LatLngExpression}
+                            zoom={6}
                             maxZoom={22}
                             style={{ height: '100%', width: '100%' }}
                         >
@@ -1747,7 +1826,29 @@ export default function JefeDashboard() {
                                         spiderfyOnMaxZoom={true}
                                         showCoverageOnHover={false}
                                     >
-                                        {filteredReports.filter(r => r.latitud && r.longitud).map(report => {
+                                        {filteredReports
+                                            .filter(r => r.latitud && r.longitud)
+                                            .filter(r => {
+                                                // 1. Filtrado por Ente (Drill-down Ente)
+                                                if (selectedEnte) {
+                                                    const isLeader = r.empresa?.trim().toUpperCase() === selectedEnte.trim().toUpperCase();
+                                                    const isInvited = minppalPresencia.some(pres =>
+                                                        pres.report_id === r.id &&
+                                                        pres.presente &&
+                                                        pres.ente_name?.trim().toUpperCase() === selectedEnte.trim().toUpperCase()
+                                                    );
+                                                    if (!(isLeader || isInvited)) return false;
+                                                }
+
+                                                // 2. Filtrado por Estado (Drill-down Estado)
+                                                if (selectedEstado) {
+                                                    const isSameState = (r.estado_geografico || '').trim().toUpperCase() === selectedEstado.trim().toUpperCase();
+                                                    if (!isSameState) return false;
+                                                }
+
+                                                return true;
+                                            })
+                                            .map(report => {
                                             const activityType = (report.tipo_actividad || '').trim().toUpperCase();
                                             return (
                                                 <Marker
@@ -1813,7 +1914,7 @@ export default function JefeDashboard() {
                                                                             const active = report.audit_summary?.[step.key] === true;
                                                                             return (
                                                                                 <div key={step.key} className="flex flex-col items-center gap-1.5 flex-1">
-                                                                                    <div 
+                                                                                    <div
                                                                                         className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border-2 ${active ? 'border-white shadow-lg' : 'bg-slate-50 border-transparent opacity-20 text-slate-300'}`}
                                                                                         style={{ backgroundColor: active ? step.color : undefined, color: active ? 'white' : undefined }}
                                                                                     >
@@ -1853,7 +1954,7 @@ export default function JefeDashboard() {
                                                                         <Building2 size={12} className="text-slate-400" />
                                                                         <span className="text-[9px] font-black text-slate-600 uppercase tracking-tighter">{report.empresa}</span>
                                                                     </div>
-                                                                    <button 
+                                                                    <button
                                                                         onClick={() => navigate(`/ver-reporte/${report.id}`)}
                                                                         className="text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1"
                                                                     >
@@ -1863,9 +1964,9 @@ export default function JefeDashboard() {
                                                             </div>
                                                         </div>
                                                     </Popup>
-                                                    </Marker>
-                                                );
-                                            })}
+                                                </Marker>
+                                            );
+                                        })}
                                     </MarkerClusterGroup>
                                 </LayersControl.Overlay>
 
@@ -1909,7 +2010,7 @@ export default function JefeDashboard() {
                             </LayersControl>
                         </MapContainer>
                     </div>
-                        
+
                     {/* Panel de Filtros Flotante del Mapa (Colapsable) */}
                     {isMapFilterOpen && (
                         <div className="absolute top-20 right-6 z-[1001] w-[280px] sm:w-[320px] animate-in slide-in-from-right-5 duration-300">
@@ -1919,7 +2020,7 @@ export default function JefeDashboard() {
                                         <div className="w-10 h-10 bg-blue-50 text-[#007AFF] rounded-2xl flex items-center justify-center shadow-inner">
                                             <Activity size={18} />
                                         </div>
-                                        <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-400 leading-tight">Panel de<br/>Filtros Map</h4>
+                                        <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-400 leading-tight">Panel de<br />Filtros Map</h4>
                                     </div>
                                     <button onClick={() => setIsMapFilterOpen(false)} className="text-slate-300 hover:text-red-500">
                                         <Search size={16} className="rotate-45" />
@@ -1928,8 +2029,8 @@ export default function JefeDashboard() {
                                 <div className="space-y-4">
                                     <div className="space-y-1.5">
                                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] ml-1">Ente / Empresa</label>
-                                        <select 
-                                            value={filterEnte} 
+                                        <select
+                                            value={filterEnte}
                                             onChange={(e) => setFilterEnte(e.target.value)}
                                             className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-200 transition-all text-slate-700"
                                         >
@@ -1941,8 +2042,8 @@ export default function JefeDashboard() {
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] ml-1">Tipo de Actividad</label>
-                                        <select 
-                                            value={filterTipo} 
+                                        <select
+                                            value={filterTipo}
                                             onChange={(e) => setFilterTipo(e.target.value)}
                                             className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-200 transition-all text-slate-700"
                                         >
@@ -1953,7 +2054,7 @@ export default function JefeDashboard() {
                                         </select>
                                     </div>
                                     <div className="pt-2">
-                                        <button 
+                                        <button
                                             onClick={clearFilters}
                                             className="w-full py-2 bg-slate-100/50 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
                                         >
@@ -1970,7 +2071,7 @@ export default function JefeDashboard() {
 
                 {/* Grid Analítico Principal Reestructurado para Simetría */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
-                    
+
                     {/* FILA 1: Histórico y Despliegue Ente */}
                     <div className="lg:col-span-8">
                         <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-full">
@@ -2014,7 +2115,20 @@ export default function JefeDashboard() {
                                         <XAxis type="number" hide />
                                         <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
                                         <Tooltip cursor={{ fill: '#fff' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.05)' }} />
-                                        <Bar dataKey="value" fill="url(#colorAmber2)" radius={[0, 10, 10, 0]} barSize={16}>
+                                        <Bar 
+                                            dataKey="value" 
+                                            fill="url(#colorAmber2)" 
+                                            radius={[0, 10, 10, 0]} 
+                                            barSize={16}
+                                            style={{ cursor: 'pointer' }}
+                                            onClick={(data) => {
+                                                if (data && data.name) {
+                                                    setSelectedEnte(data.name);
+                                                    setIsStateDrillDownOpen(false); 
+                                                    setIsDrillDownOpen(true);
+                                                }
+                                            }}
+                                        >
                                             <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#D97706' }} />
                                         </Bar>
                                     </BarChart>
@@ -2164,7 +2278,7 @@ export default function JefeDashboard() {
                                 <h3 className="text-[11px] font-black uppercase text-[#007AFF] tracking-[0.25em] mb-1">Auditoría</h3>
                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Estándares de Control Interno</p>
                             </div>
-                            
+
                             <div className="flex flex-col gap-5 flex-grow">
                                 {[
                                     { label: 'Higiene de Bodega', key: 'bodegaLimpia', icon: <Package size={20} />, color: '#3B82F6', light: '#eff6ff' },
@@ -2211,24 +2325,24 @@ export default function JefeDashboard() {
                 {/* NUEVA SECCIÓN: ANALÍTICA DETALLADA DE RUBROS CRÍTICOS */}
                 <div className="lg:col-span-12 space-y-8">
                     {[
-                        { 
-                            title: 'Sostenibilidad de Proteína Animal', 
-                            stats: proteinPresenceStats, 
-                            color: '#F59E0B', 
+                        {
+                            title: 'Sostenibilidad de Proteína Animal',
+                            stats: proteinPresenceStats,
+                            color: '#F59E0B',
                             lightColor: '#FEF3C7',
                             icon: <Award size={22} />
                         },
-                        { 
-                            title: 'Sostenibilidad de Hortalizas y Verduras', 
-                            stats: hortalizasPresenceStats, 
-                            color: '#84CC16', 
+                        {
+                            title: 'Sostenibilidad de Hortalizas y Verduras',
+                            stats: hortalizasPresenceStats,
+                            color: '#84CC16',
                             lightColor: '#F7FEE7',
                             icon: <Leaf size={22} />
                         },
-                        { 
-                            title: 'Sostenibilidad de Frutas', 
-                            stats: frutasPresenceStats, 
-                            color: '#EC4899', 
+                        {
+                            title: 'Sostenibilidad de Frutas',
+                            stats: frutasPresenceStats,
+                            color: '#EC4899',
                             lightColor: '#FDF2F8',
                             icon: <Star size={22} />
                         }
@@ -2264,7 +2378,7 @@ export default function JefeDashboard() {
                                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                                     ))}
                                                 </Pie>
-                                                <Tooltip 
+                                                <Tooltip
                                                     contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
                                                     formatter={(value: any) => [value, 'Jornadas']}
                                                 />
@@ -2305,7 +2419,7 @@ export default function JefeDashboard() {
                                                     axisLine={false}
                                                     tickLine={false}
                                                 />
-                                                <Tooltip 
+                                                <Tooltip
                                                     cursor={{ fill: '#f8fafc' }}
                                                     contentStyle={{ borderRadius: '16px', border: 'none' }}
                                                     formatter={(value: any) => [value, 'Jornadas con Presencia']}
@@ -2314,10 +2428,10 @@ export default function JefeDashboard() {
                                                     {category.stats.stateChartData.map((entry, index) => (
                                                         <Cell key={`cell-${index}`} fill={category.color} fillOpacity={0.1 + (0.9 * (entry.value / (Math.max(...category.stats.stateChartData.map(d => d.value)) || 1)))} />
                                                     ))}
-                                                    <LabelList 
-                                                        dataKey="value" 
-                                                        position="right" 
-                                                        style={{ fontSize: 10, fontWeight: 900, fill: category.color }} 
+                                                    <LabelList
+                                                        dataKey="value"
+                                                        position="right"
+                                                        style={{ fontSize: 10, fontWeight: 900, fill: category.color }}
                                                         formatter={(v: any) => v > 0 ? v : ''}
                                                     />
                                                 </Bar>
@@ -2391,9 +2505,9 @@ export default function JefeDashboard() {
                                     axisLine={false}
                                     tickLine={false}
                                 />
-                                <Tooltip 
-                                    cursor={{ fill: '#fef3c7' }} 
-                                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 60px rgba(0,0,0,0.1)' }} 
+                                <Tooltip
+                                    cursor={{ fill: '#fef3c7' }}
+                                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 60px rgba(0,0,0,0.1)' }}
                                     formatter={(v) => [`${v} Jornadas`, 'Presencia']}
                                 />
                                 <Bar dataKey="value" fill="url(#colorAmberA)" radius={[0, 12, 12, 0]} barSize={14}>
@@ -2565,19 +2679,19 @@ export default function JefeDashboard() {
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={ratingData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
-                                <XAxis 
-                                    dataKey="star" 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    tick={{ fontSize: 12, fontWeight: 900, fill: '#64748b' }} 
+                                <XAxis
+                                    dataKey="star"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fontSize: 12, fontWeight: 900, fill: '#64748b' }}
                                 />
-                                <YAxis 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    tick={{ fontSize: 10, fontWeight: 700 }} 
+                                <YAxis
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fontSize: 10, fontWeight: 700 }}
                                 />
-                                <Tooltip 
-                                    cursor={{ fill: '#f8fafc' }} 
+                                <Tooltip
+                                    cursor={{ fill: '#f8fafc' }}
                                     contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}
                                     formatter={(value: any) => [`${value} Reportes`, 'Frecuencia']}
                                 />
@@ -2587,7 +2701,7 @@ export default function JefeDashboard() {
                                         let color = '#22c55e'; // Verde
                                         if (entry.rating <= 2) color = '#ef4444'; // Rojo
                                         else if (entry.rating === 3) color = '#f59e0b'; // Ámbar/Amarillo
-                                        
+
                                         return <Cell key={`cell-${index}`} fill={color} />;
                                     })}
                                     <LabelList dataKey="value" position="top" style={{ fontSize: 14, fontWeight: 900, fill: '#475569' }} />
@@ -2656,15 +2770,15 @@ export default function JefeDashboard() {
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
-                                        <XAxis 
-                                            dataKey="name" 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} 
+                                        <XAxis
+                                            dataKey="name"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }}
                                         />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
-                                        <Tooltip 
-                                            cursor={{ fill: '#f1f5f9' }} 
+                                        <Tooltip
+                                            cursor={{ fill: '#f1f5f9' }}
                                             contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}
                                             formatter={(value) => [`${value} Emprendedores`, 'Actividad']}
                                         />
@@ -2843,7 +2957,7 @@ export default function JefeDashboard() {
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cobertura de Familias</p>
                                     </div>
                                 </div>
-                                
+
                                 <div className="flex flex-col gap-1 mb-10">
                                     <div className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Mes Actual</div>
                                     <div className="flex items-center gap-5">
@@ -2871,7 +2985,7 @@ export default function JefeDashboard() {
                         </div>
                     </div>
                 </div>
-                
+
                 {/* ── SECCIÓN: COMPARATIVA DE PRECIOS POR ESTADO (NUEVA MÉTRICA SOLICITADA) ── */}
                 <div className="mt-12 bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 mb-20 overflow-hidden">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
@@ -2884,12 +2998,12 @@ export default function JefeDashboard() {
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Alertas Visuales vs Precio Nacional Sugerido (Catálogo)</p>
                             </div>
                         </div>
-                        
+
                         <div className="flex flex-col md:flex-row items-center gap-4">
                             <div className="relative w-full md:w-64">
                                 <label className="absolute -top-6 left-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">Cambiar Rubro</label>
-                                <select 
-                                    value={filterRubro} 
+                                <select
+                                    value={filterRubro}
                                     onChange={(e) => setFilterRubro(e.target.value)}
                                     className="w-full pl-5 pr-10 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] font-black uppercase outline-none focus:border-red-100 transition-all appearance-none"
                                 >
@@ -2916,9 +3030,9 @@ export default function JefeDashboard() {
 
                     <div className="h-[800px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart 
-                                data={priceComparisonByState.data} 
-                                layout="vertical" 
+                            <BarChart
+                                data={priceComparisonByState.data}
+                                layout="vertical"
                                 margin={{ left: 20, right: 80, top: 20, bottom: 20 }}
                             >
                                 <defs>
@@ -2929,42 +3043,42 @@ export default function JefeDashboard() {
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
                                 <XAxis type="number" hide domain={[0, priceComparisonByState.referencePrice * 1.2 || 'auto']} />
-                                <YAxis 
-                                    dataKey="name" 
-                                    type="category" 
-                                    width={150} 
-                                    tick={{ fontSize: 10, fontStyle: 'normal', fontWeight: 900, fill: '#1e293b' }} 
-                                    axisLine={false} 
-                                    tickLine={false} 
+                                <YAxis
+                                    dataKey="name"
+                                    type="category"
+                                    width={150}
+                                    tick={{ fontSize: 10, fontStyle: 'normal', fontWeight: 900, fill: '#1e293b' }}
+                                    axisLine={false}
+                                    tickLine={false}
                                 />
-                                <Tooltip 
+                                <Tooltip
                                     cursor={{ fill: '#f1f5f9', opacity: 0.4 }}
                                     contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }}
                                     formatter={(value: any) => [`Bs. ${Number(value).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`, 'Precio Promedio']}
                                 />
-                                
+
                                 {priceComparisonByState.referencePrice > 0 && (
-                                    <ReferenceLine 
-                                        x={priceComparisonByState.referencePrice} 
-                                        stroke="#ef4444" 
-                                        strokeDasharray="5 5" 
+                                    <ReferenceLine
+                                        x={priceComparisonByState.referencePrice}
+                                        stroke="#ef4444"
+                                        strokeDasharray="5 5"
                                         strokeWidth={3}
-                                        label={{ 
-                                            position: 'top', 
-                                            value: `Precio Mercado: Bs. ${priceComparisonByState.referencePrice.toLocaleString()}`, 
-                                            fill: '#ef4444', 
-                                            fontSize: 10, 
+                                        label={{
+                                            position: 'top',
+                                            value: `Precio Mercado: Bs. ${priceComparisonByState.referencePrice.toLocaleString()}`,
+                                            fill: '#ef4444',
+                                            fontSize: 10,
                                             fontWeight: 900
-                                        }} 
+                                        }}
                                     />
                                 )}
 
                                 <Bar dataKey="avgPrice" fill="url(#colorPriceBar)" radius={[0, 10, 10, 0]} barSize={24}>
-                                    <LabelList 
-                                        dataKey="avgPrice" 
-                                        position="right" 
-                                        formatter={(v: any) => `Bs. ${Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`} 
-                                        style={{ fontSize: 11, fontWeight: 900, fill: '#1e3a8a' }} 
+                                    <LabelList
+                                        dataKey="avgPrice"
+                                        position="right"
+                                        formatter={(v: any) => `Bs. ${Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
+                                        style={{ fontSize: 11, fontWeight: 900, fill: '#1e3a8a' }}
                                     />
                                 </Bar>
                             </BarChart>
@@ -2976,7 +3090,7 @@ export default function JefeDashboard() {
                 {/* ── SECCIÓN: ANÁLISIS DE IMPACTO SOCIAL Y AHORRO ── */}
                 <div className="mt-12 bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 mb-12 overflow-hidden relative group">
                     <div className="absolute -right-20 -top-20 w-80 h-80 bg-emerald-50/50 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-1000"></div>
-                    
+
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-16 relative z-10">
                         <div className="flex items-center gap-6">
                             <div className="w-16 h-16 bg-emerald-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-xl shadow-emerald-200">
@@ -3023,19 +3137,19 @@ export default function JefeDashboard() {
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div className="h-[350px] w-full bg-slate-50/50 rounded-[2.5rem] p-6">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={savingsImpactData.comparativoGlobal} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
-                                        <XAxis 
-                                            dataKey="name" 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} 
+                                        <XAxis
+                                            dataKey="name"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }}
                                         />
                                         <YAxis hide domain={[0, 'dataMax + 100000']} />
-                                        <Tooltip 
+                                        <Tooltip
                                             cursor={{ fill: 'transparent' }}
                                             contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }}
                                             formatter={(value: any) => [`Bs. ${Number(value).toLocaleString('es-VE')}`, 'Monto Total']}
@@ -3044,9 +3158,9 @@ export default function JefeDashboard() {
                                             {savingsImpactData.comparativoGlobal.map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={entry.color} />
                                             ))}
-                                            <LabelList 
-                                                dataKey="valor" 
-                                                position="top" 
+                                            <LabelList
+                                                dataKey="valor"
+                                                position="top"
                                                 formatter={(v: any) => `Bs. ${Number(v).toLocaleString('es-VE', { maximumFractionDigits: 0 })}`}
                                                 style={{ fontSize: 11, fontWeight: 900, fill: '#1e293b' }}
                                             />
@@ -3101,17 +3215,293 @@ export default function JefeDashboard() {
                 </div>
 
                 <div className="max-w-[1400px] mx-auto px-4 lg:px-0">
-                    <JefePlanningTable 
-                        filterEstado={filterEstado} 
-                        reportItems={reportItems} 
-                        filteredReportIds={filteredReportIds} 
-                        catalog={catalogos.fullCatalog} 
+                    <JefePlanningTable
+                        filterEstado={filterEstado}
+                        reportItems={reportItems}
+                        filteredReportIds={filteredReportIds}
+                        catalog={catalogos.fullCatalog}
                     />
                 </div>
 
                 <div className="pb-10"></div>
             </main>
 
+            {/* ── DRAWER DE DRILL-DOWN (NIVEL DE DETALLE POR ENTE) ── */}
+            {isDrillDownOpen && (
+                <>
+                    {/* Overlay Oscuro */}
+                    <div
+                        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[10001] transition-opacity duration-300 animate-in fade-in"
+                        onClick={() => setIsDrillDownOpen(false)}
+                    />
+                    
+                    {/* Panel Lateral (Drawer Premium) */}
+                    <div className="fixed top-0 right-0 h-full w-full md:w-[500px] bg-white shadow-[-20px_0_60px_rgba(0,0,0,0.1)] z-[10002] flex flex-col animate-in slide-in-from-right duration-500">
+                        {/* Cabecera del Detalle */}
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-start bg-slate-50/50">
+                            <div>
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black uppercase tracking-widest mb-3">
+                                    <Award size={10} /> Análisis de Ente
+                                </div>
+                                <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-tight font-['Outfit']">
+                                    {selectedEnte}
+                                </h2>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+                                    <MapPin size={12} className="text-[#007AFF]" /> Presencia en {enteJornadasDetails.length} jornadas operativas
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsDrillDownOpen(false)}
+                                className="p-3 hover:bg-white rounded-2xl transition-all text-slate-400 hover:text-slate-900 border border-transparent hover:border-slate-200"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Contenido (Scrollable) */}
+                        <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                            <div className="space-y-4">
+                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                    <Calendar size={14} /> Cronología de Jornadas
+                                </h4>
+                                
+                                {enteJornadasDetails.length === 0 ? (
+                                    <div className="p-10 text-center bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No hay datos disponibles</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {enteJornadasDetails.map((jornada) => (
+                                            <div 
+                                                key={jornada.id} 
+                                                className="group p-6 rounded-[2rem] bg-white border border-slate-100 hover:border-[#007AFF]/20 hover:shadow-xl hover:shadow-blue-500/5 transition-all cursor-default"
+                                            >
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div className="space-y-1">
+                                                        <span className="text-[11px] font-black text-[#007AFF] uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100/50">
+                                                            {jornada.tipo_actividad}
+                                                        </span>
+                                                        <h5 className="text-lg font-black text-slate-900 uppercase tracking-tighter mt-2">{jornada.parroquia}</h5>
+                                                    </div>
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(jornada.fecha).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                                        <div className="flex items-center gap-1 text-[9px] font-bold text-slate-300 mt-1">
+                                                            <Clock size={10} /> 08:00 AM
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4">
+                                                    <div className="space-y-1">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ubicación</p>
+                                                        <p className="text-[11px] font-bold text-slate-700 uppercase tracking-tight truncate">{jornada.municipio}, {jornada.estado_geografico}</p>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Población Atendida</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <Users size={12} className="text-slate-300" />
+                                                            <p className="text-[11px] font-black text-slate-900 tracking-tighter">{jornada.familias.toLocaleString()} FAMILIAS</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-4 flex flex-wrap gap-2">
+                                                    {jornada.total_proteina > 0 && (
+                                                        <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg text-[9px] font-black uppercase tracking-tighter border border-amber-100">
+                                                            + {jornada.total_proteina} TN PROTEÍNA
+                                                        </span>
+                                                    )}
+                                                    {jornada.empresa?.trim().toUpperCase() === selectedEnte?.trim().toUpperCase() ? (
+                                                        <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-tighter border border-emerald-100">
+                                                            ENTE LÍDER
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 bg-slate-50 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-tighter border border-slate-200">
+                                                            APOYO TÉCNICO
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Alerta de Comando y Control */}
+                            <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white relative overflow-hidden group shadow-2xl">
+                                <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl"></div>
+                                <div className="relative z-10">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 bg-blue-500/30 rounded-2xl flex items-center justify-center border border-blue-500/20">
+                                            <Navigation size={20} className="text-blue-400" />
+                                        </div>
+                                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">Sincronización Operativa</p>
+                                    </div>
+                                    <h5 className="text-lg font-black uppercase tracking-tight mb-2 leading-tight">Visualización en Mapa Activa</h5>
+                                    <p className="text-[11px] font-medium text-slate-400 leading-relaxed mb-6">
+                                        El mapa operativo ha sido filtrado automáticamente para mostrar solo las ubicaciones geográficas donde {selectedEnte} tuvo presencia efectiva.
+                                    </p>
+                                    <button 
+                                        onClick={() => {
+                                            setIsDrillDownOpen(false);
+                                            // Scroll to map
+                                            document.querySelector('.MapContainer')?.scrollIntoView({ behavior: 'smooth' });
+                                        }}
+                                        className="w-full py-4 bg-white/10 hover:bg-white/20 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all border border-white/10 backdrop-blur-md"
+                                    >
+                                        Ir al Mapa Operativo
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Pie del Drawer */}
+                        <div className="p-8 border-t border-slate-100 bg-slate-50/30">
+                            <button
+                                onClick={() => {
+                                    setIsDrillDownOpen(false);
+                                    setSelectedEnte(null);
+                                }}
+                                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl hover:shadow-slate-200 transition-all active:scale-[0.98]"
+                            >
+                                Restablecer Vista General
+                            </button>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* ── DRAWER DE DRILL-DOWN (NIVEL DE DETALLE POR ESTADO) ── */}
+            {isStateDrillDownOpen && (
+                <>
+                    <div
+                        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[10001] transition-opacity duration-300 animate-in fade-in"
+                        onClick={() => setIsStateDrillDownOpen(false)}
+                    />
+                    <div className="fixed top-0 right-0 h-full w-full md:w-[500px] bg-white shadow-[-20px_0_60px_rgba(0,0,0,0.1)] z-[10002] flex flex-col animate-in slide-in-from-right duration-500">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-start bg-[#007AFF]/5">
+                            <div>
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-[#007AFF] rounded-full text-[9px] font-black uppercase tracking-widest mb-3">
+                                    <Globe size={10} /> Análisis Territorial
+                                </div>
+                                <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-tight font-['Outfit']">
+                                    Estado {selectedEstado}
+                                </h2>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+                                    <Activity size={12} className="text-[#059669]" /> {estadoJornadasDetails.length} Jornadas en este territorio
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsStateDrillDownOpen(false)}
+                                className="p-3 hover:bg-white rounded-2xl transition-all text-slate-400 hover:text-slate-900 border border-transparent hover:border-slate-200"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                            <div className="space-y-4">
+                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                    <MapPin size={14} /> Despliegue Operativo
+                                </h4>
+                                
+                                {estadoJornadasDetails.length === 0 ? (
+                                    <div className="p-10 text-center bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No hay datos registrados</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {estadoJornadasDetails.map((jornada) => (
+                                            <div 
+                                                key={jornada.id} 
+                                                className="group p-6 rounded-[2rem] bg-white border border-slate-100 hover:border-[#F59E0B]/20 hover:shadow-xl hover:shadow-amber-500/5 transition-all cursor-default"
+                                            >
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div className="space-y-1">
+                                                        <span className="text-[11px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100/50">
+                                                            Población Atendida
+                                                        </span>
+                                                        <h5 className="text-lg font-black text-slate-900 uppercase tracking-tighter mt-2">{jornada.municipio}</h5>
+                                                        <div className="flex flex-col gap-1">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{jornada.parroquia}</p>
+                                                            {jornada.nombre_comuna && (
+                                                                <div className="flex items-center gap-1.5 mt-1">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                                    <p className="text-[9px] font-black text-emerald-600 uppercase tracking-tighter leading-tight italic">
+                                                                        {jornada.nombre_comuna}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-col items-end">
+                                                        <div className="bg-slate-900 text-white px-3 py-1 rounded-xl text-[11px] font-black">
+                                                            {jornada.familias.toLocaleString()} <span className="opacity-50">FAM.</span>
+                                                        </div>
+                                                        {(Number(jornada.comunas) || 0) > 0 && (
+                                                            <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-xl text-[10px] font-black mt-1 uppercase tracking-tighter">
+                                                                {jornada.comunas} Comunas
+                                                            </div>
+                                                        )}
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2">{new Date(jornada.fecha).toLocaleDateString()}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-4 border-t border-slate-50 pt-4">
+                                                    <div className="flex-1 space-y-1">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ente Líder</p>
+                                                        <p className="text-[11px] font-black text-slate-700 uppercase tracking-tight">{jornada.empresa || 'NO ASIGNADO'}</p>
+                                                    </div>
+                                                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
+                                                        <Building2 size={16} className="text-slate-300" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="bg-[#059669] p-8 rounded-[2.5rem] text-white relative overflow-hidden group shadow-2xl">
+                                <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+                                <div className="relative z-10">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center border border-white/10">
+                                            <Map size={20} className="text-white" />
+                                        </div>
+                                        <p className="text-[10px] font-black text-emerald-100 uppercase tracking-[0.2em]">Geo-Localización Estratégica</p>
+                                    </div>
+                                    <h5 className="text-lg font-black uppercase tracking-tight mb-2 leading-tight">Vista de Estado en Mapa</h5>
+                                    <p className="text-[11px] font-medium text-emerald-50/70 leading-relaxed mb-6">
+                                        Explora la distribución de las {estadoJornadasDetails.reduce((acc, j) => acc + j.familias, 0).toLocaleString()} familias atendidas en el estado {selectedEstado}.
+                                    </p>
+                                    <button 
+                                        onClick={() => {
+                                            setIsStateDrillDownOpen(false);
+                                            document.querySelector('.MapContainer')?.scrollIntoView({ behavior: 'smooth' });
+                                        }}
+                                        className="w-full py-4 bg-white text-[#059669] hover:bg-emerald-50 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-xl"
+                                    >
+                                        Localizar Jornadas
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-8 border-t border-slate-100 bg-slate-50/30">
+                            <button
+                                onClick={() => {
+                                    setIsStateDrillDownOpen(false);
+                                    setSelectedEstado(null);
+                                }}
+                                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl hover:shadow-slate-200 transition-all active:scale-[0.98]"
+                            >
+                                Restablecer Vista General
+                            </button>
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 }
