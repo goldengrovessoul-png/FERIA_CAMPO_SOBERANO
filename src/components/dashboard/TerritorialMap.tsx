@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl, LayerGroup, Circle } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-markercluster';
@@ -54,7 +55,7 @@ const getMarkerIcon = (type: string) => {
     return createCustomIcon(color);
 };
 
-const createClusterCustomIcon = (cluster: any) => {
+const createClusterCustomIcon = (cluster: Record<string, any>) => {
     const count = cluster.getChildCount();
     let size = '36px';
     let color = '#007AFF'; // Azul
@@ -96,12 +97,12 @@ const createClusterCustomIcon = (cluster: any) => {
 };
 
 interface TerritorialMapProps {
-    filteredReports: any[];
+    filteredReports: Record<string, any>[];
     filterEstado: string;
     selectedEnte: string | null;
     selectedEstado: string | null;
-    minppalPresencia: any[];
-    vulnerabilityData: any[];
+    minppalPresencia: Record<string, any>[];
+    vulnerabilityData: Record<string, any>[];
     catalogos: {
         entes: string[];
         actividades: string[];
