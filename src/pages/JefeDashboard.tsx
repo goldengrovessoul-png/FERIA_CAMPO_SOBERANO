@@ -5,8 +5,8 @@ import {
     BarChart3, Users, LogOut, Search,
     TrendingUp, Package,
     Activity, RefreshCw, Home,
-    ChevronDown, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight,
-    Leaf, UserPlus, X, Calendar, MapPin, Globe, Map as MapIcon
+    ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight,
+    Leaf, UserPlus
 } from 'lucide-react';
 
 import { useAuth } from '../lib/AuthContext';
