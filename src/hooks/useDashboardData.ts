@@ -162,12 +162,15 @@ export function useDashboardData(session: any, authLoading: boolean) {
                     return Array.from(new Set(items.filter(i => i.type === type).map(i => i.name.trim().toUpperCase()))).sort() as string[];
                 }
 
+                const minppalEntes = normalize(catalogData, 'MINPPAL');
+                const defaultMinppal = ['ALCASA', 'ALIMCA', 'ALIMEX', 'CASA', 'DIANA', 'INDUSTRIAS CANAIMA', 'LÁCTEOS LOS ANDES', 'PROAL', 'SABILVEN', 'VENALCASA', 'ZULIA MIA'];
+                
                 setCatalogos({
                     estados: normalize(catalogData, 'ESTADO'),
                     entes: normalize(catalogData, 'ENTE'),
                     articulos: normalize(catalogData, 'ARTICULO'),
                     actividades: normalize(catalogData, 'ACTIVIDAD'),
-                    minppal: normalize(catalogData, 'MINPPAL'),
+                    minppal: minppalEntes.length > 0 ? minppalEntes : defaultMinppal,
                     fullCatalog: catalogData.map((i: any) => ({
                         id: i.id,
                         name: i.name,
@@ -720,7 +723,7 @@ export function useDashboardData(session: any, authLoading: boolean) {
                 const producerId = c.empresa_id || c.parent_id;
                 if (producerId) {
                     const parent = catalogos.fullCatalog.find(e => e.id === producerId);
-                    if (parent && (parent.type === 'MINPPAL' || parent.type === 'ENTE')) {
+                    if (parent) {
                         productMap[c.id] = { name: c.name, ente: parent.name };
                     }
                 }
@@ -978,58 +981,16 @@ export function useDashboardData(session: any, authLoading: boolean) {
 
         return { globalChartData, stateChartData, total, presenceCount, absenceCount, pct };
     }, [filteredReports, catalogos.estados]);
-
-    const minppalDetailData = useMemo(() => {
-        const totalReports = filteredReports.length || 1;
-        const entesMap: Record<string, string> = {};
-        catalogos.fullCatalog.forEach(c => {
-            if (c.type === 'MINPPAL') entesMap[c.id] = c.name;
-        });
-
-        const presencePerReport = new Set<string>();
-
-        filteredReports.forEach(report => {
-            if (report.empresa) {
-                presencePerReport.add(`${report.id}_${report.empresa}`);
-            }
-        });
-
-        minppalPresencia.forEach(pres => {
-            if (filteredReportIds.has(pres.report_id) && pres.presente) {
-                const name = entesMap[pres.ente_id] || 'DESCONOCIDO';
-                presencePerReport.add(`${pres.report_id}_${name}`);
-            }
-        });
-
-        const counts: Record<string, number> = {};
-        presencePerReport.forEach(key => {
-            const companyName = key.split('_')[1];
-            counts[companyName] = (counts[companyName] || 0) + 1;
-        });
-
-        const empresasUI = catalogos.minppal.length > 0 ? catalogos.minppal : [];
-
-        return empresasUI.map(name => {
-            const count = counts[name] || 0;
-            return {
-                name,
-                count,
-                pct: Math.round((count / totalReports) * 100)
-            };
-        }).filter(item => item.count > 0).sort((a, b) => b.count - a.count);
-    }, [filteredReports, minppalPresencia, filteredReportIds, catalogos.fullCatalog, catalogos.minppal]);
-
     const comunasByStateData = useMemo(() => {
         const counts: Record<string, number> = {};
         filteredReports.forEach(r => {
-            const estado = (r.estado_geografico || 'SIN ESTADO').trim().toUpperCase();
+            const estado = (r.estado_geografico || "SIN ESTADO").trim().toUpperCase();
             counts[estado] = (counts[estado] || 0) + (Number(r.comunas) || 0);
         });
         return Object.entries(counts)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
     }, [filteredReports]);
-
     const familiasByStateData = useMemo(() => {
         const counts: Record<string, number> = {};
         filteredReports.forEach(r => {
@@ -1040,6 +1001,28 @@ export function useDashboardData(session: any, authLoading: boolean) {
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
     }, [filteredReports]);
+
+    const minppalDetailData = useMemo(() => {
+        const entes = catalogos.minppal;
+        const total = filteredReports.length || 1;
+        
+        return entes.map(ente => {
+            const count = filteredReports.filter(r => 
+                (r.empresa || '').trim().toUpperCase() === ente.trim().toUpperCase() ||
+                minppalPresencia.some(p => 
+                    p.report_id === r.id && 
+                    p.presente && 
+                    p.ente_name?.trim().toUpperCase() === ente.trim().toUpperCase()
+                )
+            ).length;
+            
+            return {
+                name: ente,
+                count,
+                pct: Math.round((count / total) * 100)
+            };
+        }).filter(item => item.count > 0).sort((a, b) => b.count - a.count);
+    }, [filteredReports, minppalPresencia, catalogos.minppal]);
 
     // Lógica para obtener las jornadas específicas de un Ente seleccionado (Drill-down)
     const enteJornadasDetails = useMemo(() => {

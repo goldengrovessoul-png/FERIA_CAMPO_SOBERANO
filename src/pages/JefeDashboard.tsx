@@ -85,6 +85,9 @@ export default function JefeDashboard() {
         entrepreneurs
     } = useDashboardData(session, authLoading);
 
+    console.log('DEBUG DASHBOARD - minppalDetailData:', minppalDetailData);
+    console.log('DEBUG DASHBOARD - reports:', reports.length);
+
     // Estados para UI interactiva del Mapa
     const [isMapFilterOpen, setIsMapFilterOpen] = useState(false);
     const [isMapLegendOpen, setIsMapLegendOpen] = useState(false);
@@ -245,16 +248,6 @@ export default function JefeDashboard() {
                     setIsStateDrillDownOpen={setIsStateDrillDownOpen}
                 />
 
-                {/* PANEL MINPPAL (Modularizado) */}
-                <MinppalPresence 
-                    minppalDetailData={minppalDetailData}
-                    setSelectedEnte={setSelectedEnte}
-                    setIsDrillDownOpen={setIsDrillDownOpen}
-                    setIsStateDrillDownOpen={setIsStateDrillDownOpen}
-                />
-
-
-
                 {/* ── MAPA OPERATIVO (Modularizado) ──────────────────────────── */}
                 <TerritorialMap 
                     filteredReports={filteredReports}
@@ -279,6 +272,15 @@ export default function JefeDashboard() {
                     clearFilters={clearFilters}
                     navigate={navigate}
                 />
+
+                <div className="mt-8">
+                    <MinppalPresence 
+                        minppalDetailData={minppalDetailData}
+                        setSelectedEnte={setSelectedEnte}
+                        setIsDrillDownOpen={setIsDrillDownOpen}
+                        setIsStateDrillDownOpen={setIsStateDrillDownOpen}
+                    />
+                </div>
 
 
 
