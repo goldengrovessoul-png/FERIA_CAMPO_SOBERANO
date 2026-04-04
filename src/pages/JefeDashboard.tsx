@@ -18,6 +18,11 @@ import DashboardDrawers from '../components/dashboard/DashboardDrawers';
 import FoodDistributionDrawer from '../components/dashboard/FoodDistributionDrawer';
 import ActivityTypeDrawer from '../components/dashboard/ActivityTypeDrawer';
 import PaymentModeDrawer from '../components/dashboard/PaymentModeDrawer';
+import StateAnalyticsDrawer from '../components/dashboard/StateAnalyticsDrawer';
+import AuditDeficiencyDrawer from '../components/dashboard/AuditDeficiencyDrawer';
+import ProteinSustainabilityDrawer from '../components/dashboard/ProteinSustainabilityDrawer';
+import ProduceSustainabilityDrawer from '../components/dashboard/ProduceSustainabilityDrawer';
+import FruitSustainabilityDrawer from '../components/dashboard/FruitSustainabilityDrawer';
 
 import JefePlanningTable from '../components/JefePlanningTable';
 import {
@@ -84,7 +89,7 @@ export default function JefeDashboard() {
         ratingData, inspectorReportData, enteReportData, proteinPresenceStats, hortalizasPresenceStats,
         frutasPresenceStats, minppalDetailData, totalEstados, totalMunicipios, totalParroquias,
         comunasByStateData, familiasByStateData, selectedEnte, setSelectedEnte, selectedEstado,
-        setSelectedEstado, enteJornadasDetails, estadoJornadasDetails, vulnerabilityData, catalogos,
+        setSelectedEstado, enteJornadasDetails, vulnerabilityData, catalogos,
         entrepreneurs
     } = useDashboardData(session, authLoading);
 
@@ -97,10 +102,18 @@ export default function JefeDashboard() {
     const [isStateDrillDownOpen, setIsStateDrillDownOpen] = useState(false);
     const [isFoodDrillDownOpen, setIsFoodDrillDownOpen] = useState(false);
     const [selectedFoodCategory, setSelectedFoodCategory] = useState<string | null>(null);
+    const [selectedAuditItem, setSelectedAuditItem] = useState<{ key: string; label: string } | null>(null);
+    const [isAuditDrillDownOpen, setIsAuditDrillDownOpen] = useState(false);
     const [isActivityDrillDownOpen, setIsActivityDrillDownOpen] = useState(false);
     const [selectedActivityType, setSelectedActivityType] = useState<string | null>(null);
     const [isPaymentDrillDownOpen, setIsPaymentDrillDownOpen] = useState(false);
     const [selectedPaymentMode, setSelectedPaymentMode] = useState<string | null>(null);
+    const [isProteinDrillDownOpen, setIsProteinDrillDownOpen] = useState(false);
+    const [selectedProteinState, setSelectedProteinState] = useState<string | null>(null);
+    const [isProduceDrillDownOpen, setIsProduceDrillDownOpen] = useState(false);
+    const [selectedProduceState, setSelectedProduceState] = useState<string | null>(null);
+    const [isFruitDrawerOpen, setIsFruitDrawerOpen] = useState(false);
+    const [selectedFruitState, setSelectedFruitState] = useState<string | null>(null);
 
     return (
         <div className="min-h-screen bg-[#F2F2F7] text-slate-900 font-sans relative">
@@ -538,7 +551,20 @@ export default function JefeDashboard() {
                                             tickLine={false}
                                         />
                                         <Tooltip content={<StateTooltip />} cursor={{ fill: '#f8fafc' }} />
-                                        <Bar dataKey="value" fill="url(#colorBlueH)" radius={[0, 12, 12, 0]} barSize={16}>
+                                        <Bar 
+                                            dataKey="value" 
+                                            fill="url(#colorBlueH)" 
+                                            radius={[0, 12, 12, 0]} 
+                                            barSize={16}
+                                            style={{ cursor: 'pointer' }}
+                                            onClick={(data) => {
+                                                if (data && data.name) {
+                                                    setSelectedEstado(data.name);
+                                                    setIsDrillDownOpen(false);
+                                                    setIsStateDrillDownOpen(true);
+                                                }
+                                            }}
+                                        >
                                             <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#007AFF' }} />
                                         </Bar>
                                     </BarChart>
@@ -565,7 +591,14 @@ export default function JefeDashboard() {
                                     const count = filteredReports.filter((r: any) => r.audit_summary?.[item.key] === true).length;
                                     const pct = Math.round((count / total) * 100);
                                     return (
-                                        <div key={item.key} className="p-6 rounded-[2rem] border border-slate-50 bg-slate-50/50 flex items-center gap-6 group hover:bg-white hover:shadow-xl hover:shadow-slate-100/50 transition-all duration-500">
+                                        <div 
+                                            key={item.key} 
+                                            className="p-6 rounded-[2rem] border border-slate-50 bg-slate-50/50 flex items-center gap-6 group hover:bg-white hover:shadow-xl hover:shadow-red-500/10 hover:border-red-100 transition-all duration-500 cursor-pointer"
+                                            onClick={() => {
+                                                setSelectedAuditItem({ key: item.key, label: item.label });
+                                                setIsAuditDrillDownOpen(true);
+                                            }}
+                                        >
                                             <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner shrink-0" style={{ backgroundColor: item.light, color: item.color }}>
                                                 {item.icon}
                                             </div>
@@ -648,6 +681,19 @@ export default function JefeDashboard() {
                                                     dataKey="value"
                                                     stroke="none"
                                                     cornerRadius={6}
+                                                    onClick={() => {
+                                                        if (category.title.includes('Proteína')) {
+                                                            setSelectedProteinState(null); // Global
+                                                            setIsProteinDrillDownOpen(true);
+                                                        } else if (category.title.includes('Hortalizas')) {
+                                                            setSelectedProduceState(null); // Global
+                                                            setIsProduceDrillDownOpen(true);
+                                                        } else if (category.title.includes('Frutas')) {
+                                                            setSelectedFruitState(null); // Global
+                                                            setIsFruitDrawerOpen(true);
+                                                        }
+                                                    }}
+                                                    className="cursor-pointer"
                                                 >
                                                     {category.stats.globalChartData.map((entry, index) => (
                                                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -699,7 +745,24 @@ export default function JefeDashboard() {
                                                     contentStyle={{ borderRadius: '16px', border: 'none' }}
                                                     formatter={(value: any) => [value, 'Jornadas con Presencia']}
                                                 />
-                                                <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={12}>
+                                                <Bar 
+                                                    dataKey="value" 
+                                                    radius={[0, 10, 10, 0]} 
+                                                    barSize={12}
+                                                    onClick={(data: any) => {
+                                                        if (category.title.includes('Proteína') && data && data.name) {
+                                                            setSelectedProteinState(data.name);
+                                                            setIsProteinDrillDownOpen(true);
+                                                        } else if (category.title.includes('Hortalizas') && data && data.name) {
+                                                            setSelectedProduceState(data.name);
+                                                            setIsProduceDrillDownOpen(true);
+                                                        } else if (category.title.includes('Frutas') && data && data.name) {
+                                                            setSelectedFruitState(data.name);
+                                                            setIsFruitDrawerOpen(true);
+                                                        }
+                                                    }}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
                                                     {category.stats.stateChartData.map((entry, index) => (
                                                         <Cell key={`cell-${index}`} fill={category.color} fillOpacity={0.1 + (0.9 * (entry.value / (Math.max(...category.stats.stateChartData.map(d => d.value)) || 1)))} />
                                                     ))}
@@ -1505,14 +1568,9 @@ export default function JefeDashboard() {
             <DashboardDrawers
                 isDrillDownOpen={isDrillDownOpen}
                 setIsDrillDownOpen={setIsDrillDownOpen}
-                isStateDrillDownOpen={isStateDrillDownOpen}
-                setIsStateDrillDownOpen={setIsStateDrillDownOpen}
                 selectedEnte={selectedEnte}
                 setSelectedEnte={setSelectedEnte}
-                selectedEstado={selectedEstado}
-                setSelectedEstado={setSelectedEstado}
                 enteJornadasDetails={enteJornadasDetails}
-                estadoJornadasDetails={estadoJornadasDetails}
             />
 
             <FoodDistributionDrawer 
@@ -1550,6 +1608,43 @@ export default function JefeDashboard() {
                     setSelectedPaymentMode(null);
                     clearFilters();
                 }}
+            />
+
+            <StateAnalyticsDrawer 
+                isOpen={isStateDrillDownOpen}
+                onClose={() => setIsStateDrillDownOpen(false)}
+                stateName={selectedEstado}
+                reports={reports}
+            />
+
+            <AuditDeficiencyDrawer
+                isOpen={isAuditDrillDownOpen}
+                onClose={() => setIsAuditDrillDownOpen(false)}
+                auditKey={selectedAuditItem?.key || null}
+                label={selectedAuditItem?.label || null}
+                reports={filteredReports}
+            />
+
+            <ProteinSustainabilityDrawer
+                isOpen={isProteinDrillDownOpen}
+                onClose={() => setIsProteinDrillDownOpen(false)}
+                reports={filteredReports}
+                reportItems={reportItems}
+                selectedState={selectedProteinState}
+            />
+
+            <ProduceSustainabilityDrawer
+                isOpen={isProduceDrillDownOpen}
+                onClose={() => setIsProduceDrillDownOpen(false)}
+                reports={filteredReports}
+                selectedState={selectedProduceState}
+            />
+
+            <FruitSustainabilityDrawer
+                isOpen={isFruitDrawerOpen}
+                onClose={() => setIsFruitDrawerOpen(false)}
+                reports={filteredReports}
+                selectedState={selectedFruitState}
             />
         </div>
     );
