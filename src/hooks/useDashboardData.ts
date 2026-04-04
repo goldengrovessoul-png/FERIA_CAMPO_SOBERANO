@@ -75,7 +75,7 @@ export interface Entrepreneur {
 
 
 
-export function useDashboardData(session: Record<string, any>, authLoading: boolean) {
+export function useDashboardData(session: any, authLoading: boolean) {
     const [reports, setReports] = useState<Report[]>([]);
     const [reportItems, setReportItems] = useState<ReportItem[]>([]);
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);

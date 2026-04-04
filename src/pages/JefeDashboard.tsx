@@ -80,7 +80,8 @@ export default function JefeDashboard() {
         ratingData, inspectorReportData, enteReportData, proteinPresenceStats, hortalizasPresenceStats,
         frutasPresenceStats, minppalDetailData, totalEstados, totalMunicipios, totalParroquias,
         comunasByStateData, familiasByStateData, selectedEnte, setSelectedEnte, selectedEstado,
-        setSelectedEstado, enteJornadasDetails, estadoJornadasDetails, vulnerabilityData, catalogos
+        setSelectedEstado, enteJornadasDetails, estadoJornadasDetails, vulnerabilityData, catalogos,
+        entrepreneurs
     } = useDashboardData(session, authLoading);
 
     // Estados para UI interactiva del Mapa
