@@ -85,9 +85,6 @@ export default function JefeDashboard() {
         entrepreneurs
     } = useDashboardData(session, authLoading);
 
-    console.log('DEBUG DASHBOARD - minppalDetailData:', minppalDetailData);
-    console.log('DEBUG DASHBOARD - reports:', reports.length);
-
     // Estados para UI interactiva del Mapa
     const [isMapFilterOpen, setIsMapFilterOpen] = useState(false);
     const [isMapLegendOpen, setIsMapLegendOpen] = useState(false);
@@ -231,7 +228,7 @@ export default function JefeDashboard() {
                 </div>
 
                 {/* KPIs y Cobertura Territorial (Modularizado) */}
-                <KpiSection 
+                <KpiSection
                     filteredReports={filteredReports}
                     totalEstados={totalEstados}
                     totalMunicipios={totalMunicipios}
@@ -240,7 +237,7 @@ export default function JefeDashboard() {
 
 
                 {/* PANEL ANALÍTICO TERRITORIAL (Modularizado) */}
-                <AnalyticsCharts 
+                <AnalyticsCharts
                     comunasByStateData={comunasByStateData}
                     familiasByStateData={familiasByStateData}
                     setSelectedEstado={setSelectedEstado}
@@ -249,7 +246,7 @@ export default function JefeDashboard() {
                 />
 
                 {/* ── MAPA OPERATIVO (Modularizado) ──────────────────────────── */}
-                <TerritorialMap 
+                <TerritorialMap
                     filteredReports={filteredReports}
                     filterEstado={filterEstado}
                     filterTipo={filterTipo}
@@ -274,7 +271,7 @@ export default function JefeDashboard() {
                 />
 
                 <div className="mt-8">
-                    <MinppalPresence 
+                    <MinppalPresence
                         minppalDetailData={minppalDetailData}
                         setSelectedEnte={setSelectedEnte}
                         setIsDrillDownOpen={setIsDrillDownOpen}
@@ -330,16 +327,16 @@ export default function JefeDashboard() {
                                         <XAxis type="number" hide />
                                         <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
                                         <Tooltip cursor={{ fill: '#fff' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.05)' }} />
-                                        <Bar 
-                                            dataKey="value" 
-                                            fill="url(#colorAmber2)" 
-                                            radius={[0, 10, 10, 0]} 
+                                        <Bar
+                                            dataKey="value"
+                                            fill="url(#colorAmber2)"
+                                            radius={[0, 10, 10, 0]}
                                             barSize={16}
                                             style={{ cursor: 'pointer' }}
                                             onClick={(data) => {
                                                 if (data && data.name) {
                                                     setSelectedEnte(data.name);
-                                                    setIsStateDrillDownOpen(false); 
+                                                    setIsStateDrillDownOpen(false);
                                                     setIsDrillDownOpen(true);
                                                 }
                                             }}
@@ -1442,7 +1439,7 @@ export default function JefeDashboard() {
             </main>
 
             {/* ── DRAWERS DE DRILL-DOWN MODULARIZADOS ── */}
-            <DashboardDrawers 
+            <DashboardDrawers
                 isDrillDownOpen={isDrillDownOpen}
                 setIsDrillDownOpen={setIsDrillDownOpen}
                 isStateDrillDownOpen={isStateDrillDownOpen}
