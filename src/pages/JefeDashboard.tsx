@@ -6,7 +6,7 @@ import {
     TrendingUp, Package,
     Activity, RefreshCw, Home,
     ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight,
-    Leaf, UserPlus
+    Leaf, UserPlus, Wallet, PieChart as PieChartIcon
 } from 'lucide-react';
 
 import { useAuth } from '../lib/AuthContext';
@@ -15,6 +15,9 @@ import KpiSection from '../components/dashboard/KpiSection';
 import AnalyticsCharts from '../components/dashboard/AnalyticsCharts';
 import MinppalPresence from '../components/dashboard/MinppalPresence';
 import DashboardDrawers from '../components/dashboard/DashboardDrawers';
+import FoodDistributionDrawer from '../components/dashboard/FoodDistributionDrawer';
+import ActivityTypeDrawer from '../components/dashboard/ActivityTypeDrawer';
+import PaymentModeDrawer from '../components/dashboard/PaymentModeDrawer';
 
 import JefePlanningTable from '../components/JefePlanningTable';
 import {
@@ -56,13 +59,12 @@ const StateTooltip = ({ active, payload, label }: any) => {
 };
 
 const MONO_BLUE = [
-    '#007AFF', // Solid
-    '#268DFF', // Tint 1
-    '#4D9FFF', // Tint 2
-    '#73B2FF', // Tint 3
-    '#99C5FF', // Tint 4
-    '#BFD8FF', // Tint 5
-    '#1B66D1'  // Shade 1
+    '#007AFF', // Solid Blue
+    '#10B981', // Emerald
+    '#6366F1', // Indigo
+    '#F59E0B', // Amber
+    '#EF4444', // Red
+    '#8B5CF6'  // Violet
 ];
 
 // ChartGradients component is removed as per instruction to inline defs
@@ -78,6 +80,7 @@ export default function JefeDashboard() {
         monthlyComparison, priceTrackingData, foodDistribution, paymentData, timelineData,
         stateData, priceComparisonByState, activityTypeData, sicaData, rubroPresenceData,
         rubroVolumeData, minppalProductsPresenceData, savingsImpactData, entrepreneurStats,
+        paymentMethods,
         ratingData, inspectorReportData, enteReportData, proteinPresenceStats, hortalizasPresenceStats,
         frutasPresenceStats, minppalDetailData, totalEstados, totalMunicipios, totalParroquias,
         comunasByStateData, familiasByStateData, selectedEnte, setSelectedEnte, selectedEstado,
@@ -92,6 +95,12 @@ export default function JefeDashboard() {
     // Estados para el Drill-down del Jefe (Funcionalidad Premium)
     const [isDrillDownOpen, setIsDrillDownOpen] = useState(false);
     const [isStateDrillDownOpen, setIsStateDrillDownOpen] = useState(false);
+    const [isFoodDrillDownOpen, setIsFoodDrillDownOpen] = useState(false);
+    const [selectedFoodCategory, setSelectedFoodCategory] = useState<string | null>(null);
+    const [isActivityDrillDownOpen, setIsActivityDrillDownOpen] = useState(false);
+    const [selectedActivityType, setSelectedActivityType] = useState<string | null>(null);
+    const [isPaymentDrillDownOpen, setIsPaymentDrillDownOpen] = useState(false);
+    const [selectedPaymentMode, setSelectedPaymentMode] = useState<string | null>(null);
 
     return (
         <div className="min-h-screen bg-[#F2F2F7] text-slate-900 font-sans relative">
@@ -352,9 +361,11 @@ export default function JefeDashboard() {
                     {/* FILA 2: Tripleta Central de Distribución */}
                     <div className="lg:col-span-4">
                         <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-full">
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><Activity size={20} /></div>
-                                <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">Tipos de Actividad</h3>
+                            <div className="flex items-center gap-4 mb-12">
+                                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                                    <Activity size={20} />
+                                </div>
+                                <h3 className="text-[11px] font-black uppercase text-slate-600 tracking-widest leading-none">Tipos de Actividad</h3>
                             </div>
                             <div className="h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
@@ -366,10 +377,27 @@ export default function JefeDashboard() {
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
-                                        <XAxis dataKey="name" hide />
+                                        <XAxis 
+                                            dataKey="name" 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{ fontSize: 9, fontWeight: 900, fill: '#1e293b' }} 
+                                        />
                                         <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none', fontSize: '10px', fontWeight: 900 }} />
-                                        <Bar dataKey="value" fill="url(#colorBlue)" radius={[10, 10, 0, 0]} barSize={40}>
-                                            <LabelList dataKey="value" position="top" style={{ fontSize: 11, fontWeight: 900, fill: '#64748b' }} />
+                                        <Bar 
+                                            dataKey="value" 
+                                            fill="url(#colorBlue)" 
+                                            radius={[10, 10, 0, 0]} 
+                                            barSize={40}
+                                            onClick={(data: any) => {
+                                                if (data && data.name) {
+                                                    setSelectedActivityType(data.name);
+                                                    setIsActivityDrillDownOpen(true);
+                                                }
+                                            }}
+                                            className="cursor-pointer"
+                                        >
+                                            <LabelList dataKey="value" position="top" style={{ fontSize: 13, fontWeight: 900, fill: '#0f172a' }} />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -379,7 +407,12 @@ export default function JefeDashboard() {
 
                     <div className="lg:col-span-4">
                         <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-full">
-                            <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-12">Cobranza Consolidada</h3>
+                            <div className="flex items-center gap-4 mb-12">
+                                <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                                    <Wallet size={20} />
+                                </div>
+                                <h3 className="text-[11px] font-black uppercase text-slate-600 tracking-widest leading-none">Cobranza Consolidada</h3>
+                            </div>
                             <div className="h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={paymentData} layout="vertical" margin={{ left: 20, right: 50, top: 0, bottom: 20 }}>
@@ -390,10 +423,22 @@ export default function JefeDashboard() {
                                             </linearGradient>
                                         </defs>
                                         <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                        <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 10, fontWeight: 900, fill: '#1e293b' }} axisLine={false} tickLine={false} />
                                         <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                        <Bar dataKey="value" fill="url(#colorIndigo)" radius={[0, 10, 10, 0]} barSize={18}>
-                                            <LabelList dataKey="value" position="right" style={{ fontSize: 10, fontWeight: 900, fill: '#4F46E5' }} />
+                                        <Bar 
+                                            dataKey="value" 
+                                            fill="url(#colorIndigo)" 
+                                            radius={[0, 10, 10, 0]} 
+                                            barSize={18}
+                                            onClick={(data: any) => {
+                                                if (data && data.name) {
+                                                    setSelectedPaymentMode(data.name);
+                                                    setIsPaymentDrillDownOpen(true);
+                                                }
+                                            }}
+                                            className="cursor-pointer"
+                                        >
+                                            <LabelList dataKey="value" position="right" style={{ fontSize: 12, fontWeight: 900, fill: '#312e81' }} />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -402,8 +447,13 @@ export default function JefeDashboard() {
                     </div>
 
                     <div className="lg:col-span-4">
-                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-full flex flex-col items-center">
-                            <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-10 text-center">Distribución Alimentaria (TN)</h3>
+                        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-full">
+                            <div className="flex items-center gap-4 mb-10">
+                                <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                                    <PieChartIcon size={20} />
+                                </div>
+                                <h3 className="text-[11px] font-black uppercase text-slate-600 tracking-widest leading-none">Distribución Alimentaria (TN)</h3>
+                            </div>
                             <div className="h-[320px] w-full relative">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
@@ -415,8 +465,21 @@ export default function JefeDashboard() {
                                             dataKey="value"
                                             stroke="none"
                                             cornerRadius={8}
+                                            onClick={(data: any) => {
+                                                if (data && data.name) {
+                                                    setSelectedFoodCategory(data.name);
+                                                    setIsFoodDrillDownOpen(true);
+                                                }
+                                            }}
+                                            className="cursor-pointer"
                                         >
-                                            {foodDistribution.map((_, index) => <Cell key={`cell-${index}`} fill={MONO_BLUE[index % MONO_BLUE.length]} />)}
+                                            {foodDistribution.map((_, index) => (
+                                                <Cell 
+                                                    key={`cell-${index}`} 
+                                                    fill={MONO_BLUE[index % MONO_BLUE.length]} 
+                                                    className="hover:opacity-80 transition-opacity cursor-pointer outline-none"
+                                                />
+                                            ))}
                                         </Pie>
                                         <Tooltip
                                             contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
@@ -427,15 +490,15 @@ export default function JefeDashboard() {
                                             verticalAlign="bottom"
                                             align="center"
                                             iconType="circle"
-                                            wrapperStyle={{ paddingTop: '30px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', color: '#64748b' }}
+                                            wrapperStyle={{ paddingTop: '30px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', color: '#1e293b' }}
                                         />
                                     </PieChart>
                                 </ResponsiveContainer>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-[-50px]">
-                                    <span className="text-3xl font-black text-slate-900 tracking-tighter font-['Outfit']">
+                                    <span className="text-3xl font-black text-[#0f172a] tracking-tighter font-['Outfit']">
                                         {foodDistribution.reduce((a, b) => a + Number(b.value), 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">TN Totales</span>
+                                    <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest mt-1">TN Totales</span>
                                 </div>
                             </div>
                         </div>
@@ -1450,6 +1513,43 @@ export default function JefeDashboard() {
                 setSelectedEstado={setSelectedEstado}
                 enteJornadasDetails={enteJornadasDetails}
                 estadoJornadasDetails={estadoJornadasDetails}
+            />
+
+            <FoodDistributionDrawer 
+                isOpen={isFoodDrillDownOpen}
+                onClose={() => setIsFoodDrillDownOpen(false)}
+                category={selectedFoodCategory}
+                reports={filteredReports}
+                onReset={() => {
+                    setIsFoodDrillDownOpen(false);
+                    setSelectedFoodCategory(null);
+                    clearFilters();
+                }}
+            />
+
+            <ActivityTypeDrawer 
+                isOpen={isActivityDrillDownOpen}
+                onClose={() => setIsActivityDrillDownOpen(false)}
+                activityType={selectedActivityType}
+                reports={filteredReports}
+                onReset={() => {
+                    setIsActivityDrillDownOpen(false);
+                    setSelectedActivityType(null);
+                    clearFilters();
+                }}
+            />
+
+            <PaymentModeDrawer 
+                isOpen={isPaymentDrillDownOpen}
+                onClose={() => setIsPaymentDrillDownOpen(false)}
+                paymentMode={selectedPaymentMode}
+                reports={filteredReports}
+                paymentMethods={paymentMethods}
+                onReset={() => {
+                    setIsPaymentDrillDownOpen(false);
+                    setSelectedPaymentMode(null);
+                    clearFilters();
+                }}
             />
         </div>
     );

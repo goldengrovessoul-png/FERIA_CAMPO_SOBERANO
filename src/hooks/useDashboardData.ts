@@ -497,11 +497,15 @@ export function useDashboardData(session: any, authLoading: boolean) {
 
     const paymentData = useMemo(() => {
         const counts: Record<string, number> = {};
+        const tracks = new Set<string>();
+
         paymentMethods.forEach(p => {
             if (filteredReportIds.has(p.report_id)) {
                 const label = (p.metodo || '').replace(/\[.*\]/, '').trim().toUpperCase();
-                if (label) {
+                const key = `${p.report_id}_${label}`;
+                if (label && !tracks.has(key)) {
                     counts[label] = (counts[label] || 0) + 1;
+                    tracks.add(key);
                 }
             }
         });
