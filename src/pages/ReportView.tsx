@@ -23,6 +23,7 @@ interface ReportDetails {
     datos_formulario: any;
     presencia_detallada?: { nombre: string; productos: string[] }[];
     entrepreneurs?: { nombre: string; actividad: string; telefono: string }[];
+    profiles?: { nombre: string; apellido: string }; // Nombre del Inspector
 }
 
 export default function ReportView() {
@@ -75,7 +76,7 @@ export default function ReportView() {
             }, {});
 
             // Unificar datos para que el renderizado de abajo funcione
-            const formattedData = {
+            const formattedData: ReportDetails = {
                 ...data,
                 payment_methods: payMethodsRes.data || [],
                 presencia_detallada: Object.values(presenciaAgrupada),
@@ -86,6 +87,19 @@ export default function ReportView() {
                     observaciones_rubros: data.datos_formulario?.observaciones_rubros || data.datos_formulario?.comentarios || 'Sin observaciones'
                 }
             };
+
+            // Cargar datos del inspector de forma segura si existe el ID
+            if (data.inspector_id) {
+                const { data: profData } = await supabase
+                    .from('profiles')
+                    .select('nombre, apellido')
+                    .eq('id', data.inspector_id)
+                    .single();
+
+                if (profData) {
+                    formattedData.profiles = profData;
+                }
+            }
 
             setReport(formattedData);
         } catch (error) {
@@ -144,9 +158,17 @@ export default function ReportView() {
                                 className="h-28 w-auto object-contain rounded-xl" 
                             />
                         </div>
-                        <div className="space-y-1">
-                            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest opacity-60">ID Documento de Control</p>
-                            <p className="font-mono text-[11px] opacity-80 tracking-[0.2em]">{report.id}</p>
+                        <div className="space-y-3">
+                            <div className="space-y-1">
+                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest opacity-60">ID Documento de Control</p>
+                                <p className="font-mono text-[11px] opacity-80 tracking-[0.2em]">{report.id}</p>
+                            </div>
+                            <div className="space-y-1 border-t border-slate-700/50 pt-2">
+                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest opacity-60">Inspector Responsable</p>
+                                <p className="text-xs font-black text-blue-400 uppercase tracking-widest">
+                                    {report.profiles ? `${report.profiles.nombre} ${report.profiles.apellido}` : 'SISTEMA AUTOMATIZADO'}
+                                </p>
+                            </div>
                         </div>
                     </div>
 
