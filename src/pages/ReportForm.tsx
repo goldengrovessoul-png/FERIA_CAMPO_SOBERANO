@@ -698,30 +698,41 @@ export default function ReportForm() {
 
             // Insertar Presencia MINPPAL Detallada
             if (presenciaEntes.length > 0) {
+                // Filtrar solo los entes y productos que todavía existen en el catálogo actual para evitar errores de FK
+                // (Esto puede pasar si el usuario tiene un borrador con IDs que fueron eliminados en la unificación)
+                const activeEnteIds = new Set(catalogos.minppal.map(e => e.id));
+                const activeProdIds = new Set(catalogos.productos_minppal.map(p => p.id));
+
                 const presenciaData: any[] = [];
                 presenciaEntes.forEach(ente => {
-                    if (ente.productosIds.length > 0) {
-                        ente.productosIds.forEach(prodId => {
+                    if (activeEnteIds.has(ente.enteId)) {
+                        if (ente.productosIds.length > 0) {
+                            ente.productosIds.forEach(prodId => {
+                                if (activeProdIds.has(prodId)) {
+                                    presenciaData.push({
+                                        report_id: reportIdToUse,
+                                        ente_id: ente.enteId,
+                                        producto_id: prodId,
+                                        presente: true
+                                    });
+                                }
+                            });
+                        } else {
+                            // Si el ente está presente pero no se marcaron productos específicos
                             presenciaData.push({
                                 report_id: reportIdToUse,
                                 ente_id: ente.enteId,
-                                producto_id: prodId,
+                                producto_id: null,
                                 presente: true
                             });
-                        });
-                    } else {
-                        // Si el ente está presente pero no se marcaron productos específicos
-                        presenciaData.push({
-                            report_id: reportIdToUse,
-                            ente_id: ente.enteId,
-                            producto_id: null,
-                            presente: true
-                        });
+                        }
                     }
                 });
 
-                const { error: presError } = await supabase.from('report_minppal_presencia').insert(presenciaData);
-                if (presError) throw presError;
+                if (presenciaData.length > 0) {
+                    const { error: presError } = await supabase.from('report_minppal_presencia').insert(presenciaData);
+                    if (presError) throw presError;
+                }
             }
 
             // Insertar Emprendedores
