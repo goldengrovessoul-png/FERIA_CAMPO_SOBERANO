@@ -77,11 +77,11 @@ export default function ReportForm() {
     }, [dpaData]);
 
     const dpaMunicipios = useMemo(() => {
-        return Array.from(new Set(dpaData.filter(d => d.estado === estadoGeo).map(d => d.municipio))).sort();
+        return Array.from(new Set(dpaData.filter(d => d.estado.toUpperCase() === estadoGeo.toUpperCase()).map(d => d.municipio))).sort();
     }, [dpaData, estadoGeo]);
 
     const dpaParroquias = useMemo(() => {
-        return Array.from(new Set(dpaData.filter(d => d.estado === estadoGeo && d.municipio === municipio).map(d => d.parroquia))).sort();
+        return Array.from(new Set(dpaData.filter(d => d.estado.toUpperCase() === estadoGeo.toUpperCase() && d.municipio.toUpperCase() === municipio.toUpperCase()).map(d => d.parroquia))).sort();
     }, [dpaData, estadoGeo, municipio]);
 
     // Totales por Categoría (En Toneladas)

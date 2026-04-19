@@ -137,7 +137,7 @@ export const VENEZUELA_STATES: Record<string, VenezuelaState> = {
         zoom: 9,
     },
     'LA GUAIRA': {
-        name: 'LA GUAIRA',
+        name: 'La Guaira',
         bounds: [[10.3, -67.4], [10.8, -66.6]],
         center: [10.6, -67.0],
         zoom: 10,
