@@ -70,11 +70,7 @@ export default function ReportForm() {
 
     const [dpaData, setDpaData] = useState<{ estado: string, municipio: string, parroquia: string }[]>([]);
 
-    const dpaEstados = useMemo(() => {
-        const unique = Array.from(new Set(dpaData.map(d => d.estado)));
-        // Asegurar que Petare y Dependencias siempre estén si existen en dpaData
-        return unique.sort();
-    }, [dpaData]);
+    /* dpaEstados se eliminó: el dropdown de Estado usa catalogos.estados */
 
     const dpaMunicipios = useMemo(() => {
         const estadoNorm = estadoGeo.toUpperCase().trim();
