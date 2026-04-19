@@ -902,10 +902,7 @@ export default function ReportForm() {
                                         className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 appearance-none transition-all"
                                     >
                                         <option value="">-- Seleccionar --</option>
-                                        {(() => {
-                                            const combined = Array.from(new Set([...dpaEstados, ...catalogos.estados])).sort();
-                                            return combined.map(e => <option key={e} value={e}>{e}</option>);
-                                        })()}
+                                        {dpaEstados.map(e => <option key={e} value={e}>{e}</option>)}
                                     </select>
                                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-black pointer-events-none" size={18} />
                                 </div>
