@@ -276,7 +276,7 @@ export default function ReportForm() {
             setLoadingCatalogs(true);
             const [catalogRes, dpaRes] = await Promise.all([
                 supabase.from('catalog_items').select('id, type, name, parent_id, empresa_id').eq('is_active', true).order('name', { ascending: true }),
-                supabase.from('venezuela_dpa').select('*').limit(2000)
+                supabase.from('venezuela_dpa').select('*').limit(3000)
             ]);
 
             if (catalogRes.error) throw catalogRes.error;
