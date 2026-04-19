@@ -142,12 +142,6 @@ export const VENEZUELA_STATES: Record<string, VenezuelaState> = {
         center: [10.6, -67.0],
         zoom: 10,
     },
-    'VARGAS': {
-        name: 'Vargas',
-        bounds: [[10.3, -67.4], [10.8, -66.6]],
-        center: [10.6, -67.0],
-        zoom: 10,
-    },
     'YARACUY': {
         name: 'Yaracuy',
         bounds: [[9.7, -69.1], [10.7, -68.3]],
