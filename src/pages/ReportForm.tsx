@@ -77,11 +77,14 @@ export default function ReportForm() {
     }, [dpaData]);
 
     const dpaMunicipios = useMemo(() => {
-        return Array.from(new Set(dpaData.filter(d => d.estado.toUpperCase() === estadoGeo.toUpperCase()).map(d => d.municipio))).sort();
+        const estadoNorm = estadoGeo.toUpperCase().trim();
+        return Array.from(new Set(dpaData.filter(d => d.estado.toUpperCase().trim() === estadoNorm).map(d => d.municipio))).sort();
     }, [dpaData, estadoGeo]);
 
     const dpaParroquias = useMemo(() => {
-        return Array.from(new Set(dpaData.filter(d => d.estado.toUpperCase() === estadoGeo.toUpperCase() && d.municipio.toUpperCase() === municipio.toUpperCase()).map(d => d.parroquia))).sort();
+        const estadoNorm = estadoGeo.toUpperCase().trim();
+        const municipioNorm = municipio.toUpperCase().trim();
+        return Array.from(new Set(dpaData.filter(d => d.estado.toUpperCase().trim() === estadoNorm && d.municipio.toUpperCase().trim() === municipioNorm).map(d => d.parroquia))).sort();
     }, [dpaData, estadoGeo, municipio]);
 
     // Totales por Categoría (En Toneladas)
@@ -274,15 +277,35 @@ export default function ReportForm() {
     async function fetchCatalogs() {
         try {
             setLoadingCatalogs(true);
-            const [catalogRes, dpaRes] = await Promise.all([
+
+            // Fetch paginado de DPA para obtener TODOS los registros (la tabla tiene >2000)
+            const fetchAllDpa = async () => {
+                const PAGE_SIZE = 1000;
+                let allRows: { estado: string, municipio: string, parroquia: string }[] = [];
+                let page = 0;
+                while (true) {
+                    const { data, error } = await supabase
+                        .from('venezuela_dpa')
+                        .select('estado, municipio, parroquia')
+                        .order('estado')
+                        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+                    if (error) throw error;
+                    if (!data || data.length === 0) break;
+                    allRows = [...allRows, ...data];
+                    if (data.length < PAGE_SIZE) break;
+                    page++;
+                }
+                return allRows;
+            };
+
+            const [catalogRes, dpaRows] = await Promise.all([
                 supabase.from('catalog_items').select('id, type, name, parent_id, empresa_id').eq('is_active', true).order('name', { ascending: true }),
-                supabase.from('venezuela_dpa').select('*').limit(3000)
+                fetchAllDpa()
             ]);
 
             if (catalogRes.error) throw catalogRes.error;
-            if (dpaRes.error) throw dpaRes.error;
 
-            setDpaData(dpaRes.data || []);
+            setDpaData(dpaRows);
 
             const data = catalogRes.data;
 
@@ -902,7 +925,7 @@ export default function ReportForm() {
                                         className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 appearance-none transition-all"
                                     >
                                         <option value="">-- Seleccionar --</option>
-                                        {dpaEstados.map(e => <option key={e} value={e}>{e}</option>)}
+                                        {catalogos.estados.map(e => <option key={e} value={e}>{e}</option>)}
                                     </select>
                                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-black pointer-events-none" size={18} />
                                 </div>
