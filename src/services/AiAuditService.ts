@@ -1,17 +1,33 @@
 import { supabase } from '../lib/supabase';
 
+export interface ToolCall {
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+}
+
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant' | 'tool';
     content: string;
     tool_call_id?: string;
     name?: string;
-    tool_calls?: any[];
+    tool_calls?: ToolCall[];
+}
+
+export interface DashboardContext {
+    filtros_activos?: {
+        estado?: string;
+        ente?: string;
+        rubro?: string;
+        rango_fechas?: string;
+    };
+    resumen_actual?: Record<string, unknown>;
 }
 
 export class AiAuditService {
     private static API_URL = 'https://api.openai.com/v1/chat/completions';
 
-    static async getChatCompletion(userPrompt: string, history: ChatMessage[], context: any): Promise<string> {
+    static async getChatCompletion(userPrompt: string, history: ChatMessage[], context: DashboardContext): Promise<string> {
         const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
 
         if (!apiKey) {
@@ -147,11 +163,12 @@ ${JSON.stringify({
 
             return assistantMessage.content;
 
-        } catch (err: any) {
-            if (err.name === 'AbortError') {
+        } catch (err: unknown) {
+            const error = err as { name?: string; message?: string };
+            if (error.name === 'AbortError') {
                 return "⚠️ TIEMPO DE RESPUESTA AGOTADO: La consulta tomó más de 10 segundos. Por favor, intenta una pregunta más específica.";
             }
-            return `❌ ERROR DE CONEXIÓN: ${err.message}`;
+            return `❌ ERROR DE CONEXIÓN: ${error.message}`;
         }
     }
 }

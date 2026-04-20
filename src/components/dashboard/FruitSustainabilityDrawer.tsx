@@ -18,7 +18,6 @@ const FruitSustainabilityDrawer: React.FC<FruitSustainabilityDrawerProps> = ({
     reports,
     selectedState
 }) => {
-    if (!isOpen) return null;
 
     // 1. Filtrar reportes que pertenecen al contexto (Estado o Nacional)
     const contextReports = useMemo(() => {
@@ -83,6 +82,8 @@ const FruitSustainabilityDrawer: React.FC<FruitSustainabilityDrawerProps> = ({
             .sort((a, b) => b.tons - a.tons)
             .slice(0, 10);
     }, [detailReports]);
+
+    if (!isOpen) return null;
 
     return (
         <>

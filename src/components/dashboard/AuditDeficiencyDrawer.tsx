@@ -21,11 +21,10 @@ const AuditDeficiencyDrawer: React.FC<AuditDeficiencyDrawerProps> = ({
     label,
     reports
 }) => {
-    if (!isOpen || !auditKey) return null;
 
     // Filtrar reportes con DEFICIENCIAS (audit_summary[key] === false)
     const deficientReports = useMemo(() => {
-        return reports.filter(r => r.audit_summary?.[auditKey] === false)
+        return reports.filter(r => r.audit_summary?.[auditKey!] === false)
             .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
     }, [reports, auditKey]);
 
@@ -52,6 +51,8 @@ const AuditDeficiencyDrawer: React.FC<AuditDeficiencyDrawerProps> = ({
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
     }, [deficientReports]);
+
+    if (!isOpen || !auditKey) return null;
 
     const getIcon = () => {
         switch(auditKey) {

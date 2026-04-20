@@ -3,6 +3,30 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, MapPin, Calendar, Download, Printer, User, Users, CheckCircle2, Home, Package, Star } from 'lucide-react';
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+const MapPinIcon = L.divIcon({
+    className: 'custom-pin-icon',
+    html: `
+        <div style="
+            width: 24px;
+            height: 24px;
+            background-color: #EF4444;
+            border: 3px solid white;
+            border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        ">
+            <div style="width: 8px; height: 8px; background-color: white; border-radius: 50%;"></div>
+        </div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+});
 
 interface ReportDetails {
     id: string;
@@ -265,21 +289,31 @@ export default function ReportView() {
                         </div>
                         <div className="w-full h-[300px] bg-slate-50 rounded-[2.5rem] overflow-hidden border border-slate-100 relative shadow-inner">
                             {report.latitud && report.longitud ? (
-                                <img 
-                                    src={`https://static-maps.yandex.ru/1.x/?ll=${report.longitud},${report.latitud}&z=17&l=sat,skl&size=650,300&pt=${report.longitud},${report.latitud},pm2rdl`} 
-                                    alt="Mapa Satelital" 
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        // Fallback a mapa plano si falla el satelital
-                                        (e.target as HTMLImageElement).src = `https://static-maps.yandex.ru/1.x/?ll=${report.longitud},${report.latitud}&z=16&l=map&size=650,300&pt=${report.longitud},${report.latitud},pm2rdl`;
-                                    }}
-                                />
+                                <MapContainer
+                                    center={[report.latitud, report.longitud]}
+                                    zoom={17}
+                                    zoomControl={false}
+                                    scrollWheelZoom={false}
+                                    doubleClickZoom={false}
+                                    dragging={false}
+                                    attributionControl={false}
+                                    style={{ height: '100%', width: '100%', zIndex: 10 }}
+                                >
+                                    <TileLayer
+                                        url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                                        maxZoom={20}
+                                    />
+                                    <Marker 
+                                        position={[report.latitud, report.longitud]} 
+                                        icon={MapPinIcon}
+                                    />
+                                </MapContainer>
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-slate-300">
                                     <p className="text-[10px] font-black uppercase tracking-widest">Coordenadas no disponibles para el mapa</p>
                                 </div>
                             )}
-                            <div className="absolute bottom-6 right-6 bg-white/90 backdrop-blur-md px-5 py-2.5 rounded-full border border-slate-200 shadow-xl">
+                            <div className="absolute bottom-6 right-6 bg-white/90 backdrop-blur-md px-5 py-2.5 rounded-full border border-slate-200 shadow-xl z-20">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-blue-600">Punto de Verificación Satelital</p>
                             </div>
                         </div>

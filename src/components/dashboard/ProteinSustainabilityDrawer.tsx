@@ -14,6 +14,9 @@ interface ProteinSustainabilityDrawerProps {
     selectedState?: string | null;
 }
 
+// Constante de palabras clave de proteína (fuera del componente para evitar problemas de dependencias)
+const PROTEIN_KEYWORDS = ['HUEVO', 'COCHINO', 'CERDO', 'SARDINA', 'MORTADELA', 'POLLO', 'CARNE'];
+
 const ProteinSustainabilityDrawer: React.FC<ProteinSustainabilityDrawerProps> = ({
     isOpen,
     onClose,
@@ -21,8 +24,6 @@ const ProteinSustainabilityDrawer: React.FC<ProteinSustainabilityDrawerProps> = 
     reportItems,
     selectedState
 }) => {
-    if (!isOpen) return null;
-
     // 1. Filtrar reportes que tienen PROTEÍNA ANIMAL y además POR ESTADO si está seleccionado
     const filteredReports = useMemo(() => {
         let base = reports.filter(r => 
@@ -38,9 +39,6 @@ const ProteinSustainabilityDrawer: React.FC<ProteinSustainabilityDrawerProps> = 
     }, [reports, selectedState]);
 
     const reportIdsWithProtein = useMemo(() => new Set(filteredReports.map(r => r.id)), [filteredReports]);
-
-    // 2. Definir los "Tipos de Proteína" de interés
-    const PROTEIN_KEYWORDS = ['HUEVO', 'COCHINO', 'CERDO', 'SARDINA', 'MORTADELA', 'POLLO', 'CARNE'];
 
     // 3. Analizar desgloses por Rubro (Solo para los reportes filtrados)
     const proteinBreakdown = useMemo(() => {
@@ -106,6 +104,8 @@ const ProteinSustainabilityDrawer: React.FC<ProteinSustainabilityDrawerProps> = 
             }))
             .sort((a, b) => b.totalTons - a.totalTons);
     }, [filteredReports, reportItems, reportIdsWithProtein]);
+
+    if (!isOpen) return null;
 
     return (
         <>
