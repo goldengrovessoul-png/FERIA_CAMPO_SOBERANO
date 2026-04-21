@@ -28,6 +28,7 @@ const METODOS_PAGO = [
     "Transferencia",
     "Pago Móvil",
     "Plataforma Externa [Zelle, Binance, etc]",
+    "Otros",
     "No Aplica"
 ];
 
@@ -1555,9 +1556,7 @@ export default function ReportForm() {
                             {catalogos.minppal.map((ente) => {
                                 const enteSeleccionado = presenciaEntes.find(p => p.enteId === ente.id);
                                 const productosDelEnte = catalogos.productos_minppal.filter(p => {
-                                    if (p.parent_id === ente.id || p.empresa_id === ente.id) return true;
-                                    if (ente.type === 'ENTE' && p.type === 'RUBRO' && (!p.parent_id || p.parent_id === null)) return true;
-                                    return false;
+                                    return p.parent_id === ente.id || p.empresa_id === ente.id;
                                 });
 
                                 return (
