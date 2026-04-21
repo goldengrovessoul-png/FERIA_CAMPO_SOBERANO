@@ -32,6 +32,8 @@ const METODOS_PAGO = [
     "No Aplica"
 ];
 
+import { BODEGAS_POR_ESTADO } from '../lib/bodegasMoviles';
+
 export default function ReportForm() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -59,6 +61,7 @@ export default function ReportForm() {
 
     // Estados del Formulario
     const [tipoActividad, setTipoActividad] = useState('FCS');
+    const [bodegaMovilNombre, setBodegaMovilNombre] = useState('');
     const [empresa, setEmpresa] = useState('');
     const [estadoGeo, setEstadoGeo] = useState('');
     const [municipio, setMunicipio] = useState('');
@@ -151,7 +154,7 @@ export default function ReportForm() {
     useEffect(() => {
         if (!reportId && !isRestoring && !loadingCatalogs) {
             const draftData = {
-                tipoActividad, empresa, estadoGeo, municipio, parroquia, sector,
+                tipoActividad, bodegaMovilNombre, empresa, estadoGeo, municipio, parroquia, sector,
                 nombreComuna, comunidadesBeneficiadas, comunas, familias, personas,
                 totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalViveres,
                 responsableActividad, responsableComuna, condiciones,
@@ -161,7 +164,7 @@ export default function ReportForm() {
             localStorage.setItem('fcs_report_draft', JSON.stringify(draftData));
         }
     }, [
-        tipoActividad, empresa, estadoGeo, municipio, parroquia, sector,
+        tipoActividad, bodegaMovilNombre, empresa, estadoGeo, municipio, parroquia, sector,
         nombreComuna, comunidadesBeneficiadas, comunas, familias, personas,
         totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalViveres,
         responsableActividad, responsableComuna, condiciones,
@@ -239,6 +242,7 @@ export default function ReportForm() {
                 setIsRestoring(true);
                 const data = JSON.parse(savedDraft);
                 setTipoActividad(data.tipoActividad || 'FCS');
+                setBodegaMovilNombre(data.bodegaMovilNombre || '');
                 setEmpresa(data.empresa || '');
                 setEstadoGeo(data.estadoGeo || '');
                 setMunicipio(data.municipio || '');
@@ -409,6 +413,7 @@ export default function ReportForm() {
             if (error) throw error;
             if (data) {
                 setTipoActividad(data.tipo_actividad);
+                setBodegaMovilNombre(data.bodega_movil_nombre || '');
                 setEmpresa(data.empresa);
                 setEstadoGeo(data.estado_geografico);
                 setMunicipio(data.municipio);
@@ -587,6 +592,7 @@ export default function ReportForm() {
             const errors: Record<string, boolean> = {};
 
             if (!isValidStr(tipoActividad)) errors.tipoActividad = true;
+            if (tipoActividad.toLowerCase().includes('bodega') && !isValidStr(bodegaMovilNombre)) errors.bodegaMovilNombre = true;
             if (!isValidStr(empresa)) errors.empresa = true;
             if (!isValidStr(estadoGeo)) errors.estadoGeo = true;
 
@@ -639,6 +645,7 @@ export default function ReportForm() {
             const reportData: any = {
                 inspector_id: user?.id,
                 tipo_actividad: tipoActividad,
+                bodega_movil_nombre: tipoActividad.toLowerCase().includes('bodega') ? bodegaMovilNombre : null,
                 empresa,
                 estado_geografico: estadoGeo,
                 municipio,
@@ -874,6 +881,31 @@ export default function ReportForm() {
                                     ))}
                                 </div>
                             </div>
+
+                            {tipoActividad.toLowerCase().includes('bodega') && (
+                                <div className="space-y-2 animate-in fade-in slide-in-from-top-4 duration-300">
+                                    <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1 flex items-center justify-between">
+                                        <span>Nombre Exacto de la Bodega Móvil</span>
+                                        {isInvalid('bodegaMovilNombre') && <span className="text-red-500 font-bold">* Obligatorio</span>}
+                                    </label>
+                                    <div className={`relative rounded-2xl transition-all ${errorClass('bodegaMovilNombre')}`}>
+                                        <select
+                                            translate="no"
+                                            value={bodegaMovilNombre}
+                                            onChange={(e) => {
+                                                setBodegaMovilNombre(e.target.value);
+                                                clearError('bodegaMovilNombre');
+                                            }}
+                                            disabled={!estadoGeo}
+                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 appearance-none transition-all notranslate disabled:opacity-50"
+                                        >
+                                            <option value="">{estadoGeo ? '-- Seleccionar Bodega --' : '-- Seleccione el Estado Geográfico primero --'}</option>
+                                            {estadoGeo && BODEGAS_POR_ESTADO[estadoGeo.toUpperCase()]?.map(b => <option key={b} value={b} className="notranslate">{b}</option>)}
+                                        </select>
+                                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-black pointer-events-none" size={18} />
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Empresa / Ente Responsable</label>

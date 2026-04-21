@@ -45,6 +45,7 @@ interface ReportDetails {
     longitud: number;
     estado_reporte: string;
     comunidades_beneficiadas?: string;
+    bodega_movil_nombre?: string;
     datos_formulario: any;
     presencia_detallada?: { nombre: string; productos: string[] }[];
     entrepreneurs?: { nombre: string; actividad: string; telefono: string }[];
@@ -201,7 +202,12 @@ export default function ReportView() {
                     <div className="text-left md:text-right print:text-right space-y-6 shrink-0 pt-2">
                         <div className="space-y-1">
                             <h1 className="text-4xl font-black uppercase tracking-tight leading-none text-white">Reporte</h1>
-                            <p className="text-blue-400 text-[10px] font-bold uppercase tracking-widest">Feria del Campo Soberano</p>
+                            <p className="text-blue-400 text-[10px] font-bold uppercase tracking-widest">{report.tipo_actividad || 'Feria del Campo Soberano'}</p>
+                            {report.bodega_movil_nombre && (
+                                <p className="text-amber-400 text-[12px] font-black uppercase tracking-widest bg-amber-400/10 inline-block px-2 py-1 rounded">
+                                    BODEGA: {report.bodega_movil_nombre}
+                                </p>
+                            )}
                         </div>
 
                         <div className="space-y-4">
