@@ -116,6 +116,15 @@ export default function JefeDashboard() {
     const [isFruitDrawerOpen, setIsFruitDrawerOpen] = useState(false);
     const [selectedFruitState, setSelectedFruitState] = useState<string | null>(null);
 
+    // Estado para las filas colapsables de Bodegas Móviles
+    const [expandedBodegaStates, setExpandedBodegaStates] = useState<Record<string, boolean>>({});
+    const toggleBodegaState = (estado: string) => {
+        setExpandedBodegaStates(prev => ({
+            ...prev,
+            [estado]: !prev[estado]
+        }));
+    };
+
     // ANALISIS DE BODEGAS MÓVILES (66 Bodegas Totales)
     const bodegasAnalytics = useMemo(() => {
         const allBodegas: any[] = [];
@@ -1674,14 +1683,17 @@ export default function JefeDashboard() {
                                     if (stateData.total === 0) return null;
                                     return (
                                         <Fragment key={sIdx}>
-                                            <tr className="bg-white">
-                                                <td colSpan={4} className="py-4 px-6 bg-slate-50/50">
+                                            <tr 
+                                                className="bg-white cursor-pointer"
+                                                onClick={() => toggleBodegaState(stateData.estado)}
+                                            >
+                                                <td colSpan={4} className="py-4 px-6 bg-slate-50/50 hover:bg-slate-100/50 transition-colors">
                                                     <div className="flex justify-between items-center">
                                                         <div className="flex items-center gap-3">
                                                             <MapPin size={16} className="text-[#007AFF]" />
                                                             <span className="font-black text-slate-900 uppercase text-xs tracking-widest">{stateData.estado}</span>
                                                             <span className="text-[10px] font-bold text-slate-500 py-0.5 px-2 bg-white border border-slate-200 rounded-lg">
-                                                                {stateData.total} Bodegas
+                                                                {stateData.total} {stateData.total === 1 ? 'Bodega' : 'Bodegas'}
                                                             </span>
                                                         </div>
                                                         <div className="flex gap-2 lg:gap-4 flex-col lg:flex-row items-end lg:items-center">
@@ -1691,11 +1703,15 @@ export default function JefeDashboard() {
                                                             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-white border border-slate-200 px-2 py-1 rounded-lg">
                                                                 {stateData.inactivas} Inactivas
                                                             </span>
+                                                            <ChevronDown 
+                                                                size={18} 
+                                                                className={`text-slate-400 transition-transform duration-300 ml-2 ${expandedBodegaStates[stateData.estado] ? 'rotate-180' : ''}`} 
+                                                            />
                                                         </div>
                                                     </div>
                                                 </td>
                                             </tr>
-                                            {stateData.bodegas.map((bodega, bIdx) => (
+                                            {expandedBodegaStates[stateData.estado] && stateData.bodegas.map((bodega, bIdx) => (
                                                 <tr key={bIdx} className="hover:bg-slate-50/50 transition-colors bg-white">
                                                     <td className="py-4 px-8 border-l-[3px] border-transparent hover:border-slate-300">
                                                         <span className="text-xs font-bold text-slate-700">{bodega.nombre}</span>
