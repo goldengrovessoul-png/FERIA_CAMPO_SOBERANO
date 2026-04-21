@@ -113,6 +113,7 @@ export default function JefeDashboard() {
     const [selectedProteinState, setSelectedProteinState] = useState<string | null>(null);
     const [isProduceDrillDownOpen, setIsProduceDrillDownOpen] = useState(false);
     const [selectedProduceState, setSelectedProduceState] = useState<string | null>(null);
+    const [isFruitDrawerOpen, setIsFruitDrawerOpen] = useState(false);
     const [selectedFruitState, setSelectedFruitState] = useState<string | null>(null);
 
     // ANALISIS DE BODEGAS MÓVILES (66 Bodegas Totales)
