@@ -30,7 +30,7 @@ const ActivityTypeDrawer: React.FC<ActivityTypeDrawerProps> = ({
     const totalTN = activityReports.reduce((acc, r) => {
         return acc + (Number(r.total_proteina) || 0) + (Number(r.total_frutas) || 0) + 
                (Number(r.total_hortalizas) || 0) + (Number(r.total_verduras) || 0) + 
-               (Number(r.total_secos) || 0);
+               (Number(r.total_viveres) || 0);
     }, 0) / 1000;
 
     // Función auxiliar para formateo inteligente (Punto medio Gonzalo)
@@ -96,7 +96,7 @@ const ActivityTypeDrawer: React.FC<ActivityTypeDrawerProps> = ({
                                 {activityReports.map((jornada: any) => {
                                     const jornadaTotalTN = (Number(jornada.total_proteina) || 0) + (Number(jornada.total_frutas) || 0) + 
                                                          (Number(jornada.total_hortalizas) || 0) + (Number(jornada.total_verduras) || 0) + 
-                                                         (Number(jornada.total_secos) || 0);
+                                                         (Number(jornada.total_viveres) || 0);
 
                                     return (
                                         <div 

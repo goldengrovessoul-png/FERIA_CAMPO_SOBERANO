@@ -54,7 +54,7 @@ export default function ReportForm() {
         entrepreneurTypes: [] as string[],
         fullCatalog: [] as any[]
     });
-    const [customEntrepFields, setCustomEntrepFields] = useState<{id: string, nombre: string, etiqueta: string, tipo: string, requerido: boolean}[]>([]);
+    const [customEntrepFields, setCustomEntrepFields] = useState<{ id: string, nombre: string, etiqueta: string, tipo: string, requerido: boolean }[]>([]);
 
     // Estados del Formulario
     const [tipoActividad, setTipoActividad] = useState('FCS');
@@ -64,6 +64,7 @@ export default function ReportForm() {
     const [parroquia, setParroquia] = useState('');
     const [sector, setSector] = useState('');
     const [nombreComuna, setNombreComuna] = useState('');
+    const [comunidadesBeneficiadas, setComunidadesBeneficiadas] = useState('');
     const [comunas, setComunas] = useState(0);
     const [familias, setFamilias] = useState(0);
     const [personas, setPersonas] = useState(0);
@@ -88,7 +89,7 @@ export default function ReportForm() {
     const [totalFrutas, setTotalFrutas] = useState(0);
     const [totalHortalizas, setTotalHortalizas] = useState(0);
     const [totalVerduras, setTotalVerduras] = useState(0);
-    const [totalSecos, setTotalSecos] = useState(0);
+    const [totalViveres, setTotalViveres] = useState(0);
 
     const [responsableActividad, setResponsableActividad] = useState({ nombre: '', cedula: '', telefono: '' });
     const [responsableComuna, setResponsableComuna] = useState({ nombre: '', cedula: '', telefono: '' });
@@ -116,8 +117,8 @@ export default function ReportForm() {
     const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
 
     const isInvalid = (field: string) => validationErrors[field];
-    const errorClass = (field: string) => isInvalid(field) 
-        ? 'border-[3px] border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.15)] bg-red-50/10' 
+    const errorClass = (field: string) => isInvalid(field)
+        ? 'border-[3px] border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.15)] bg-red-50/10'
         : 'border-transparent';
 
     const clearError = (field: string) => {
@@ -150,8 +151,8 @@ export default function ReportForm() {
         if (!reportId && !isRestoring && !loadingCatalogs) {
             const draftData = {
                 tipoActividad, empresa, estadoGeo, municipio, parroquia, sector,
-                nombreComuna, comunas, familias, personas,
-                totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalSecos,
+                nombreComuna, comunidadesBeneficiadas, comunas, familias, personas,
+                totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalViveres,
                 responsableActividad, responsableComuna, condiciones,
                 presenciaEntes, metodosPago, rubros, entrepreneurs, ratingRubros, photos,
                 guiaSicaEstado, guiaSicaFoto
@@ -160,8 +161,8 @@ export default function ReportForm() {
         }
     }, [
         tipoActividad, empresa, estadoGeo, municipio, parroquia, sector,
-        nombreComuna, comunas, familias, personas,
-        totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalSecos,
+        nombreComuna, comunidadesBeneficiadas, comunas, familias, personas,
+        totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalViveres,
         responsableActividad, responsableComuna, condiciones,
         presenciaEntes, metodosPago, rubros, entrepreneurs, ratingRubros, photos,
         guiaSicaEstado, guiaSicaFoto,
@@ -172,8 +173,8 @@ export default function ReportForm() {
     useEffect(() => {
         if (loadingCatalogs) return;
 
-        const totals = { proteina: 0, frutas: 0, hortalizas: 0, verduras: 0, secos: 0 };
-        
+        const totals = { proteina: 0, frutas: 0, hortalizas: 0, verduras: 0, viveres: 0 };
+
         rubros.forEach(item => {
             const qty = Number(item.cantidad) || 0;
             if (qty <= 0) return;
@@ -203,14 +204,14 @@ export default function ReportForm() {
                 // Para unidades, usamos un peso estimado si no hay más info (ej. 1kg por unidad)
                 // O mejor, el usuario ya debería haber reportado en kg si es peso.
                 // Si es unidad, asumimos 1kg como base conservadora o lo dejamos en 0 si no es pesable.
-                tons = qty / 1000; 
+                tons = qty / 1000;
             }
 
             if (categoryName.includes('PROTE')) totals.proteina += tons;
             else if (categoryName.includes('FRUTA')) totals.frutas += tons;
             else if (categoryName.includes('HORTA')) totals.hortalizas += tons;
             else if (categoryName.includes('VERDU')) totals.verduras += tons;
-            else if (categoryName.includes('SECO')) totals.secos += tons;
+            else if (categoryName.includes('SECO') || categoryName.includes('VIVERES')) totals.viveres += tons;
             else {
                 // Fallback por nombre de rubro directo
                 const name = item.rubro.trim().toUpperCase();
@@ -218,7 +219,7 @@ export default function ReportForm() {
                 else if (name.includes('FRUTA')) totals.frutas += tons;
                 else if (name.includes('HORTA')) totals.hortalizas += tons;
                 else if (name.includes('VERDU')) totals.verduras += tons;
-                else if (name.includes('SECO')) totals.secos += tons;
+                else if (name.includes('SECO') || name.includes('VIVERES')) totals.viveres += tons;
             }
         });
 
@@ -226,7 +227,7 @@ export default function ReportForm() {
         setTotalFrutas(Number(totals.frutas.toFixed(3)));
         setTotalHortalizas(Number(totals.hortalizas.toFixed(3)));
         setTotalVerduras(Number(totals.verduras.toFixed(3)));
-        setTotalSecos(Number(totals.secos.toFixed(3)));
+        setTotalViveres(Number(totals.viveres.toFixed(3)));
 
     }, [rubros, catalogos.fullCatalog, loadingCatalogs]);
 
@@ -243,6 +244,7 @@ export default function ReportForm() {
                 setParroquia(data.parroquia || '');
                 setSector(data.sector || '');
                 setNombreComuna(data.nombreComuna || '');
+                setComunidadesBeneficiadas(data.comunidadesBeneficiadas || '');
                 setComunas(data.comunas || 0);
                 setFamilias(data.familias || 0);
                 setPersonas(data.personas || 0);
@@ -250,7 +252,7 @@ export default function ReportForm() {
                 setTotalFrutas(data.totalFrutas || 0);
                 setTotalHortalizas(data.totalHortalizas || 0);
                 setTotalVerduras(data.totalVerduras || 0);
-                setTotalSecos(data.totalSecos || 0);
+                setTotalViveres(data.totalViveres || 0);
                 setResponsableActividad(data.responsableActividad || { nombre: '', cedula: '', telefono: '' });
                 setResponsableComuna(data.responsableComuna || { nombre: '', cedula: '', telefono: '' });
                 setCondiciones(data.condiciones || { bodegaLimpia: false, personalSuficiente: false, comunidadNotificada: false, entornoLimpio: false, presenciaProteina: false, presenciaHortalizas: false, presenciaFrutas: false });
@@ -374,7 +376,7 @@ export default function ReportForm() {
             const name = (catalogItem.name || '').toUpperCase();
             if (pres.includes('LT') || pres.includes('LITRO') || name.includes('LITRO')) measure = 'litro';
             else if (name.includes('UNID') || pres.includes('UNID')) measure = 'unidad';
-            
+
             setRubros([...rubros, {
                 rubro: catalogItem.name,
                 empaque: 'Unidad / Pieza',
@@ -412,6 +414,7 @@ export default function ReportForm() {
                 setParroquia(data.parroquia);
                 setSector(data.sector || '');
                 setNombreComuna(data.nombre_comuna || '');
+                setComunidadesBeneficiadas(data.comunidades_beneficiadas || '');
                 setComunas(data.comunas);
                 setFamilias(data.familias);
                 setPersonas(data.personas);
@@ -421,7 +424,7 @@ export default function ReportForm() {
                 setTotalFrutas(data.total_frutas || 0);
                 setTotalHortalizas(data.total_hortalizas || 0);
                 setTotalVerduras(data.total_verduras || 0);
-                setTotalSecos(data.total_secos || 0);
+                setTotalViveres(data.total_viveres || 0);
 
                 const df = data.datos_formulario || {};
                 if (df.responsables) {
@@ -515,7 +518,7 @@ export default function ReportForm() {
                 const yaEsta = p.productosIds.includes(productoId);
                 return {
                     ...p,
-                    productosIds: yaEsta 
+                    productosIds: yaEsta
                         ? p.productosIds.filter(id => id !== productoId)
                         : [...p.productosIds, productoId]
                 };
@@ -579,13 +582,13 @@ export default function ReportForm() {
             // Validación de campos obligatorios
             const isValidStr = (s: string | undefined | null) => s && s.trim().length > 0;
             const isValidNumber = (n: number | undefined | null) => n !== undefined && n !== null && n >= 0;
-            
+
             const errors: Record<string, boolean> = {};
 
             if (!isValidStr(tipoActividad)) errors.tipoActividad = true;
             if (!isValidStr(empresa)) errors.empresa = true;
             if (!isValidStr(estadoGeo)) errors.estadoGeo = true;
-            
+
             const isDPASpecial = estadoGeo.toUpperCase() === 'PETARE' || estadoGeo.toUpperCase() === 'DEPENDENCIAS FEDERALES';
             if (!isDPASpecial) {
                 if (!isValidStr(municipio)) errors.municipio = true;
@@ -594,19 +597,19 @@ export default function ReportForm() {
 
             if (!isValidStr(sector)) errors.sector = true;
             if (!isValidStr(nombreComuna)) errors.nombreComuna = true;
-            
+
             if (!isValidNumber(comunas) || (comunas as any) === 0) errors.comunas = true;
             if (!isValidNumber(familias) || (familias as any) === 0 || !isValidNumber(personas) || (personas as any) === 0) errors.social_stats = true;
 
             if (!isValidStr(responsableActividad.nombre) || !isValidStr(responsableActividad.cedula)) errors.responsableActividad = true;
             if (!isValidStr(responsableComuna.nombre) || !isValidStr(responsableComuna.cedula)) errors.responsableComuna = true;
 
-            const totalToneladasSum = (Number(totalProteina) || 0) + (Number(totalFrutas) || 0) + (Number(totalHortalizas) || 0) + (Number(totalVerduras) || 0) + (Number(totalSecos) || 0);
+            const totalToneladasSum = (Number(totalProteina) || 0) + (Number(totalFrutas) || 0) + (Number(totalHortalizas) || 0) + (Number(totalVerduras) || 0) + (Number(totalViveres) || 0);
             if (totalToneladasSum <= 0) errors.toneladas = true;
 
             if (rubros.length === 0) errors.rubros = true;
             if (presenciaEntes.length === 0) errors.presenciaEntes = true;
-            
+
             const hasCondition = Object.values(condiciones).some(v => v === true);
             if (!hasCondition) errors.condiciones = true;
 
@@ -615,7 +618,7 @@ export default function ReportForm() {
 
             setValidationErrors(errors);
             const hasErrors = Object.keys(errors).length > 0;
-                
+
             if (hasErrors) {
                 alert('INFORMACIÓN INCOMPLETA: Se han resaltado en ROJO los campos obligatorios que faltan por completar (Excepto "Guía SICA"). Por favor, verifíquelos.');
                 return;
@@ -641,6 +644,7 @@ export default function ReportForm() {
                 parroquia,
                 sector,
                 nombre_comuna: nombreComuna,
+                comunidades_beneficiadas: comunidadesBeneficiadas || null,
                 comunas,
                 familias,
                 personas,
@@ -648,7 +652,7 @@ export default function ReportForm() {
                 total_frutas: totalFrutas,
                 total_hortalizas: totalHortalizas,
                 total_verduras: totalVerduras,
-                total_secos: totalSecos,
+                total_viveres: totalViveres,
                 latitud: location?.lat || 0,
                 longitud: location?.lng || 0,
                 estado_reporte: estadoReporte,
@@ -971,29 +975,40 @@ export default function ReportForm() {
 
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Sector</label>
-                                <input 
-                                    type="text" 
-                                    value={sector} 
+                                <input
+                                    type="text"
+                                    value={sector}
                                     onChange={(e) => {
                                         setSector(e.target.value.toUpperCase());
                                         clearError('sector');
-                                    }} 
-                                    className={`w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all ${errorClass('sector')}`} 
-                                    placeholder="Ej: Jose Félix Ribas" 
+                                    }}
+                                    className={`w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all ${errorClass('sector')}`}
+                                    placeholder="Ej: Jose Félix Ribas"
                                 />
                             </div>
 
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Nombre de la Comuna Beneficiaria</label>
-                                <input 
-                                    type="text" 
-                                    value={nombreComuna} 
+                                <input
+                                    type="text"
+                                    value={nombreComuna}
                                     onChange={(e) => {
                                         setNombreComuna(e.target.value.toUpperCase());
                                         clearError('nombreComuna');
-                                    }} 
-                                    className={`w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all ${errorClass('nombreComuna')}`} 
-                                    placeholder="Ej: Comuna Lanceros de la Patria" 
+                                    }}
+                                    className={`w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all ${errorClass('nombreComuna')}`}
+                                    placeholder="Ej: Comuna Lanceros de la Patria"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">Comunidades Beneficiadas</label>
+                                <input
+                                    type="text"
+                                    value={comunidadesBeneficiadas}
+                                    onChange={(e) => setComunidadesBeneficiadas(e.target.value.toUpperCase())}
+                                    className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                                    placeholder="Ej: La Esperanza, El Calvario, 23 de Enero"
                                 />
                             </div>
                         </div>
@@ -1011,38 +1026,38 @@ export default function ReportForm() {
                         <div className="space-y-8">
                             {/* Responsable de Actividad */}
                             <div className="space-y-4">
-                                <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-3 py-1 rounded-full w-fit">Persona Responsable</p>
+                                <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-3 py-1 rounded-full w-fit">Persona Responsable / Ente</p>
                                 <div className={`space-y-4 p-4 rounded-[1.5rem] transition-all ${errorClass('responsableActividad')}`}>
-                                    <input 
-                                        type="text" 
-                                        value={responsableActividad.nombre} 
+                                    <input
+                                        type="text"
+                                        value={responsableActividad.nombre}
                                         onChange={(e) => {
                                             setResponsableActividad({ ...responsableActividad, nombre: e.target.value.toUpperCase() });
                                             clearError('responsableActividad');
-                                        }} 
-                                        className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
-                                        placeholder="Nombre Completo" 
+                                        }}
+                                        className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold"
+                                        placeholder="Nombre Completo"
                                     />
                                     <div className="grid grid-cols-2 gap-4">
-                                        <input 
-                                            type="text" 
-                                            value={responsableActividad.cedula} 
+                                        <input
+                                            type="text"
+                                            value={responsableActividad.cedula}
                                             onChange={(e) => {
                                                 setResponsableActividad({ ...responsableActividad, cedula: e.target.value });
                                                 clearError('responsableActividad');
-                                            }} 
-                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
-                                            placeholder="Cédula" 
+                                            }}
+                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold"
+                                            placeholder="Cédula"
                                         />
-                                        <input 
-                                            type="text" 
-                                            value={responsableActividad.telefono} 
+                                        <input
+                                            type="text"
+                                            value={responsableActividad.telefono}
                                             onChange={(e) => {
                                                 setResponsableActividad({ ...responsableActividad, telefono: e.target.value });
                                                 clearError('responsableActividad');
-                                            }} 
-                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
-                                            placeholder="Teléfono" 
+                                            }}
+                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold"
+                                            placeholder="Teléfono"
                                         />
                                     </div>
                                 </div>
@@ -1052,36 +1067,36 @@ export default function ReportForm() {
                             <div className="space-y-4">
                                 <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full w-fit">Poder Popular / Comuna</p>
                                 <div className={`space-y-4 p-4 rounded-[1.5rem] transition-all ${errorClass('responsableComuna')}`}>
-                                    <input 
-                                        type="text" 
-                                        value={responsableComuna.nombre} 
+                                    <input
+                                        type="text"
+                                        value={responsableComuna.nombre}
                                         onChange={(e) => {
                                             setResponsableComuna({ ...responsableComuna, nombre: e.target.value.toUpperCase() });
                                             clearError('responsableComuna');
-                                        }} 
-                                        className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
-                                        placeholder="Nombre Completo" 
+                                        }}
+                                        className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold"
+                                        placeholder="Nombre Completo"
                                     />
                                     <div className="grid grid-cols-2 gap-4">
-                                        <input 
-                                            type="text" 
-                                            value={responsableComuna.cedula} 
+                                        <input
+                                            type="text"
+                                            value={responsableComuna.cedula}
                                             onChange={(e) => {
                                                 setResponsableComuna({ ...responsableComuna, cedula: e.target.value });
                                                 clearError('responsableComuna');
-                                            }} 
-                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
-                                            placeholder="Cédula" 
+                                            }}
+                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold"
+                                            placeholder="Cédula"
                                         />
-                                        <input 
-                                            type="text" 
-                                            value={responsableComuna.telefono} 
+                                        <input
+                                            type="text"
+                                            value={responsableComuna.telefono}
                                             onChange={(e) => {
                                                 setResponsableComuna({ ...responsableComuna, telefono: e.target.value });
                                                 clearError('responsableComuna');
-                                            }} 
-                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold" 
-                                            placeholder="Teléfono" 
+                                            }}
+                                            className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-bold"
+                                            placeholder="Teléfono"
                                         />
                                     </div>
                                 </div>
@@ -1105,14 +1120,14 @@ export default function ReportForm() {
                                 </div>
                                 <div className="flex-1">
                                     <label className="text-[10px] font-black text-black uppercase tracking-widest">Comunas / Consejos Comunales</label>
-                                    <input 
-                                        type="number" 
-                                        value={comunas} 
+                                    <input
+                                        type="number"
+                                        value={comunas}
                                         onChange={(e) => {
                                             setComunas(Number(e.target.value));
                                             clearError('comunas');
-                                        }} 
-                                        className="w-full bg-transparent border-none p-0 text-2xl font-black text-black focus:ring-0" 
+                                        }}
+                                        className="w-full bg-transparent border-none p-0 text-2xl font-black text-black focus:ring-0"
                                     />
                                 </div>
                             </div>
@@ -1124,26 +1139,26 @@ export default function ReportForm() {
                                     </div>
                                     <div className="flex-1 text-center">
                                         <label className="text-[10px] font-black text-black uppercase tracking-widest whitespace-nowrap">Familias</label>
-                                        <input 
-                                            type="number" 
-                                            value={familias} 
+                                        <input
+                                            type="number"
+                                            value={familias}
                                             onChange={(e) => {
                                                 setFamilias(Number(e.target.value));
                                                 clearError('social_stats');
-                                            }} 
-                                            className="w-full bg-transparent border-none p-0 text-xl font-black text-black text-center focus:ring-0" 
+                                            }}
+                                            className="w-full bg-transparent border-none p-0 text-xl font-black text-black text-center focus:ring-0"
                                         />
                                     </div>
                                     <div className="flex-1 text-right border-l border-slate-200">
                                         <label className="text-[10px] font-black text-black uppercase tracking-widest mr-4">Personas</label>
-                                        <input 
-                                            type="number" 
-                                            value={personas} 
+                                        <input
+                                            type="number"
+                                            value={personas}
                                             onChange={(e) => {
                                                 setPersonas(Number(e.target.value));
                                                 clearError('social_stats');
-                                            }} 
-                                            className="w-full bg-transparent border-none p-0 text-xl font-black text-black text-right pr-4 focus:ring-0" 
+                                            }}
+                                            className="w-full bg-transparent border-none p-0 text-xl font-black text-black text-right pr-4 focus:ring-0"
                                         />
                                     </div>
                                 </div>
@@ -1252,7 +1267,7 @@ export default function ReportForm() {
                                         <UserPlus size={24} />
                                     </div>
                                     <p className="text-[10px] font-black text-black uppercase tracking-widest px-8 leading-relaxed">
-                                        ¿Hay emprendedores locales participando? <br/> Pulsa el botón superior para registrarlos.
+                                        ¿Hay emprendedores locales participando? <br /> Pulsa el botón superior para registrarlos.
                                     </p>
                                 </div>
                             )}
@@ -1274,7 +1289,7 @@ export default function ReportForm() {
                                 { label: 'Frutas', value: totalFrutas, setter: setTotalFrutas, color: 'amber' },
                                 { label: 'Hortalizas', value: totalHortalizas, setter: setTotalHortalizas, color: 'emerald' },
                                 { label: 'Verduras', value: totalVerduras, setter: setTotalVerduras, color: 'orange' },
-                                { label: 'Secos', value: totalSecos, setter: setTotalSecos, color: 'slate' },
+                                { label: 'Víveres', value: totalViveres, setter: setTotalViveres, color: 'slate' },
                             ].map((cat) => (
                                 <div key={cat.label} className="bg-slate-50 p-4 rounded-3xl space-y-1">
                                     <label className="text-[9px] font-black text-black uppercase tracking-widest">{cat.label}</label>
@@ -1399,7 +1414,7 @@ export default function ReportForm() {
                                     className="w-full bg-slate-50 border-2 border-slate-50 focus:border-blue-500 rounded-[1.5rem] py-4 pl-12 pr-4 text-xs font-bold uppercase tracking-widest text-black placeholder:text-black/50 transition-all outline-none"
                                 />
                                 {rubrosSearch && (
-                                    <button 
+                                    <button
                                         onClick={() => setRubrosSearch('')}
                                         className="absolute right-4 top-1/2 -translate-y-1/2 text-black hover:text-black"
                                     >
@@ -1415,8 +1430,8 @@ export default function ReportForm() {
                                     const isPresent = !!r;
 
                                     return (
-                                        <div 
-                                            key={item.id} 
+                                        <div
+                                            key={item.id}
                                             className={`p-4 rounded-3xl border-2 transition-all duration-300 ${isPresent ? 'bg-blue-50/50 border-blue-200' : 'bg-slate-50/50 border-transparent opacity-80'}`}
                                         >
                                             <div className="flex items-center gap-4">
@@ -1430,7 +1445,7 @@ export default function ReportForm() {
                                                 >
                                                     {isPresent ? 'SI' : 'NO'}
                                                 </button>
-                                                
+
                                                 <div className="flex-1 min-w-0">
                                                     <p className={`text-[10px] font-black uppercase tracking-tight truncate ${isPresent ? 'text-blue-900' : 'text-black'}`}>
                                                         {item.name}
@@ -1535,7 +1550,7 @@ export default function ReportForm() {
                             <h2 className="text-lg font-black text-black uppercase tracking-tighter">Presencia productos MINPPAL</h2>
                         </div>
                         <p className="text-[9px] font-black text-black uppercase tracking-widest mb-8 ml-13">Vincule los entes presentes y sus respectivos productos</p>
- 
+
                         <div className={`space-y-4 p-4 rounded-[1.5rem] transition-all ${errorClass('presenciaEntes')}`}>
                             {catalogos.minppal.map((ente) => {
                                 const enteSeleccionado = presenciaEntes.find(p => p.enteId === ente.id);
@@ -1588,7 +1603,7 @@ export default function ReportForm() {
                                                 ))}
                                             </div>
                                         )}
-                                        
+
                                         {enteSeleccionado && productosDelEnte.length === 0 && (
                                             <div className="px-14 pb-5">
                                                 <p className="text-[9px] font-bold text-black italic uppercase">Sin productos vinculados en el catálogo</p>
@@ -1597,7 +1612,7 @@ export default function ReportForm() {
                                     </div>
                                 );
                             })}
-                            
+
                             {catalogos.minppal.length === 0 && (
                                 <div className="py-10 text-center bg-slate-50 rounded-[2rem] border border-dashed border-slate-200">
                                     <p className="text-[10px] font-black text-black uppercase tracking-widest">No hay empresas MINPPAL registradas</p>

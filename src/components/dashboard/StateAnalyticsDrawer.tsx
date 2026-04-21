@@ -41,13 +41,13 @@ const StateAnalyticsDrawer: React.FC<StateAnalyticsDrawerProps> = ({
             }
             acc.activitiesByType[type] += 1;
 
-            // Suma de Tonelaje (Proteína + Frutas + Hortalizas + Verduras + Secos)
+            // Suma de Tonelaje (Proteína + Frutas + Hortalizas + Verduras + Víveres)
             const tons = (
                 Number(r.total_proteina || 0) + 
                 Number(r.total_frutas || 0) + 
                 Number(r.total_hortalizas || 0) + 
                 Number(r.total_verduras || 0) + 
-                Number(r.total_secos || 0)
+                Number(r.total_viveres || 0)
             );
             acc.tonelaje += tons;
 

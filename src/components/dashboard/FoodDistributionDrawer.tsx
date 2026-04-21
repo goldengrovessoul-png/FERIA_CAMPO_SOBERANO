@@ -26,7 +26,7 @@ const FoodDistributionDrawer: React.FC<FoodDistributionDrawerProps> = ({
         'FRUTAS': 'total_frutas',
         'HORTALIZAS': 'total_hortalizas',
         'VERDURAS': 'total_verduras',
-        'SECOS': 'total_secos'
+        'VÍVERES': 'total_viveres'
     };
 
     const fieldName = categoryFieldMap[category.toUpperCase()] || '';

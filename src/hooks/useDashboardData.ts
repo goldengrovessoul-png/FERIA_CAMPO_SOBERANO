@@ -18,7 +18,7 @@ export interface Report {
     total_frutas: number;
     total_hortalizas: number;
     total_verduras: number;
-    total_secos: number;
+    total_viveres: number;
     latitud: number;
     longitud: number;
     datos_formulario?: Record<string, any>;
@@ -121,7 +121,7 @@ export function useDashboardData(session: any, authLoading: boolean) {
             while (keepFetching) {
                 const { data: pageData, error: pageError } = await supabase
                     .from('reports')
-                    .select('id, fecha, tipo_actividad, empresa, estado_geografico, municipio, parroquia, personas, familias, comunas, nombre_comuna, total_proteina, total_frutas, total_hortalizas, total_verduras, total_secos, latitud, longitud, estado_reporte, inspector_id, guia_sica_estado, rating_value, audit_summary')
+                    .select('id, fecha, tipo_actividad, empresa, estado_geografico, municipio, parroquia, personas, familias, comunas, nombre_comuna, total_proteina, total_frutas, total_hortalizas, total_verduras, total_viveres, latitud, longitud, estado_reporte, inspector_id, guia_sica_estado, rating_value, audit_summary')
                     .eq('estado_reporte', 'enviado')
                     .order('fecha', { ascending: false })
                     .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -308,7 +308,7 @@ export function useDashboardData(session: any, authLoading: boolean) {
             const p = Number(r.total_proteina) || 0;
             const t = (Number(r.total_proteina) || 0) + (Number(r.total_frutas) || 0) +
                 (Number(r.total_hortalizas) || 0) + (Number(r.total_verduras) || 0) +
-                (Number(r.total_secos) || 0);
+                (Number(r.total_viveres) || 0);
             totalProteina += p;
             totalGeneral += t;
         });
@@ -340,7 +340,7 @@ export function useDashboardData(session: any, authLoading: boolean) {
         filteredReports.forEach(r => {
             const t = (Number(r.total_proteina) || 0) + (Number(r.total_frutas) || 0) +
                 (Number(r.total_hortalizas) || 0) + (Number(r.total_verduras) || 0) +
-                (Number(r.total_secos) || 0);
+                (Number(r.total_viveres) || 0);
             totalTons += t;
             totalFamilias += (Number(r.familias) || 0);
         });
@@ -430,7 +430,7 @@ export function useDashboardData(session: any, authLoading: boolean) {
             'Frutas': 0,
             'Hortalizas': 0,
             'Verduras': 0,
-            'Secos': 0
+            'Víveres': 0
         };
 
         const itemToCategory: Record<string, string> = {};
@@ -451,14 +451,14 @@ export function useDashboardData(session: any, authLoading: boolean) {
                 (Number(r.total_frutas) || 0) +
                 (Number(r.total_hortalizas) || 0) +
                 (Number(r.total_verduras) || 0) +
-                (Number(r.total_secos) || 0);
+                (Number(r.total_viveres) || 0);
 
             if (sumRow > 0 && !isRubroFiltered) {
                 categories['Proteínas'] += Number(r.total_proteina) || 0;
                 categories['Frutas'] += Number(r.total_frutas) || 0;
                 categories['Hortalizas'] += Number(r.total_hortalizas) || 0;
                 categories['Verduras'] += Number(r.total_verduras) || 0;
-                categories['Secos'] += Number(r.total_secos) || 0;
+                categories['Víveres'] += Number(r.total_viveres) || 0;
                 reportsWithTotals.add(r.id);
             }
         });
@@ -477,14 +477,14 @@ export function useDashboardData(session: any, authLoading: boolean) {
                         else if (cat.includes('FRUTA')) categories['Frutas'] += tons;
                         else if (cat.includes('HORTA')) categories['Hortalizas'] += tons;
                         else if (cat.includes('VERDU')) categories['Verduras'] += tons;
-                        else if (cat.includes('SECO')) categories['Secos'] += tons;
+                        else if (cat.includes('SECO') || cat.includes('VIVERES')) categories['Víveres'] += tons;
                     } else {
                         const rubroName = item.rubro?.trim().toUpperCase();
                         if (rubroName.includes('PROTE')) categories['Proteínas'] += tons;
                         else if (rubroName.includes('FRUTA')) categories['Frutas'] += tons;
                         else if (rubroName.includes('HORTA')) categories['Hortalizas'] += tons;
                         else if (rubroName.includes('VERDU')) categories['Verduras'] += tons;
-                        else if (rubroName.includes('SECO')) categories['Secos'] += tons;
+                        else if (rubroName.includes('SECO') || rubroName.includes('VIVERES')) categories['Víveres'] += tons;
                     }
                 }
             }
@@ -552,7 +552,7 @@ export function useDashboardData(session: any, authLoading: boolean) {
                 (Number(r.total_frutas) || 0) +
                 (Number(r.total_hortalizas) || 0) +
                 (Number(r.total_verduras) || 0) +
-                (Number(r.total_secos) || 0);
+                (Number(r.total_viveres) || 0);
             entries[label].total_distribuido += totalDist;
         });
 

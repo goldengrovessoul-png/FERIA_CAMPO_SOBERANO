@@ -44,6 +44,7 @@ interface ReportDetails {
     latitud: number;
     longitud: number;
     estado_reporte: string;
+    comunidades_beneficiadas?: string;
     datos_formulario: any;
     presencia_detallada?: { nombre: string; productos: string[] }[];
     entrepreneurs?: { nombre: string; actividad: string; telefono: string }[];
@@ -78,7 +79,7 @@ export default function ReportView() {
                 supabase.from('report_items').select('*').eq('report_id', id),
                 supabase.from('report_payment_methods').select('*').eq('report_id', id),
                 supabase.from('report_minppal_presencia').select('*').eq('report_id', id),
-                supabase.from('catalog_items').select('id, name, type').in('type', ['MINPPAL', 'ARTICULO']),
+                supabase.from('catalog_items').select('id, name, type').in('type', ['MINPPAL', 'ARTICULO', 'ENTE', 'RUBRO']),
                 supabase.from('report_entrepreneurs').select('*').eq('report_id', id)
             ]);
 
@@ -278,6 +279,12 @@ export default function ReportView() {
                                 <p className="text-[9px] font-black text-slate-400 uppercase">Comuna Impactada</p>
                                 <p className="text-xs font-bold text-slate-700 uppercase">{report.nombre_comuna || 'General'}</p>
                             </div>
+                            {report.comunidades_beneficiadas && (
+                                <div className="pt-2 border-t border-slate-100 mt-2">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase">Comunidades Beneficiadas</p>
+                                    <p className="text-xs font-bold text-slate-700 uppercase">{report.comunidades_beneficiadas}</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -325,7 +332,7 @@ export default function ReportView() {
                         <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                             <div className="flex items-center gap-2 mb-4">
                                 <User size={16} className="text-blue-600" />
-                                <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-800">Ente Responsable</h3>
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-800">Persona Responsable / Ente</h3>
                             </div>
                             <p className="text-[11px] font-bold text-slate-800 uppercase mb-1">{report.datos_formulario?.responsables?.actividad?.nombre || 'No Registrado'}</p>
                             <p className="text-[9px] text-slate-500 font-medium">C.I: {report.datos_formulario?.responsables?.actividad?.cedula || 'N/A'}</p>

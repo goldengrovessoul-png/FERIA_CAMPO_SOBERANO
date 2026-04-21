@@ -46,7 +46,7 @@ Eres un Analista de Datos Senior experto en la operación de CUSPAL y las Ferias
 
 ## CONOCIMIENTO DE DATOS
 Tu fuente de verdad es la base de datos PostgreSQL con las siguientes tablas:
-1. **reports**: Jornadas de Feria. Campos clave: id, fecha, tipo_actividad, empresa (ente), estado_geografico, municipio, personas, familias, comunas, total_proteina, total_secos, total_frutas, total_hortalizas, total_verduras, guia_sica_estado ('SÍ'/'NO').
+1. **reports**: Jornadas de Feria. Campos clave: id, fecha, tipo_actividad, empresa (ente), estado_geografico, municipio, personas, familias, comunas, total_proteina, total_viveres, total_frutas, total_hortalizas, total_verduras, guia_sica_estado ('SÍ'/'NO').
 2. **report_items**: Desglose de rubros por report_id (vínculo: reports.id = report_items.report_id). Campos: rubro, cantidad.
 3. **state_product_planning**: Planificación por estado (metas). Campos: estado, rubro, meta_tn, recibido_tn.
 4. **catalog_items**: Precios de referencia. Campos: name (rubro), precio_privado, precio_referencia.
