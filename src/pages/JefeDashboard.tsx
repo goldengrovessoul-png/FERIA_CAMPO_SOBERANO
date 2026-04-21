@@ -1,15 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import {
     BarChart3, Users, LogOut, Search,
     TrendingUp, Package,
     Activity, RefreshCw, Home,
     ChevronDown, Award, Building2, Eraser, Star, AlertTriangle, Percent, ArrowDownRight,
-    Leaf, UserPlus, Wallet, PieChart as PieChartIcon
+    Leaf, UserPlus, Wallet, PieChart as PieChartIcon, Truck, MapPin
 } from 'lucide-react';
 
 import { useAuth } from '../lib/AuthContext';
+import { BODEGAS_POR_ESTADO } from '../lib/bodegasMoviles';
 import TerritorialMap from '../components/dashboard/TerritorialMap';
 import KpiSection from '../components/dashboard/KpiSection';
 import AnalyticsCharts from '../components/dashboard/AnalyticsCharts';
@@ -112,8 +113,61 @@ export default function JefeDashboard() {
     const [selectedProteinState, setSelectedProteinState] = useState<string | null>(null);
     const [isProduceDrillDownOpen, setIsProduceDrillDownOpen] = useState(false);
     const [selectedProduceState, setSelectedProduceState] = useState<string | null>(null);
-    const [isFruitDrawerOpen, setIsFruitDrawerOpen] = useState(false);
     const [selectedFruitState, setSelectedFruitState] = useState<string | null>(null);
+
+    // ANALISIS DE BODEGAS MÓVILES (66 Bodegas Totales)
+    const bodegasAnalytics = useMemo(() => {
+        const allBodegas: any[] = [];
+        Object.entries(BODEGAS_POR_ESTADO).forEach(([estado, bodegas]) => {
+            bodegas.forEach(bodega => {
+                allBodegas.push({ estado, nombre: bodega, activa: false, total_jornadas: 0, familias: 0, tn: 0 });
+            });
+        });
+
+        const bodegasStats = [...allBodegas];
+
+        filteredReports.forEach((r: any) => {
+            if (r.tipo_actividad === 'Bodega Móvil' && r.bodega_movil_nombre) {
+                const targetBodega = bodegasStats.find(b => 
+                    b.estado.toUpperCase() === r.estado_geografico?.toUpperCase() && 
+                    b.nombre.toUpperCase() === r.bodega_movil_nombre?.toUpperCase()
+                );
+                if (targetBodega) {
+                    targetBodega.activa = true;
+                    targetBodega.total_jornadas += 1;
+                    targetBodega.familias += Number(r.familias || 0);
+                    targetBodega.tn += (Number(r.total_proteina || 0) + Number(r.total_frutas || 0) + Number(r.total_hortalizas || 0) + Number(r.total_verduras || 0)) / 1000;
+                }
+            }
+        });
+
+        const activeCount = bodegasStats.filter(b => b.activa).length;
+        const inactiveCount = bodegasStats.length - activeCount;
+        const totalCount = bodegasStats.length;
+
+        const byState = Object.keys(BODEGAS_POR_ESTADO).map(estado => {
+            const stateBodegas = bodegasStats.filter(b => b.estado === estado);
+            const stActive = stateBodegas.filter(b => b.activa).length;
+            const stInactive = stateBodegas.length - stActive;
+            const stTotal = stateBodegas.length;
+            return {
+                estado,
+                activas: stActive,
+                inactivas: stInactive,
+                total: stTotal,
+                bodegas: stateBodegas
+            };
+        }).sort((a, b) => b.total - a.total);
+
+        return {
+            total: totalCount,
+            activas: activeCount,
+            inactivas: inactiveCount,
+            porcentajeActivas: totalCount > 0 ? (activeCount / totalCount) * 100 : 0,
+            byState,
+            bodegasStats
+        };
+    }, [filteredReports]);
 
     return (
         <div className="min-h-screen bg-[#F2F2F7] text-slate-900 font-sans relative">
@@ -1549,6 +1603,137 @@ export default function JefeDashboard() {
                                 </table>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                {/* ── SECCIÓN: ANALÍTICA DE BODEGAS MÓVILES (66 UNIDADES) ── */}
+                <div className="mt-12 bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 mb-12 overflow-hidden">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-blue-50 text-[#007AFF] rounded-2xl flex items-center justify-center shadow-inner">
+                                <Truck size={28} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black uppercase text-slate-900 tracking-tighter">Despliegue de Bodegas Móviles</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Estado Operacional Nacional (Unidades Activas vs Inactivas)</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-6">
+                            <div className="bg-slate-50 px-6 py-4 rounded-[2rem] border border-slate-100">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Catálogo Oficial</p>
+                                <div className="text-2xl font-black text-slate-900 leading-none">
+                                    {bodegasAnalytics.total} <span className="text-xs font-bold text-slate-400 uppercase">Unidades</span>
+                                </div>
+                            </div>
+                            <div className="bg-emerald-50 px-6 py-4 rounded-[2rem] border border-emerald-100 shadow-sm">
+                                <p className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest mb-1 text-center">Operatividad</p>
+                                <p className="text-2xl font-black text-emerald-700 text-center tracking-tighter">
+                                    {bodegasAnalytics.porcentajeActivas.toFixed(1)}<span className="text-sm opacity-50 ml-1">%</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                        {/* Resumen General */}
+                        <div className="col-span-1 md:col-span-2 flex items-center p-6 bg-slate-900 rounded-[2rem] shadow-lg relative overflow-hidden">
+                            <div className="absolute right-0 top-0 h-full w-40 bg-gradient-to-l from-[#007AFF]/20 to-transparent pointer-events-none"></div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                                    <span className="text-[11px] font-black text-emerald-400 uppercase tracking-widest">En Operación (Reportes)</span>
+                                </div>
+                                <div className="text-5xl font-black text-white tracking-tighter">{bodegasAnalytics.activas}</div>
+                            </div>
+                            <div className="w-px h-16 bg-slate-700 mx-6"></div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-3 h-3 rounded-full bg-slate-500"></div>
+                                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Inactivas / Sin Reporte</span>
+                                </div>
+                                <div className="text-5xl font-black text-slate-300 tracking-tighter">{bodegasAnalytics.inactivas}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Tabla de bodegas por estado */}
+                    <div className="overflow-x-auto rounded-[2rem] border border-slate-100">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="bg-slate-50">
+                                    <th className="py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-200">Entidad / Bodega</th>
+                                    <th className="py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-b border-slate-200">Estatus Operativo</th>
+                                    <th className="py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-b border-slate-200">Jornadas</th>
+                                    <th className="py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-b border-slate-200 w-32">Distribución</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {bodegasAnalytics.byState.map((stateData, sIdx) => {
+                                    if (stateData.total === 0) return null;
+                                    return (
+                                        <Fragment key={sIdx}>
+                                            <tr className="bg-white">
+                                                <td colSpan={4} className="py-4 px-6 bg-slate-50/50">
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="flex items-center gap-3">
+                                                            <MapPin size={16} className="text-[#007AFF]" />
+                                                            <span className="font-black text-slate-900 uppercase text-xs tracking-widest">{stateData.estado}</span>
+                                                            <span className="text-[10px] font-bold text-slate-500 py-0.5 px-2 bg-white border border-slate-200 rounded-lg">
+                                                                {stateData.total} Bodegas
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex gap-2 lg:gap-4 flex-col lg:flex-row items-end lg:items-center">
+                                                            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-1 rounded-lg">
+                                                                {stateData.activas} Activas
+                                                            </span>
+                                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-white border border-slate-200 px-2 py-1 rounded-lg">
+                                                                {stateData.inactivas} Inactivas
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {stateData.bodegas.map((bodega, bIdx) => (
+                                                <tr key={bIdx} className="hover:bg-slate-50/50 transition-colors bg-white">
+                                                    <td className="py-4 px-8 border-l-[3px] border-transparent hover:border-slate-300">
+                                                        <span className="text-xs font-bold text-slate-700">{bodega.nombre}</span>
+                                                    </td>
+                                                    <td className="py-4 px-6 text-center">
+                                                        {bodega.activa ? (
+                                                            <div className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-xl font-black text-[9px] uppercase tracking-widest">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                                                Operativa
+                                                            </div>
+                                                        ) : (
+                                                            <div className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-500 rounded-xl font-black text-[9px] uppercase tracking-widest">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
+                                                                Inactiva
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-4 px-6 text-center">
+                                                        <span className={`text-sm font-black ${bodega.activa ? 'text-slate-900' : 'text-slate-300'}`}>
+                                                            {bodega.total_jornadas > 0 ? bodega.total_jornadas : '-'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-4 px-6 text-center">
+                                                        {bodega.activa ? (
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="text-[11px] font-black text-slate-800">{bodega.tn > 0 ? bodega.tn.toFixed(1) + ' TN' : '-'}</span>
+                                                                <span className="text-[9px] font-bold text-slate-400 capitalize">{bodega.familias > 0 ? bodega.familias.toLocaleString('es-VE') + ' Fam.' : ''}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-sm font-black text-slate-300">-</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </Fragment>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
