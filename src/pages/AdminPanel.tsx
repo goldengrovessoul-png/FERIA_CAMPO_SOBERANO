@@ -12,7 +12,6 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import ChatBox from '../components/chat/ChatBox';
 import { ChatService } from '../services/ChatService';
-import AdminPlanningView from '../components/AdminPlanningView';
 import { BodegaService, type BodegaMovil } from '../services/BodegaService';
 import { AdminService } from '../services/AdminService';
 
@@ -153,7 +152,7 @@ export default function AdminPanel() {
         } else if (view === 'planners') {
             fetchProfiles(); // Reutilizamos para filtrar planificadores
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [view, catalogType]);
 
     // Suscripción a notificaciones de nuevos mensajes
@@ -517,7 +516,8 @@ export default function AdminPanel() {
             if (error) throw error;
             fetchCustomFields();
         } catch (e) {
-            console.error(e); alert('Error al eliminar campo.'); }
+            console.error(e); alert('Error al eliminar campo.');
+        }
     }
 
     // --- FUNCIONES DE VULNERABILIDAD ---
@@ -1668,314 +1668,314 @@ export default function AdminPanel() {
                         </div>
                     )}
 
-    {/* VISTA: BODEGAS MÓVILES */}
-    {view === 'bodegas' && (
-        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-700">
-            {/* Formulario de Alta */}
-            <div className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/40 border border-slate-50 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-40 h-40 bg-blue-50/30 rounded-bl-[6rem] -mr-20 -mt-20"></div>
-                <div className="flex items-center gap-5 mb-10">
-                    <div className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
-                        <Plus size={28} />
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{editingBodegaId ? 'Editar Bodega Móvil' : 'Nueva Bodega Móvil'}</h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{editingBodegaId ? 'Modificar datos de la unidad' : 'Registrar nueva unidad de despliegue'}</p>
-                    </div>
-                </div>
+                    {/* VISTA: BODEGAS MÓVILES */}
+                    {view === 'bodegas' && (
+                        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                            {/* Formulario de Alta */}
+                            <div className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/40 border border-slate-50 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-40 h-40 bg-blue-50/30 rounded-bl-[6rem] -mr-20 -mt-20"></div>
+                                <div className="flex items-center gap-5 mb-10">
+                                    <div className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
+                                        <Plus size={28} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{editingBodegaId ? 'Editar Bodega Móvil' : 'Nueva Bodega Móvil'}</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{editingBodegaId ? 'Modificar datos de la unidad' : 'Registrar nueva unidad de despliegue'}</p>
+                                    </div>
+                                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-end">
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado / Entidad Federal</label>
-                        <select
-                            value={newBodega.estado}
-                            onChange={(e) => setNewBodega({ ...newBodega, estado: e.target.value })}
-                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all appearance-none uppercase"
-                        >
-                            <option value="">SELECCIONAR ESTADO</option>
-                            {['AMAZONAS', 'ANZOATEGUI', 'APURE', 'ARAGUA', 'BARINAS', 'BOLIVAR', 'CARABOBO', 'COJEDES', 'DELTA AMACURO', 'DISTRITO CAPITAL', 'FALCON', 'GUARICO', 'LARA', 'LA GUAIRA', 'MERIDA', 'MIRANDA', 'MONAGAS', 'NUEVA ESPARTA', 'PETARE', 'PORTUGUESA', 'SUCRE', 'TACHIRA', 'TRUJILLO', 'YARACUY', 'ZULIA'].map(e => <option key={e} value={e}>{e}</option>)}
-                        </select>
-                    </div>
-                    <div className="space-y-3 lg:col-span-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre de la Bodega</label>
-                        <input
-                            value={newBodega.nombre}
-                            onChange={(e) => setNewBodega({ ...newBodega, nombre: e.target.value })}
-                            placeholder="Ej. PDVAL DISTRITO CAPITAL..."
-                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all uppercase"
-                        />
-                    </div>
-                    <div className="flex flex-col gap-3">
-                        <button
-                            onClick={handleAddBodega}
-                            disabled={loadingBodegas}
-                            className="w-full py-4 bg-[#007AFF] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-600 shadow-xl shadow-blue-500/20 active:scale-95 transition-all disabled:opacity-50"
-                        >
-                            {loadingBodegas ? 'Procesando...' : (editingBodegaId ? 'Actualizar Bodega' : 'Registrar Bodega')}
-                        </button>
-                        {editingBodegaId && (
-                            <button
-                                onClick={() => {
-                                    setEditingBodegaId(null);
-                                    setNewBodega({ estado: '', nombre: '' });
-                                }}
-                                className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 active:scale-95 transition-all"
-                            >
-                                Cancelar Edición
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Listado de Bodegas */}
-            <div className="bg-white rounded-[3rem] shadow-xl shadow-slate-200/30 border border-slate-50 overflow-hidden">
-                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
-                    <div>
-                        <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg">Bodegas Registradas</h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Inventario actual del sistema ({bodegas.length})</p>
-                    </div>
-                    <button onClick={fetchBodegas} className="p-3 bg-white text-slate-400 hover:text-blue-600 rounded-xl border border-slate-100 shadow-sm transition-all">
-                        <RefreshCw size={18} className={loadingBodegas ? 'animate-spin' : ''} />
-                    </button>
-                </div>
-                
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="bg-slate-50/50">
-                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Estado</th>
-                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Nombre de Bodega</th>
-                                <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {bodegas.length === 0 ? (
-                                <tr>
-                                    <td colSpan={3} className="px-8 py-20 text-center">
-                                        <div className="flex flex-col items-center gap-4 opacity-30">
-                                            <Truck size={48} className="text-slate-400" />
-                                            <p className="font-black uppercase text-xs tracking-widest text-slate-500">No hay bodegas registradas</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : (
-                                bodegas.map((b) => (
-                                    <tr key={b.id} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-8 py-5">
-                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 text-[9px] font-black rounded-lg uppercase tracking-widest border border-slate-200">
-                                                {b.estado}
-                                            </span>
-                                        </td>
-                                        <td className="px-8 py-5">
-                                            <span className="text-sm font-black text-slate-900 uppercase">{b.nombre}</span>
-                                        </td>
-                                        <td className="px-8 py-5 text-right flex justify-end gap-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-end">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado / Entidad Federal</label>
+                                        <select
+                                            value={newBodega.estado}
+                                            onChange={(e) => setNewBodega({ ...newBodega, estado: e.target.value })}
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all appearance-none uppercase"
+                                        >
+                                            <option value="">SELECCIONAR ESTADO</option>
+                                            {['AMAZONAS', 'ANZOATEGUI', 'APURE', 'ARAGUA', 'BARINAS', 'BOLIVAR', 'CARABOBO', 'COJEDES', 'DELTA AMACURO', 'DISTRITO CAPITAL', 'FALCON', 'GUARICO', 'LARA', 'LA GUAIRA', 'MERIDA', 'MIRANDA', 'MONAGAS', 'NUEVA ESPARTA', 'PETARE', 'PORTUGUESA', 'SUCRE', 'TACHIRA', 'TRUJILLO', 'YARACUY', 'ZULIA'].map(e => <option key={e} value={e}>{e}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-3 lg:col-span-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre de la Bodega</label>
+                                        <input
+                                            value={newBodega.nombre}
+                                            onChange={(e) => setNewBodega({ ...newBodega, nombre: e.target.value })}
+                                            placeholder="Ej. PDVAL DISTRITO CAPITAL..."
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all uppercase"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-3">
+                                        <button
+                                            onClick={handleAddBodega}
+                                            disabled={loadingBodegas}
+                                            className="w-full py-4 bg-[#007AFF] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-600 shadow-xl shadow-blue-500/20 active:scale-95 transition-all disabled:opacity-50"
+                                        >
+                                            {loadingBodegas ? 'Procesando...' : (editingBodegaId ? 'Actualizar Bodega' : 'Registrar Bodega')}
+                                        </button>
+                                        {editingBodegaId && (
                                             <button
-                                                onClick={() => handleEditBodega(b)}
-                                                className="p-3 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                                                title="Editar Bodega"
+                                                onClick={() => {
+                                                    setEditingBodegaId(null);
+                                                    setNewBodega({ estado: '', nombre: '' });
+                                                }}
+                                                className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 active:scale-95 transition-all"
                                             >
-                                                <Pencil size={18} />
+                                                Cancelar Edición
                                             </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Listado de Bodegas */}
+                            <div className="bg-white rounded-[3rem] shadow-xl shadow-slate-200/30 border border-slate-50 overflow-hidden">
+                                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
+                                    <div>
+                                        <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg">Bodegas Registradas</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Inventario actual del sistema ({bodegas.length})</p>
+                                    </div>
+                                    <button onClick={fetchBodegas} className="p-3 bg-white text-slate-400 hover:text-blue-600 rounded-xl border border-slate-100 shadow-sm transition-all">
+                                        <RefreshCw size={18} className={loadingBodegas ? 'animate-spin' : ''} />
+                                    </button>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-slate-50/50">
+                                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Estado</th>
+                                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Nombre de Bodega</th>
+                                                <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {bodegas.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={3} className="px-8 py-20 text-center">
+                                                        <div className="flex flex-col items-center gap-4 opacity-30">
+                                                            <Truck size={48} className="text-slate-400" />
+                                                            <p className="font-black uppercase text-xs tracking-widest text-slate-500">No hay bodegas registradas</p>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                bodegas.map((b) => (
+                                                    <tr key={b.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                        <td className="px-8 py-5">
+                                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 text-[9px] font-black rounded-lg uppercase tracking-widest border border-slate-200">
+                                                                {b.estado}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-8 py-5">
+                                                            <span className="text-sm font-black text-slate-900 uppercase">{b.nombre}</span>
+                                                        </td>
+                                                        <td className="px-8 py-5 text-right flex justify-end gap-2">
+                                                            <button
+                                                                onClick={() => handleEditBodega(b)}
+                                                                className="p-3 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                                                                title="Editar Bodega"
+                                                            >
+                                                                <Pencil size={18} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteBodega(b.id)}
+                                                                className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                                                title="Eliminar Bodega"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VISTA: PLANIFICADORES */}
+                    {view === 'planners' && (
+                        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                            {/* Formulario de Alta de Planificador */}
+                            <div className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/40 border border-slate-50 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-40 h-40 bg-blue-50/30 rounded-bl-[6rem] -mr-20 -mt-20"></div>
+                                <div className="flex items-center gap-5 mb-10">
+                                    <div className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
+                                        {editingPlannerId ? <RefreshCw size={28} /> : <Plus size={28} />}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                                            {editingPlannerId ? 'Editar Planificador' : 'Nuevo Planificador'}
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                            {editingPlannerId ? 'Modificar datos de la cuenta' : 'Registrar nueva cuenta de gestión estatal'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-end">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre</label>
+                                        <input
+                                            value={newPlanner.nombre}
+                                            onChange={(e) => setNewPlanner({ ...newPlanner, nombre: e.target.value })}
+                                            placeholder="Nombre"
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all uppercase"
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Apellido</label>
+                                        <input
+                                            value={newPlanner.apellido}
+                                            onChange={(e) => setNewPlanner({ ...newPlanner, apellido: e.target.value })}
+                                            placeholder="Apellido"
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all uppercase"
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cédula</label>
+                                        <input
+                                            value={newPlanner.cedula}
+                                            onChange={(e) => setNewPlanner({ ...newPlanner, cedula: e.target.value })}
+                                            placeholder="Cédula"
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
+                                        <input
+                                            value={newPlanner.telefono}
+                                            onChange={(e) => setNewPlanner({ ...newPlanner, telefono: e.target.value })}
+                                            placeholder="Opcional"
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                            {editingPlannerId ? 'Pin (dejar vacío para no cambiar)' : 'Pin (6 dígitos)'}
+                                        </label>
+                                        <input
+                                            type="password"
+                                            maxLength={6}
+                                            value={newPlanner.pin}
+                                            onChange={(e) => setNewPlanner({ ...newPlanner, pin: e.target.value.replace(/\D/g, '') })}
+                                            placeholder="••••••"
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado Asignado</label>
+                                        <select
+                                            value={newPlanner.estado}
+                                            onChange={(e) => setNewPlanner({ ...newPlanner, estado: e.target.value })}
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all appearance-none uppercase"
+                                        >
+                                            <option value="">SELECCIONAR ESTADO</option>
+                                            {['AMAZONAS', 'ANZOATEGUI', 'APURE', 'ARAGUA', 'BARINAS', 'BOLIVAR', 'CARABOBO', 'COJEDES', 'DELTA AMACURO', 'DISTRITO CAPITAL', 'FALCON', 'GUARICO', 'LARA', 'LA GUAIRA', 'MERIDA', 'MIRANDA', 'MONAGAS', 'NUEVA ESPARTA', 'PETARE', 'PORTUGUESA', 'SUCRE', 'TACHIRA', 'TRUJILLO', 'YARACUY', 'ZULIA'].map(e => <option key={e} value={e}>{e}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="lg:col-span-3 flex gap-4">
+                                        <button
+                                            onClick={editingPlannerId ? handleUpdatePlanner : handleAddPlanner}
+                                            disabled={creatingPlanner}
+                                            className={`flex-1 py-4 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl active:scale-95 transition-all disabled:opacity-50 ${editingPlannerId ? 'bg-amber-500 shadow-amber-500/20 hover:bg-amber-600' : 'bg-[#007AFF] shadow-blue-500/20 hover:bg-blue-600'}`}
+                                        >
+                                            {creatingPlanner ? (editingPlannerId ? 'Actualizando...' : 'Creando Usuario...') : (editingPlannerId ? 'Actualizar Planificador' : 'Registrar Planificador')}
+                                        </button>
+                                        {editingPlannerId && (
                                             <button
-                                                onClick={() => handleDeleteBodega(b.id)}
-                                                className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                                                title="Eliminar Bodega"
+                                                onClick={() => {
+                                                    setEditingPlannerId(null);
+                                                    setNewPlanner({ nombre: '', apellido: '', cedula: '', telefono: '', pin: '', estado: '' });
+                                                }}
+                                                className="px-10 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all"
                                             >
-                                                <Trash2 size={18} />
+                                                Cancelar
                                             </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    )}
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
 
-    {/* VISTA: PLANIFICADORES */}
-    {view === 'planners' && (
-        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-700">
-            {/* Formulario de Alta de Planificador */}
-            <div className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/40 border border-slate-50 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-40 h-40 bg-blue-50/30 rounded-bl-[6rem] -mr-20 -mt-20"></div>
-                <div className="flex items-center gap-5 mb-10">
-                    <div className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
-                        {editingPlannerId ? <RefreshCw size={28} /> : <Plus size={28} />}
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">
-                            {editingPlannerId ? 'Editar Planificador' : 'Nuevo Planificador'}
-                        </h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                            {editingPlannerId ? 'Modificar datos de la cuenta' : 'Registrar nueva cuenta de gestión estatal'}
-                        </p>
-                    </div>
-                </div>
+                            {/* Listado de Planificadores */}
+                            <div className="bg-white rounded-[3rem] shadow-xl shadow-slate-200/30 border border-slate-50 overflow-hidden">
+                                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
+                                    <div>
+                                        <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg">Planificadores Activos</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Cuentas con acceso a planificación estatal</p>
+                                    </div>
+                                    <button onClick={fetchProfiles} className="p-3 bg-white text-slate-400 hover:text-blue-600 rounded-xl border border-slate-100 shadow-sm transition-all">
+                                        <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                                    </button>
+                                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-end">
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre</label>
-                        <input
-                            value={newPlanner.nombre}
-                            onChange={(e) => setNewPlanner({ ...newPlanner, nombre: e.target.value })}
-                            placeholder="Nombre"
-                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all uppercase"
-                        />
-                    </div>
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Apellido</label>
-                        <input
-                            value={newPlanner.apellido}
-                            onChange={(e) => setNewPlanner({ ...newPlanner, apellido: e.target.value })}
-                            placeholder="Apellido"
-                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all uppercase"
-                        />
-                    </div>
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cédula</label>
-                        <input
-                            value={newPlanner.cedula}
-                            onChange={(e) => setNewPlanner({ ...newPlanner, cedula: e.target.value })}
-                            placeholder="Cédula"
-                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all"
-                        />
-                    </div>
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
-                        <input
-                            value={newPlanner.telefono}
-                            onChange={(e) => setNewPlanner({ ...newPlanner, telefono: e.target.value })}
-                            placeholder="Opcional"
-                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all"
-                        />
-                    </div>
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                            {editingPlannerId ? 'Pin (dejar vacío para no cambiar)' : 'Pin (6 dígitos)'}
-                        </label>
-                        <input
-                            type="password"
-                            maxLength={6}
-                            value={newPlanner.pin}
-                            onChange={(e) => setNewPlanner({ ...newPlanner, pin: e.target.value.replace(/\D/g, '') })}
-                            placeholder="••••••"
-                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all"
-                        />
-                    </div>
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado Asignado</label>
-                        <select
-                            value={newPlanner.estado}
-                            onChange={(e) => setNewPlanner({ ...newPlanner, estado: e.target.value })}
-                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all appearance-none uppercase"
-                        >
-                            <option value="">SELECCIONAR ESTADO</option>
-                            {['AMAZONAS', 'ANZOATEGUI', 'APURE', 'ARAGUA', 'BARINAS', 'BOLIVAR', 'CARABOBO', 'COJEDES', 'DELTA AMACURO', 'DISTRITO CAPITAL', 'FALCON', 'GUARICO', 'LARA', 'LA GUAIRA', 'MERIDA', 'MIRANDA', 'MONAGAS', 'NUEVA ESPARTA', 'PETARE', 'PORTUGUESA', 'SUCRE', 'TACHIRA', 'TRUJILLO', 'YARACUY', 'ZULIA'].map(e => <option key={e} value={e}>{e}</option>)}
-                        </select>
-                    </div>
-                    <div className="lg:col-span-3 flex gap-4">
-                        <button
-                            onClick={editingPlannerId ? handleUpdatePlanner : handleAddPlanner}
-                            disabled={creatingPlanner}
-                            className={`flex-1 py-4 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl active:scale-95 transition-all disabled:opacity-50 ${editingPlannerId ? 'bg-amber-500 shadow-amber-500/20 hover:bg-amber-600' : 'bg-[#007AFF] shadow-blue-500/20 hover:bg-blue-600'}`}
-                        >
-                            {creatingPlanner ? (editingPlannerId ? 'Actualizando...' : 'Creando Usuario...') : (editingPlannerId ? 'Actualizar Planificador' : 'Registrar Planificador')}
-                        </button>
-                        {editingPlannerId && (
-                            <button
-                                onClick={() => {
-                                    setEditingPlannerId(null);
-                                    setNewPlanner({ nombre: '', apellido: '', cedula: '', telefono: '', pin: '', estado: '' });
-                                }}
-                                className="px-10 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all"
-                            >
-                                Cancelar
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Listado de Planificadores */}
-            <div className="bg-white rounded-[3rem] shadow-xl shadow-slate-200/30 border border-slate-50 overflow-hidden">
-                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
-                    <div>
-                        <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg">Planificadores Activos</h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Cuentas con acceso a planificación estatal</p>
-                    </div>
-                    <button onClick={fetchProfiles} className="p-3 bg-white text-slate-400 hover:text-blue-600 rounded-xl border border-slate-100 shadow-sm transition-all">
-                        <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-                    </button>
-                </div>
-                
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="bg-slate-50/50">
-                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Nombre / Cédula</th>
-                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Estado Asignado</th>
-                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Teléfono</th>
-                                <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {profiles.filter(p => p.rol === 'PLANIFICADOR').length === 0 ? (
-                                <tr>
-                                    <td colSpan={4} className="px-8 py-20 text-center">
-                                        <div className="flex flex-col items-center gap-4 opacity-30">
-                                            <Briefcase size={48} className="text-slate-400" />
-                                            <p className="font-black uppercase text-xs tracking-widest text-slate-500">No hay planificadores registrados</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : (
-                                profiles.filter(p => p.rol === 'PLANIFICADOR').map((p) => (
-                                    <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-8 py-5">
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-black text-slate-900 uppercase">{p.nombre} {p.apellido}</span>
-                                                <span className="text-[10px] font-bold text-slate-400">{p.cedula}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-5">
-                                            <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[9px] font-black rounded-lg uppercase tracking-widest border border-blue-100">
-                                                {p.estado}
-                                            </span>
-                                        </td>
-                                        <td className="px-8 py-5">
-                                            <span className="text-xs font-bold text-slate-500">{p.telefono || 'N/A'}</span>
-                                        </td>
-                                        <td className="px-8 py-5 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <button
-                                                    onClick={() => handleEditPlanner(p)}
-                                                    className="p-3 text-slate-300 hover:text-amber-500 hover:bg-amber-50 rounded-xl transition-all"
-                                                    title="Editar Planificador"
-                                                >
-                                                    <Pencil size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeletePlanner(p.id)}
-                                                    className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                                                    title="Eliminar Planificador"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    )}
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-slate-50/50">
+                                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Nombre / Cédula</th>
+                                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Estado Asignado</th>
+                                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Teléfono</th>
+                                                <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {profiles.filter(p => p.rol === 'PLANIFICADOR').length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={4} className="px-8 py-20 text-center">
+                                                        <div className="flex flex-col items-center gap-4 opacity-30">
+                                                            <Briefcase size={48} className="text-slate-400" />
+                                                            <p className="font-black uppercase text-xs tracking-widest text-slate-500">No hay planificadores registrados</p>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                profiles.filter(p => p.rol === 'PLANIFICADOR').map((p) => (
+                                                    <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                        <td className="px-8 py-5">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-black text-slate-900 uppercase">{p.nombre} {p.apellido}</span>
+                                                                <span className="text-[10px] font-bold text-slate-400">{p.cedula}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-5">
+                                                            <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[9px] font-black rounded-lg uppercase tracking-widest border border-blue-100">
+                                                                {p.estado}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-8 py-5">
+                                                            <span className="text-xs font-bold text-slate-500">{p.telefono || 'N/A'}</span>
+                                                        </td>
+                                                        <td className="px-8 py-5 text-right">
+                                                            <div className="flex justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => handleEditPlanner(p)}
+                                                                    className="p-3 text-slate-300 hover:text-amber-500 hover:bg-amber-50 rounded-xl transition-all"
+                                                                    title="Editar Planificador"
+                                                                >
+                                                                    <Pencil size={18} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeletePlanner(p.id)}
+                                                                    className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                                                    title="Eliminar Planificador"
+                                                                >
+                                                                    <Trash2 size={18} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
 

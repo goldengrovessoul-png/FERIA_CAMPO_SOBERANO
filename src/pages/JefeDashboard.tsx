@@ -24,7 +24,6 @@ import ProteinSustainabilityDrawer from '../components/dashboard/ProteinSustaina
 import ProduceSustainabilityDrawer from '../components/dashboard/ProduceSustainabilityDrawer';
 import FruitSustainabilityDrawer from '../components/dashboard/FruitSustainabilityDrawer';
 
-import JefePlanningTable from '../components/JefePlanningTable';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     LineChart, Line, PieChart, Pie, Cell, Legend, LabelList, ReferenceLine
@@ -74,6 +73,130 @@ const MONO_BLUE = [
 
 // ChartGradients component is removed as per instruction to inline defs
 
+// --- SUB-COMPONENTES PARA ORGANIZACIÓN MODULAR ---
+
+const ParetoChart = ({ data, title, color, dataKey = "value", height = 300, onClick }: any) => (
+    <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 flex flex-col h-full">
+        <div className="flex items-center justify-between mb-8">
+            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{title}</h4>
+            <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded-lg">TOP 15</span>
+            </div>
+        </div>
+        <div style={{ height: `${height}px` }} className="w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data} layout="vertical" margin={{ left: 10, right: 40 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                    <XAxis type="number" hide />
+                    <YAxis 
+                        dataKey="name" 
+                        type="category" 
+                        width={120} 
+                        tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} 
+                        axisLine={false} 
+                        tickLine={false} 
+                    />
+                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                    <Bar dataKey={dataKey} fill={color} radius={[0, 10, 10, 0]} barSize={12} onClick={onClick} className="cursor-pointer">
+                        <LabelList 
+                            dataKey={dataKey} 
+                            position="right" 
+                            style={{ fontSize: 9, fontWeight: 900, fill: color }}
+                            formatter={(v: any) => v > 0 ? (dataKey === 'value' ? v : Math.round(v).toLocaleString()) : ''}
+                        />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        </div>
+    </div>
+);
+
+const SicaMetricsSection = ({ sicaData }: any) => (
+    <div className="mt-8 bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col">
+        <div className="text-center mb-10">
+            <h2 className="lg:text-xl text-lg font-black uppercase text-slate-900 tracking-tighter">Seguimiento Operativo SICA</h2>
+            <p className="md:text-sm text-xs font-bold text-slate-500 mt-2">¿Presentó la Guía de Movilización de Alimentos del SICA?</p>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            <div className="flex flex-col items-center justify-center relative min-h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Pie
+                            data={[{ name: 'Sí', value: sicaData.totalSi }, { name: 'No', value: sicaData.totalNo }].filter(i => i.value > 0)}
+                            cx="50%" cy="50%" innerRadius={110} outerRadius={180} dataKey="value" stroke="white" strokeWidth={6}
+                            label={({ cx, cy, midAngle = 0, innerRadius, outerRadius, value, name, percent = 0 }) => {
+                                const RADIAN = Math.PI / 180;
+                                const radius = innerRadius + (outerRadius - innerRadius) * 1.5;
+                                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                                return (
+                                    <text x={x} y={y} fill={name === 'Sí' ? '#22c55e' : '#ef4444'} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="font-sans font-black">
+                                        <tspan x={x} dy="-10" fontSize="16">{name}</tspan>
+                                        <tspan x={x} dy="20" fontSize="16">{value}</tspan>
+                                        <tspan x={x} dy="20" fontSize="14" fill="#64748b" fontWeight="normal">{(percent * 100).toFixed(0)}%</tspan>
+                                    </text>
+                                );
+                            }}
+                        >
+                            <Cell fill="#22c55e" />
+                            <Cell fill="#ef4444" />
+                        </Pie>
+                        <Tooltip contentStyle={{ borderRadius: '20px', border: 'none' }} />
+                    </PieChart>
+                </ResponsiveContainer>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white">
+                <table className="w-full text-left text-[11px] lg:text-sm">
+                    <thead>
+                        <tr className="uppercase font-black text-slate-900 border-b border-slate-200">
+                            <th className="px-3 py-2 bg-slate-100 border-r border-slate-300">Estado</th>
+                            <th className="px-3 py-2 bg-[#22c55e] text-white text-center">Sí</th>
+                            <th className="px-3 py-2 bg-[#ef4444] text-white text-center">No</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sicaData.stateRows.map((row: any, idx: number) => (
+                            <tr key={idx} className="border-b border-slate-100 font-semibold text-slate-700">
+                                <td className="px-3 py-1.5 border-r border-slate-200">{row.entidad}</td>
+                                <td className="px-3 py-1.5 border-r border-slate-200 text-center">{row.si || ''}</td>
+                                <td className="px-3 py-1.5 text-center">{row.no || ''}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+);
+
+const RatingSection = ({ ratingData }: any) => (
+    <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100">
+        <div className="flex items-center gap-4 mb-8">
+            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shadow-inner"><Star size={24} fill="currentColor" /></div>
+            <div>
+                <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Valoración de Rubros (1-5)</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Distribución de calificaciones reportadas</p>
+            </div>
+        </div>
+        <div className="h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={ratingData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
+                    <XAxis dataKey="star" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 900, fill: '#64748b' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
+                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '24px', border: 'none' }} />
+                    <Bar dataKey="value" radius={[12, 12, 0, 0]} barSize={80}>
+                        {ratingData.map((entry: any, index: number) => (
+                            <Cell key={`cell-${index}`} fill={entry.rating <= 2 ? '#ef4444' : entry.rating === 3 ? '#f59e0b' : '#22c55e'} />
+                        ))}
+                        <LabelList dataKey="value" position="top" style={{ fontSize: 14, fontWeight: 900, fill: '#475569' }} />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        </div>
+    </div>
+);
+
 export default function JefeDashboard() {
     const navigate = useNavigate();
     const { session, loading: authLoading } = useAuth();
@@ -104,6 +227,30 @@ export default function JefeDashboard() {
     const [selectedFoodCategory, setSelectedFoodCategory] = useState<string | null>(null);
     const [selectedAuditItem, setSelectedAuditItem] = useState<{ key: string; label: string } | null>(null);
     const [isAuditDrillDownOpen, setIsAuditDrillDownOpen] = useState(false);
+    
+    // --- ESTADO DE NAVEGACIÓN DUAL ---
+    const [activeTab, setActiveTab] = useState<'ESTRATEGICA' | 'OPERATIVA'>('ESTRATEGICA');
+
+    // --- ANÁLISIS DE PARETO (TOP 15) ---
+    const paretoAnalysis = useMemo(() => {
+        const getTop15 = (data: any[]) => {
+            const sorted = [...data].sort((a, b) => b.value - a.value);
+            const top15 = sorted.slice(0, 15);
+            const others = sorted.slice(15);
+            const othersTotal = others.reduce((acc, curr) => acc + curr.value, 0);
+            
+            return othersTotal > 0 
+                ? [...top15, { name: 'OTROS (RESTO)', value: othersTotal, isOther: true }]
+                : top15;
+        };
+
+        return {
+            productosPresencia: getTop15(minppalProductsPresenceData),
+            productosVolumen: getTop15(rubroVolumeData),
+            entesActividad: getTop15(enteReportData)
+        };
+    }, [minppalProductsPresenceData, rubroVolumeData, enteReportData]);
+
     const [isActivityDrillDownOpen, setIsActivityDrillDownOpen] = useState(false);
     const [selectedActivityType, setSelectedActivityType] = useState<string | null>(null);
     const [isPaymentDrillDownOpen, setIsPaymentDrillDownOpen] = useState(false);
@@ -114,6 +261,40 @@ export default function JefeDashboard() {
     const [selectedProduceState, setSelectedProduceState] = useState<string | null>(null);
     const [isFruitDrawerOpen, setIsFruitDrawerOpen] = useState(false);
     const [selectedFruitState, setSelectedFruitState] = useState<string | null>(null);
+
+    // LÓGICA DE PARETO PARA GRÁFICOS ESTRATÉGICOS (SEGMENTACIÓN TOP 15 / RESTO / AGRUPACIÓN)
+    const splitChartData = useMemo(() => {
+        const splitData = (data: any[]) => {
+            const sorted = [...data].sort((a, b) => b.value - a.value);
+            const top = sorted.slice(0, 15);
+            const remainder = sorted.slice(15);
+            
+            // Sub-Pareto: Del resto, mostramos los siguientes 20 y agrupamos los demás
+            const restVisible = remainder.slice(0, 20);
+            const restOthers = remainder.slice(20);
+            
+            if (restOthers.length > 0) {
+                const othersTotal = restOthers.reduce((acc, curr) => acc + curr.value, 0);
+                restVisible.push({
+                    name: `OTROS (${restOthers.length} RUBROS MENORES)`,
+                    value: othersTotal,
+                    isOthersGroup: true
+                });
+            }
+
+            return {
+                top,
+                rest: restVisible
+            };
+        };
+
+        return {
+            minppal: splitData(minppalProductsPresenceData),
+            privadoPresencia: splitData(rubroPresenceData),
+            privadoVolumen: splitData(rubroVolumeData),
+            entesActividad: splitData(enteReportData)
+        };
+    }, [minppalProductsPresenceData, rubroPresenceData, rubroVolumeData, enteReportData]);
 
     // Estado para las filas colapsables de Bodegas Móviles
     const [expandedBodegaStates, setExpandedBodegaStates] = useState<Record<string, boolean>>({});
@@ -214,6 +395,36 @@ export default function JefeDashboard() {
                 </div>
             </header>
 
+            {/* BARRA DE NAVEGACIÓN ESTRATÉGICA (TABS) - FIJA CON EL HEADER */}
+            <div className="sticky top-[80px] md:top-[100px] z-[999] bg-[#F2F2F7] px-4 md:px-8 py-4">
+                <div className="max-w-[1640px] mx-auto">
+                    <div className="bg-white/50 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200/50 flex gap-2 shadow-sm">
+                        <button
+                            onClick={() => setActiveTab('ESTRATEGICA')}
+                            className={`flex-1 flex items-center justify-center gap-3 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${
+                                activeTab === 'ESTRATEGICA'
+                                    ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/30 scale-[1.02]'
+                                    : 'text-slate-400 hover:text-slate-600 hover:bg-white'
+                            }`}
+                        >
+                            <Activity size={18} className={activeTab === 'ESTRATEGICA' ? 'animate-pulse' : ''} />
+                            Situación Estratégica
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('OPERATIVA')}
+                            className={`flex-1 flex items-center justify-center gap-3 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${
+                                activeTab === 'OPERATIVA'
+                                    ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/30 scale-[1.02]'
+                                    : 'text-slate-400 hover:text-slate-600 hover:bg-white'
+                            }`}
+                        >
+                            <Search size={18} />
+                            Control Operativo
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <main className="p-4 md:p-8 max-w-[1640px] mx-auto space-y-6 md:space-y-10">
                 {debug.includes('Error') && (
                     <div className="bg-red-50 border border-red-200 p-6 md:p-8 rounded-[2rem] shadow-sm text-red-900 animate-pulse">
@@ -313,8 +524,10 @@ export default function JefeDashboard() {
                     </div>
                 </div>
 
-                {/* KPIs y Cobertura Territorial (Modularizado) */}
-                <KpiSection
+                {activeTab === 'ESTRATEGICA' ? (
+                    <div className="space-y-6 md:space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        {/* KPIs y Cobertura Territorial (Modularizado) */}
+                        <KpiSection
                     filteredReports={filteredReports}
                     totalEstados={totalEstados}
                     totalMunicipios={totalMunicipios}
@@ -887,36 +1100,45 @@ export default function JefeDashboard() {
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Gráfico A: Detección de artículos por marca/ente en campo</p>
                         </div>
                     </div>
-                    <div className="h-[600px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={minppalProductsPresenceData} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
-                                <defs>
-                                    <linearGradient id="colorAmberA" x1="0" y1="0" x2="1" y2="0">
-                                        <stop offset="0%" stopColor="#F59E0B" stopOpacity={1} />
-                                        <stop offset="100%" stopColor="#F59E0B" stopOpacity={0.6} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
-                                <XAxis type="number" hide />
-                                <YAxis
-                                    dataKey="name"
-                                    type="category"
-                                    width={240}
-                                    tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }}
-                                    interval={0}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <Tooltip
-                                    cursor={{ fill: '#fef3c7' }}
-                                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 60px rgba(0,0,0,0.1)' }}
-                                    formatter={(v) => [`${v} Jornadas`, 'Presencia']}
-                                />
-                                <Bar dataKey="value" fill="url(#colorAmberA)" radius={[0, 12, 12, 0]} barSize={14}>
-                                    <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#b45309' }} />
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[600px]">
+                        <div className="flex flex-col">
+                            <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-4 text-center bg-slate-50 py-2 rounded-xl">Top 15 Principales</h4>
+                            <div className="flex-1 min-h-0">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={splitChartData.minppal.top} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="colorAmberA" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="#F59E0B" stopOpacity={1} />
+                                                <stop offset="100%" stopColor="#F59E0B" stopOpacity={0.6} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={240} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{ fill: '#fef3c7' }} contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 60px rgba(0,0,0,0.1)' }} formatter={(v) => [`${v} Jornadas`, 'Presencia']} />
+                                        <Bar dataKey="value" fill="url(#colorAmberA)" radius={[0, 12, 12, 0]} barSize={14}>
+                                            <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#b45309' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                        <div className="flex flex-col">
+                            <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-4 text-center bg-slate-50 py-2 rounded-xl">Resto de Artículos</h4>
+                            <div className="flex-1 min-h-0">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={splitChartData.minppal.rest} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={240} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{ fill: '#fef3c7' }} contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 60px rgba(0,0,0,0.1)' }} formatter={(v) => [`${v} Jornadas`, 'Presencia']} />
+                                        <Bar dataKey="value" fill="url(#colorAmberA)" radius={[0, 12, 12, 0]} barSize={14}>
+                                            <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 900, fill: '#b45309' }} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10 mt-8">
@@ -930,24 +1152,45 @@ export default function JefeDashboard() {
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Gráfico C: Presencia de rubros base en campo</p>
                             </div>
                         </div>
-                        <div className="h-[700px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={rubroPresenceData} layout="vertical" margin={{ left: 10, right: 30 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
-                                    <XAxis type="number" hide />
-                                    <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
-                                    <Tooltip cursor={{ fill: '#fcfcfc' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                    <Bar dataKey="value" fill="url(#colorIndigo3)" radius={[0, 10, 10, 0]} barSize={12}>
-                                        <defs>
-                                            <linearGradient id="colorIndigo3" x1="0" y1="0" x2="1" y2="0">
-                                                <stop offset="0%" stopColor="#4F46E5" stopOpacity={1} />
-                                                <stop offset="100%" stopColor="#4F46E5" stopOpacity={0.6} />
-                                            </linearGradient>
-                                        </defs>
-                                        <LabelList dataKey="value" position="right" style={{ fontSize: 9, fontWeight: 900, fill: '#4F46E5' }} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                        <div className="flex flex-col gap-6 h-[800px]">
+                            <div className="flex flex-col flex-1 min-h-0">
+                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-3 text-center bg-slate-50 py-2 rounded-xl">Top 15 Principales</h4>
+                                <div className="flex-1 min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={splitChartData.privadoPresencia.top} layout="vertical" margin={{ left: 10, right: 30 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                            <XAxis type="number" hide />
+                                            <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
+                                            <Tooltip cursor={{ fill: '#fcfcfc' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                                            <Bar dataKey="value" fill="url(#colorIndigo3)" radius={[0, 10, 10, 0]} barSize={12}>
+                                                <defs>
+                                                    <linearGradient id="colorIndigo3" x1="0" y1="0" x2="1" y2="0">
+                                                        <stop offset="0%" stopColor="#4F46E5" stopOpacity={1} />
+                                                        <stop offset="100%" stopColor="#4F46E5" stopOpacity={0.6} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <LabelList dataKey="value" position="right" style={{ fontSize: 9, fontWeight: 900, fill: '#4F46E5' }} />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                            <div className="flex flex-col flex-1 min-h-0">
+                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-3 text-center bg-slate-50 py-2 rounded-xl">Resto de Rubros</h4>
+                                <div className="flex-1 min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={splitChartData.privadoPresencia.rest} layout="vertical" margin={{ left: 10, right: 30 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                            <XAxis type="number" hide />
+                                            <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
+                                            <Tooltip cursor={{ fill: '#fcfcfc' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                                            <Bar dataKey="value" fill="url(#colorIndigo3)" radius={[0, 10, 10, 0]} barSize={12}>
+                                                <LabelList dataKey="value" position="right" style={{ fontSize: 9, fontWeight: 900, fill: '#4F46E5' }} />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -961,172 +1204,68 @@ export default function JefeDashboard() {
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Gráfico D: Consolidado de distribución (Terceros)</p>
                             </div>
                         </div>
-                        <div className="h-[700px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={rubroVolumeData} layout="vertical" margin={{ left: 10, right: 40 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
-                                    <XAxis type="number" hide />
-                                    <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
-                                    <Tooltip cursor={{ fill: '#fcfcfc' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
-                                    <Bar dataKey="value" fill="url(#colorEmerald2)" radius={[0, 10, 10, 0]} barSize={12}>
-                                        <defs>
-                                            <linearGradient id="colorEmerald2" x1="0" y1="0" x2="1" y2="0">
-                                                <stop offset="0%" stopColor="#059669" stopOpacity={1} />
-                                                <stop offset="100%" stopColor="#059669" stopOpacity={0.6} />
-                                            </linearGradient>
-                                        </defs>
-                                        <LabelList dataKey="value" position="right" formatter={(v: any) => v > 0 ? Math.round(v).toLocaleString('es-VE', { maximumFractionDigits: 0 }) : ''} style={{ fontSize: 9, fontWeight: 900, fill: '#059669' }} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                </div>
-
-                {/* SEGUIMIENTO OPERATIVO DE LAS FERIAS DEL CAMPO SOBERANO (GUIA SICA) */}
-                <div className="mt-8 bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 flex flex-col">
-                    <div className="text-center mb-10">
-                        <h2 className="lg:text-xl text-lg font-black uppercase text-slate-900 tracking-tighter">Seguimiento Operativo de las Ferias del Campo Soberano</h2>
-                        <p className="md:text-sm text-xs font-bold text-slate-500 mt-2">¿Presentó la Guía de Movilización de Alimentos del SICA de los Alimentos entregados en la Feria o Punto de Distribución Radial?</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                        {/* CHART SICA */}
-                        <div className="flex flex-col items-center justify-center relative min-h-[400px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={[
-                                            { name: 'Sí', value: sicaData.totalSi },
-                                            { name: 'No', value: sicaData.totalNo }
-                                        ].filter(i => i.value > 0)}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={110}
-                                        outerRadius={180}
-                                        dataKey="value"
-                                        stroke="white"
-                                        strokeWidth={6}
-                                        labelLine={true}
-                                        label={({ cx, cy, midAngle = 0, innerRadius, outerRadius, value, name, percent = 0 }) => {
-                                            const RADIAN = Math.PI / 180;
-                                            const radius = innerRadius + (outerRadius - innerRadius) * 1.5;
-                                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                                            const align = x > cx ? 'start' : 'end';
-                                            return (
-                                                <text x={x} y={y} fill={name === 'Sí' ? '#22c55e' : '#ef4444'} textAnchor={align} dominantBaseline="central" className="font-sans">
-                                                    <tspan x={x} dy="-10" fontSize="16" fontWeight="bold">{name}</tspan>
-                                                    <tspan x={x} dy="20" fontSize="16" fontWeight="bold">{value}</tspan>
-                                                    <tspan x={x} dy="20" fontSize="14" fill="#64748b" fontWeight="normal">{(percent * 100).toFixed(0)}%</tspan>
-                                                </text>
-                                            );
-                                        }}
-                                    >
-                                        <Cell key="cell-0" fill="#22c55e" /> {/* Verde - Sí */}
-                                        <Cell key="cell-1" fill="#ef4444" /> {/* Rojo - No */}
-                                    </Pie>
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}
-                                        itemStyle={{ fontSize: '12px', fontWeight: 900, textTransform: 'uppercase' }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
-
-                        {/* TABLE SICA */}
-                        <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white">
-                            <table className="w-full text-left text-[11px] bg-white lg:text-sm">
-                                <thead>
-                                    <tr className="uppercase font-black text-slate-900 border-b border-slate-200">
-                                        <th className="px-3 py-2 bg-slate-100 border-r border-slate-300">Entidad Federal</th>
-                                        <th className="px-3 py-2 bg-[#22c55e] border-r border-white/20 text-white text-center w-28">Sí</th>
-                                        <th className="px-3 py-2 bg-[#ef4444] text-white text-center w-28">No</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {sicaData.stateRows.map((row, idx) => (
-                                        <tr key={idx} className="border-b border-slate-100 font-semibold text-slate-700">
-                                            <td className="px-3 py-1.5 border-r border-slate-200">{row.entidad}</td>
-                                            <td className="px-3 py-1.5 border-r border-slate-200 text-center text-slate-900">{row.si > 0 ? row.si : ''}</td>
-                                            <td className="px-3 py-1.5 text-center text-slate-900">{row.no > 0 ? row.no : ''}</td>
-                                        </tr>
-                                    ))}
-                                    <tr className="border-t-[3px] border-slate-800 font-black bg-slate-50 text-slate-900">
-                                        <td className="px-3 py-3 border-r border-slate-200 text-center uppercase tracking-widest text-sm text-slate-900">TOTAL</td>
-                                        <td className="px-3 py-3 border-r border-slate-200 text-center text-base">{sicaData.totalSi}</td>
-                                        <td className="px-3 py-3 text-center text-base">{sicaData.totalNo}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                {/* SECCIÓN: VALORACIÓN ESTATAL DE RUBROS (Sustituye a Novedades) */}
-                <div className="mt-8 bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 mb-12">
-                    <div className="flex items-center justify-between mb-8">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shadow-inner">
-                                <Star size={24} fill="currentColor" />
+                        <div className="flex flex-col gap-6 h-[800px]">
+                            <div className="flex flex-col flex-1 min-h-0">
+                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-3 text-center bg-slate-50 py-2 rounded-xl">Top 15 Principales</h4>
+                                <div className="flex-1 min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={splitChartData.privadoVolumen.top} layout="vertical" margin={{ left: 10, right: 40 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                            <XAxis type="number" hide />
+                                            <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
+                                            <Tooltip cursor={{ fill: '#fcfcfc' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                                            <Bar dataKey="value" fill="url(#colorEmerald2)" radius={[0, 10, 10, 0]} barSize={12}>
+                                                <defs>
+                                                    <linearGradient id="colorEmerald2" x1="0" y1="0" x2="1" y2="0">
+                                                        <stop offset="0%" stopColor="#059669" stopOpacity={1} />
+                                                        <stop offset="100%" stopColor="#059669" stopOpacity={0.6} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <LabelList dataKey="value" position="right" formatter={(v: any) => v > 0 ? Math.round(v).toLocaleString('es-VE', { maximumFractionDigits: 0 }) : ''} style={{ fontSize: 9, fontWeight: 900, fill: '#059669' }} />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-base font-black uppercase text-slate-900 tracking-tighter">Calificación de Rubros (1-5)</h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Distribución de valoraciones cuantitativas reportadas por inspectores</p>
+                            <div className="flex flex-col flex-1 min-h-0">
+                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-3 text-center bg-slate-50 py-2 rounded-xl">Resto de Rubros</h4>
+                                <div className="flex-1 min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={splitChartData.privadoVolumen.rest} layout="vertical" margin={{ left: 10, right: 40 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
+                                            <XAxis type="number" hide />
+                                            <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
+                                            <Tooltip cursor={{ fill: '#fcfcfc' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                                            <Bar dataKey="value" fill="url(#colorEmerald2)" radius={[0, 10, 10, 0]} barSize={12}>
+                                                <LabelList dataKey="value" position="right" formatter={(v: any) => v > 0 ? Math.round(v).toLocaleString('es-VE', { maximumFractionDigits: 0 }) : ''} style={{ fontSize: 9, fontWeight: 900, fill: '#059669' }} />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
                         </div>
                     </div>
-
-                    <div className="h-[400px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={ratingData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.05} />
-                                <XAxis
-                                    dataKey="star"
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fontSize: 12, fontWeight: 900, fill: '#64748b' }}
-                                />
-                                <YAxis
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fontSize: 10, fontWeight: 700 }}
-                                />
-                                <Tooltip
-                                    cursor={{ fill: '#f8fafc' }}
-                                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}
-                                    formatter={(value: any) => [`${value} Reportes`, 'Frecuencia']}
-                                />
-                                <Bar dataKey="value" radius={[12, 12, 0, 0]} barSize={80}>
-                                    {ratingData.map((entry: any, index: number) => {
-                                        // Semántica de colores: 1-2 Rojo, 3 Amarillo, 4-5 Verde
-                                        let color = '#22c55e'; // Verde
-                                        if (entry.rating <= 2) color = '#ef4444'; // Rojo
-                                        else if (entry.rating === 3) color = '#f59e0b'; // Ámbar/Amarillo
-
-                                        return <Cell key={`cell-${index}`} fill={color} />;
-                                    })}
-                                    <LabelList dataKey="value" position="top" style={{ fontSize: 14, fontWeight: 900, fill: '#475569' }} />
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    <div className="mt-8 flex justify-center gap-8 border-t border-slate-50 pt-8">
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-['Outfit']">Prioridad Crítica</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-['Outfit']">Atención Requerida</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-['Outfit']">Operación Óptima</span>
-                        </div>
-                    </div>
                 </div>
+                    </div>
+                ) : activeTab === 'OPERATIVA' ? (
+                        <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                            <SicaMetricsSection sicaData={sicaData} />
+                            
+                            <RatingSection ratingData={ratingData} />
+
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10">
+                                <ParetoChart 
+                                    data={splitChartData.entesActividad.top} 
+                                    title="Actividad por Ente (Top 15 Líderes)" 
+                                    color="#6366F1"
+                                />
+                                <ParetoChart 
+                                    data={splitChartData.entesActividad.rest} 
+                                    title="Actividad por Ente (Resto de Entes)" 
+                                    color="#94A3B8"
+                                />
+                            </div>
+
 
                 {/* NUEVO KPI: EMPRENDIMIENTO (Al final para no alterar la visual) */}
                 <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-slate-100 mb-20">
@@ -1756,6 +1895,8 @@ export default function JefeDashboard() {
 
 
                 <div className="pb-10"></div>
+                    </div>
+                ) : null}
             </main>
 
             {/* ── DRAWERS DE DRILL-DOWN MODULARIZADOS ── */}
