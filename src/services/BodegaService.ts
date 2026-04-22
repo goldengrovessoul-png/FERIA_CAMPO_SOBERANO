@@ -37,5 +37,17 @@ export const BodegaService = {
             .eq('id', id);
 
         if (error) throw error;
+    },
+
+    async update(id: string, bodega: Partial<Omit<BodegaMovil, 'id' | 'created_at'>>): Promise<BodegaMovil> {
+        const { data, error } = await supabase
+            .from('cat_bodegas_moviles')
+            .update(bodega)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
     }
 };

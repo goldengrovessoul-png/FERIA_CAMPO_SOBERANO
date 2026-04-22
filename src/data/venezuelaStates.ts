@@ -154,6 +154,12 @@ export const VENEZUELA_STATES: Record<string, VenezuelaState> = {
         center: [9.9, -72.0],
         zoom: 7,
     },
+    'PETARE': {
+        name: 'Petare',
+        bounds: [[10.4, -66.9], [10.6, -66.7]],
+        center: [10.48, -66.81],
+        zoom: 12,
+    },
 };
 
 // Vista Nacional por defecto

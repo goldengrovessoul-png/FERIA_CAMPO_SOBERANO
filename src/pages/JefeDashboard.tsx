@@ -1754,14 +1754,6 @@ export default function JefeDashboard() {
                     </div>
                 </div>
 
-                <div className="max-w-[1400px] mx-auto px-4 lg:px-0">
-                    <JefePlanningTable
-                        filterEstado={filterEstado}
-                        reportItems={reportItems}
-                        filteredReportIds={filteredReportIds}
-                        catalog={catalogos.fullCatalog}
-                    />
-                </div>
 
                 <div className="pb-10"></div>
             </main>
