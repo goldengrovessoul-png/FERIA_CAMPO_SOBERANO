@@ -231,26 +231,6 @@ export default function JefeDashboard() {
     // --- ESTADO DE NAVEGACIÓN DUAL ---
     const [activeTab, setActiveTab] = useState<'ESTRATEGICA' | 'OPERATIVA'>('ESTRATEGICA');
 
-    // --- ANÁLISIS DE PARETO (TOP 15) ---
-    const paretoAnalysis = useMemo(() => {
-        const getTop15 = (data: any[]) => {
-            const sorted = [...data].sort((a, b) => b.value - a.value);
-            const top15 = sorted.slice(0, 15);
-            const others = sorted.slice(15);
-            const othersTotal = others.reduce((acc, curr) => acc + curr.value, 0);
-            
-            return othersTotal > 0 
-                ? [...top15, { name: 'OTROS (RESTO)', value: othersTotal, isOther: true }]
-                : top15;
-        };
-
-        return {
-            productosPresencia: getTop15(minppalProductsPresenceData),
-            productosVolumen: getTop15(rubroVolumeData),
-            entesActividad: getTop15(enteReportData)
-        };
-    }, [minppalProductsPresenceData, rubroVolumeData, enteReportData]);
-
     const [isActivityDrillDownOpen, setIsActivityDrillDownOpen] = useState(false);
     const [selectedActivityType, setSelectedActivityType] = useState<string | null>(null);
     const [isPaymentDrillDownOpen, setIsPaymentDrillDownOpen] = useState(false);
