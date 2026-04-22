@@ -6,13 +6,14 @@ import {
     MoreVertical, ShieldAlert, ShieldCheck,
     CreditCard as IdCard, RefreshCw, Plus, Trash2, Tag, Map as MapIcon,
     Box, Briefcase, Ruler, ChevronDown, SlidersHorizontal,
-    Pencil, MessageCircle, DollarSign
+    Pencil, MessageCircle, DollarSign, Truck
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import ChatBox from '../components/chat/ChatBox';
 import { ChatService } from '../services/ChatService';
 import AdminPlanningView from '../components/AdminPlanningView';
+import { BodegaService, type BodegaMovil } from '../services/BodegaService';
 
 interface Profile {
     id: string;
@@ -56,7 +57,7 @@ interface VulnerabilityData {
 export default function AdminPanel() {
     const navigate = useNavigate();
     const { profile: currentUser, fetchProfile } = useAuth();
-    const [view, setView] = useState<'overview' | 'users' | 'catalog' | 'vulnerability' | 'planning'>('overview');
+    const [view, setView] = useState<'overview' | 'users' | 'catalog' | 'vulnerability' | 'planning' | 'bodegas'>('overview');
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -118,6 +119,11 @@ export default function AdminPanel() {
     const [newField, setNewField] = useState({ etiqueta: '', tipo: 'texto', requerido: false });
     const [showFieldForm, setShowFieldForm] = useState(false);
 
+    // Estados para Bodegas Móviles
+    const [bodegas, setBodegas] = useState<BodegaMovil[]>([]);
+    const [loadingBodegas, setLoadingBodegas] = useState(false);
+    const [newBodega, setNewBodega] = useState({ estado: '', nombre: '' });
+
     useEffect(() => {
         if (view === 'users') {
             fetchProfiles();
@@ -128,6 +134,8 @@ export default function AdminPanel() {
             if (catalogType === 'EMPRENDIMIENTO') fetchCustomFields();
         } else if (view === 'vulnerability') {
             fetchVulnerabilities();
+        } else if (view === 'bodegas') {
+            fetchBodegas();
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [view, catalogType]);
@@ -597,6 +605,56 @@ export default function AdminPanel() {
     }
 
 
+    // --- FUNCIONES DE BODEGAS MÓVILES ---
+    async function fetchBodegas() {
+        try {
+            setLoadingBodegas(true);
+            const data = await BodegaService.getAll();
+            setBodegas(data);
+        } catch (error) {
+            console.error('Error fetching bodegas:', error);
+        } finally {
+            setLoadingBodegas(false);
+        }
+    }
+
+    async function handleAddBodega() {
+        if (!newBodega.estado || !newBodega.nombre) {
+            alert('Estado y Nombre son requeridos');
+            return;
+        }
+        try {
+            setLoadingBodegas(true);
+            await BodegaService.create({
+                estado: newBodega.estado.toUpperCase(),
+                nombre: newBodega.nombre.toUpperCase()
+            });
+            setNewBodega({ estado: '', nombre: '' });
+            await fetchBodegas();
+            alert('Bodega creada exitosamente');
+        } catch (error) {
+            console.error('Error adding bodega:', error);
+            alert('Error al crear bodega');
+        } finally {
+            setLoadingBodegas(false);
+        }
+    }
+
+    async function handleDeleteBodega(id: string) {
+        if (!window.confirm('¿Estás seguro de eliminar esta bodega?')) return;
+        try {
+            setLoadingBodegas(true);
+            await BodegaService.delete(id);
+            await fetchBodegas();
+            alert('Bodega eliminada');
+        } catch (error) {
+            console.error('Error deleting bodega:', error);
+            alert('Error al eliminar bodega');
+        } finally {
+            setLoadingBodegas(false);
+        }
+    }
+
     const filteredProfiles = profiles.filter(p => {
         const matchesSearch =
             p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -643,12 +701,13 @@ export default function AdminPanel() {
                         { id: 'users', label: 'Gestión de Usuarios', icon: <UserPlus size={20} /> },
                         { id: 'catalog', label: 'Control de Catálogos', icon: <FileText size={20} /> },
                         { id: 'vulnerability', label: 'Mapa Vulnerabilidad', icon: <ShieldAlert size={20} /> },
+                        { id: 'bodegas', label: 'Bodegas Móviles', icon: <Truck size={20} /> },
                         { id: 'planning', label: 'Planificación', icon: <Box size={20} /> },
                     ].map((item) => (
                         <button
                             key={item.id}
                             onClick={() => {
-                                setView(item.id as 'overview' | 'users' | 'catalog' | 'vulnerability' | 'planning');
+                                setView(item.id as 'overview' | 'users' | 'catalog' | 'vulnerability' | 'planning' | 'bodegas');
                                 setIsSidebarOpen(false);
                             }}
                             className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black text-sm transition-all duration-300 ${view === item.id ? 'bg-[#007AFF] text-white shadow-xl shadow-blue-500/30' : 'text-slate-400 hover:bg-slate-50'}`}
@@ -692,14 +751,14 @@ export default function AdminPanel() {
                         <div>
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="px-3 py-1 bg-blue-50 text-[#007AFF] text-[10px] font-black rounded-full uppercase tracking-widest border border-blue-100">
-                                    {view === 'overview' ? 'DASHBOARD' : view === 'users' ? 'SEGURIDAD' : view === 'catalog' ? 'CATÁLOGOS' : view === 'planning' ? 'PLANIFICACIÓN' : 'ALERTAS'}
+                                    {view === 'overview' ? 'DASHBOARD' : view === 'users' ? 'SEGURIDAD' : view === 'catalog' ? 'CATÁLOGOS' : view === 'planning' ? 'PLANIFICACIÓN' : view === 'bodegas' ? 'LOGÍSTICA' : 'ALERTAS'}
                                 </div>
                             </div>
                             <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase leading-none">
-                                {view === 'overview' ? 'Panel Control' : view === 'users' ? 'Gestión Usuarios' : view === 'catalog' ? 'Catálogos Sistema' : view === 'planning' ? 'Planificación Semanal' : 'Vulnerabilidad Geográfica'}
+                                {view === 'overview' ? 'Panel Control' : view === 'users' ? 'Gestión Usuarios' : view === 'catalog' ? 'Catálogos Sistema' : view === 'planning' ? 'Planificación Semanal' : view === 'bodegas' ? 'Gestión de Bodegas' : 'Vulnerabilidad Geográfica'}
                             </h2>
                             <p className="text-slate-400 font-bold uppercase text-[9px] md:text-[11px] tracking-widest mt-3">
-                                {view === 'overview' ? 'Configuración global y métricas del sistema.' : view === 'users' ? 'Administración de accesos y roles de inspectores.' : view === 'catalog' ? 'Gestión de listas dinámicas del sistema.' : view === 'planning' ? 'Carga de asignaciones y planificación por estado.' : 'Carga de puntos estratégicos de vulnerabilidad para contraste operativo.'}
+                                {view === 'overview' ? 'Configuración global y métricas del sistema.' : view === 'users' ? 'Administración de accesos y roles de inspectores.' : view === 'catalog' ? 'Gestión de listas dinámicas del sistema.' : view === 'planning' ? 'Carga de asignaciones y planificación por estado.' : view === 'bodegas' ? 'Control de bodegas móviles para el despliegue territorial.' : 'Carga de puntos estratégicos de vulnerabilidad para contraste operativo.'}
                             </p>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -1470,6 +1529,113 @@ export default function AdminPanel() {
                         </div>
                     )}
 
+                    {/* VISTA: BODEGAS MÓVILES */}
+                    {view === 'bodegas' && (
+                        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                            {/* Formulario de Alta */}
+                            <div className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/40 border border-slate-50 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-40 h-40 bg-blue-50/30 rounded-bl-[6rem] -mr-20 -mt-20"></div>
+                                <div className="flex items-center gap-5 mb-10">
+                                    <div className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
+                                        <Plus size={28} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Nueva Bodega Móvil</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Registrar nueva unidad de despliegue</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-end">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado / Entidad Federal</label>
+                                        <select
+                                            value={newBodega.estado}
+                                            onChange={(e) => setNewBodega({ ...newBodega, estado: e.target.value })}
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all appearance-none uppercase"
+                                        >
+                                            <option value="">SELECCIONAR ESTADO</option>
+                                            {['AMAZONAS', 'ANZOATEGUI', 'APURE', 'ARAGUA', 'BARINAS', 'BOLIVAR', 'CARABOBO', 'COJEDES', 'DELTA AMACURO', 'CARACAS', 'FALCON', 'GUARICO', 'LARA', 'LA GUAIRA', 'MERIDA', 'MIRANDA', 'MONAGAS', 'NUEVA ESPARTA', 'PORTUGUESA', 'SUCRE', 'TACHIRA', 'TRUJILLO', 'YARACUY', 'ZULIA'].map(e => <option key={e} value={e}>{e}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-3 lg:col-span-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre de la Bodega</label>
+                                        <input
+                                            value={newBodega.nombre}
+                                            onChange={(e) => setNewBodega({ ...newBodega, nombre: e.target.value })}
+                                            placeholder="Ej. PDVAL CARACAS..."
+                                            className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl px-6 py-4 text-[14px] font-bold outline-none focus:border-blue-200 transition-all uppercase"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleAddBodega}
+                                        disabled={loadingBodegas}
+                                        className="w-full py-4 bg-[#007AFF] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-600 shadow-xl shadow-blue-500/20 active:scale-95 transition-all disabled:opacity-50"
+                                    >
+                                        {loadingBodegas ? 'Procesando...' : 'Registrar Bodega'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Listado de Bodegas */}
+                            <div className="bg-white rounded-[3rem] shadow-xl shadow-slate-200/30 border border-slate-50 overflow-hidden">
+                                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
+                                    <div>
+                                        <h3 className="font-black text-slate-900 uppercase tracking-tighter text-lg">Bodegas Registradas</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Inventario actual del sistema ({bodegas.length})</p>
+                                    </div>
+                                    <button onClick={fetchBodegas} className="p-3 bg-white text-slate-400 hover:text-blue-600 rounded-xl border border-slate-100 shadow-sm transition-all">
+                                        <RefreshCw size={18} className={loadingBodegas ? 'animate-spin' : ''} />
+                                    </button>
+                                </div>
+                                
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-slate-50/50">
+                                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Estado</th>
+                                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Nombre de Bodega</th>
+                                                <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {bodegas.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={3} className="px-8 py-20 text-center">
+                                                        <div className="flex flex-col items-center gap-4 opacity-30">
+                                                            <Truck size={48} className="text-slate-400" />
+                                                            <p className="font-black uppercase text-xs tracking-widest text-slate-500">No hay bodegas registradas</p>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                bodegas.map((b) => (
+                                                    <tr key={b.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                        <td className="px-8 py-5">
+                                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 text-[9px] font-black rounded-lg uppercase tracking-widest border border-slate-200">
+                                                                {b.estado}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-8 py-5">
+                                                            <span className="text-sm font-black text-slate-900 uppercase">{b.nombre}</span>
+                                                        </td>
+                                                        <td className="px-8 py-5 text-right">
+                                                            <button
+                                                                onClick={() => handleDeleteBodega(b.id)}
+                                                                className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                                                title="Eliminar Bodega"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
 

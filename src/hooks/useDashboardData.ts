@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { BodegaService, type BodegaMovil } from '../services/BodegaService';
 
 export interface Report {
     id: string;
@@ -101,7 +102,8 @@ export function useDashboardData(session: any, authLoading: boolean) {
         articulos: [] as string[],
         actividades: [] as string[],
         minppal: [] as string[],
-        fullCatalog: [] as { id: string, name: string, type: string, parent_id?: string, empresa_id?: string, precio_referencia?: number, precio_privado?: number, presentacion?: string }[]
+        fullCatalog: [] as { id: string, name: string, type: string, parent_id?: string, empresa_id?: string, precio_referencia?: number, precio_privado?: number, presentacion?: string }[],
+        bodegas: [] as BodegaMovil[]
     });
 
     const [debug, setDebug] = useState<string>('Iniciando...');
@@ -180,9 +182,17 @@ export function useDashboardData(session: any, authLoading: boolean) {
                         precio_referencia: i.precio_referencia,
                         precio_privado: i.precio_privado,
                         presentacion: i.presentacion
-                    }))
+                    })),
+                    bodegas: [] as BodegaMovil[]
                 });
             }
+
+            // Cargar Bodegas Móviles dinámicas
+            const bodegasData = await BodegaService.getAll();
+            setCatalogos(prev => ({
+                ...prev,
+                bodegas: bodegasData
+            }));
 
             const reportIds = allReports.map(r => r.id);
             const chunkSize = 100;

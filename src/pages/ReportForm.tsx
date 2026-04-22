@@ -32,7 +32,7 @@ const METODOS_PAGO = [
     "No Aplica"
 ];
 
-import { BODEGAS_POR_ESTADO } from '../lib/bodegasMoviles';
+import { BodegaService, type BodegaMovil } from '../services/BodegaService';
 
 export default function ReportForm() {
     const navigate = useNavigate();
@@ -55,7 +55,8 @@ export default function ReportForm() {
         minppal: [] as CatalogEntry[],
         productos_minppal: [] as CatalogEntry[],
         entrepreneurTypes: [] as string[],
-        fullCatalog: [] as any[]
+        fullCatalog: [] as any[],
+        bodegas: [] as BodegaMovil[]
     });
     const [customEntrepFields, setCustomEntrepFields] = useState<{ id: string, nombre: string, etiqueta: string, tipo: string, requerido: boolean }[]>([]);
 
@@ -327,8 +328,13 @@ export default function ReportForm() {
                     empresa_id: i.empresa_id
                 })),
                 entrepreneurTypes: [] as string[],
-                fullCatalog: data
+                fullCatalog: data,
+                bodegas: [] as BodegaMovil[]
             };
+
+            // Cargar Bodegas Móviles dinámicas
+            const bodegasData = await BodegaService.getAll();
+            newCatalogs.bodegas = bodegasData;
 
             // Cargar Tipos de Emprendimiento desde la tabla específica
             const { data: entrepData } = await supabase.from('cat_emprendimiento_tipos').select('nombre').order('nombre', { ascending: true });
@@ -900,7 +906,9 @@ export default function ReportForm() {
                                             className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 appearance-none transition-all notranslate disabled:opacity-50"
                                         >
                                             <option value="">{estadoGeo ? '-- Seleccionar Bodega --' : '-- Seleccione el Estado Geográfico primero --'}</option>
-                                            {estadoGeo && BODEGAS_POR_ESTADO[estadoGeo.toUpperCase()]?.map(b => <option key={b} value={b} className="notranslate">{b}</option>)}
+                                            {estadoGeo && catalogos.bodegas
+                                                .filter(b => b.estado.toUpperCase() === estadoGeo.toUpperCase())
+                                                .map(b => <option key={b.id} value={b.nombre} className="notranslate">{b.nombre}</option>)}
                                         </select>
                                         <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-black pointer-events-none" size={18} />
                                     </div>

@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../lib/AuthContext';
-import { BODEGAS_POR_ESTADO } from '../lib/bodegasMoviles';
 import TerritorialMap from '../components/dashboard/TerritorialMap';
 import KpiSection from '../components/dashboard/KpiSection';
 import AnalyticsCharts from '../components/dashboard/AnalyticsCharts';
@@ -127,14 +126,14 @@ export default function JefeDashboard() {
 
     // ANALISIS DE BODEGAS MÓVILES (66 Bodegas Totales)
     const bodegasAnalytics = useMemo(() => {
-        const allBodegas: any[] = [];
-        Object.entries(BODEGAS_POR_ESTADO).forEach(([estado, bodegas]) => {
-            bodegas.forEach(bodega => {
-                allBodegas.push({ estado, nombre: bodega, activa: false, total_jornadas: 0, familias: 0, tn: 0 });
-            });
-        });
-
-        const bodegasStats = [...allBodegas];
+        const bodegasStats = catalogos.bodegas.map(b => ({
+            estado: b.estado,
+            nombre: b.nombre,
+            activa: false,
+            total_jornadas: 0,
+            familias: 0,
+            tn: 0
+        }));
 
         filteredReports.forEach((r: any) => {
             if (r.tipo_actividad === 'Bodega Móvil' && r.bodega_movil_nombre) {
@@ -155,13 +154,14 @@ export default function JefeDashboard() {
         const inactiveCount = bodegasStats.length - activeCount;
         const totalCount = bodegasStats.length;
 
-        const byState = Object.keys(BODEGAS_POR_ESTADO).map(estado => {
-            const stateBodegas = bodegasStats.filter(b => b.estado === estado);
+        const distinctStates = Array.from(new Set(catalogos.bodegas.map(b => b.estado.toUpperCase()))).sort();
+        const byState = distinctStates.map(estado => {
+            const stateBodegas = bodegasStats.filter(b => b.estado.toUpperCase() === estado);
             const stActive = stateBodegas.filter(b => b.activa).length;
             const stInactive = stateBodegas.length - stActive;
             const stTotal = stateBodegas.length;
             return {
-                estado,
+                estado: estado,
                 activas: stActive,
                 inactivas: stInactive,
                 total: stTotal,
