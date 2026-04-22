@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, User, Lock, ArrowRight, Eye, EyeOff, AlertCircle, UserPlus, FileText } from 'lucide-react';
+import { Utensils, User, Lock, ArrowRight, Eye, EyeOff, AlertCircle, UserPlus, FileText, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function Login() {
@@ -186,12 +186,12 @@ export default function Login() {
             <div className="w-full max-w-sm relative z-10">
                 <div className="text-center mb-10">
                     <div className="w-20 h-20 bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl">
-                        <ShieldCheck className="text-white drop-shadow-lg" size={40} />
+                        <Utensils className="text-white drop-shadow-lg" size={40} />
                     </div>
                     <h1 className="text-3xl font-black text-white tracking-tight leading-tight uppercase drop-shadow-md font-['Outfit']">
-                        Feria Campo Soberano
+                        Gestión de Reportes
                     </h1>
-                    <p className="text-blue-300 text-xs font-black uppercase tracking-[0.3em] mt-2 opacity-90 drop-shadow-sm">Gestión de Reportes</p>
+                    <p className="text-blue-300 text-xs font-black uppercase tracking-[0.3em] mt-2 opacity-90 drop-shadow-sm">MINPPAL</p>
                 </div>
 
                 {/* Card con Glassmorphism Extremo */}
