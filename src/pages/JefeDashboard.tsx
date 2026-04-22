@@ -75,7 +75,7 @@ const MONO_BLUE = [
 
 // --- SUB-COMPONENTES PARA ORGANIZACIÓN MODULAR ---
 
-const ParetoChart = ({ data, title, color, dataKey = "value", height = 300, onClick }: any) => (
+const ParetoChart = ({ data, title, color, dataKey = "value", height = 400, onClick }: any) => (
     <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 flex flex-col h-full">
         <div className="flex items-center justify-between mb-8">
             <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{title}</h4>
@@ -85,7 +85,7 @@ const ParetoChart = ({ data, title, color, dataKey = "value", height = 300, onCl
         </div>
         <div style={{ height: `${height}px` }} className="w-full">
             <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data} layout="vertical" margin={{ left: 10, right: 40 }}>
+                <BarChart data={data} layout="vertical" margin={{ left: 10, right: 40, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
                     <XAxis type="number" hide />
                     <YAxis 
@@ -1080,12 +1080,12 @@ export default function JefeDashboard() {
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Gráfico A: Detección de artículos por marca/ente en campo</p>
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[600px]">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[750px]">
                         <div className="flex flex-col">
                             <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-4 text-center bg-slate-50 py-2 rounded-xl">Top 15 Principales</h4>
                             <div className="flex-1 min-h-0">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={splitChartData.minppal.top} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
+                                    <BarChart data={splitChartData.minppal.top} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 20 }}>
                                         <defs>
                                             <linearGradient id="colorAmberA" x1="0" y1="0" x2="1" y2="0">
                                                 <stop offset="0%" stopColor="#F59E0B" stopOpacity={1} />
@@ -1107,7 +1107,7 @@ export default function JefeDashboard() {
                             <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-4 text-center bg-slate-50 py-2 rounded-xl">Resto de Artículos</h4>
                             <div className="flex-1 min-h-0">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={splitChartData.minppal.rest} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
+                                    <BarChart data={splitChartData.minppal.rest} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 20 }}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
                                         <XAxis type="number" hide />
                                         <YAxis dataKey="name" type="category" width={240} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
@@ -1132,12 +1132,12 @@ export default function JefeDashboard() {
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Gráfico C: Presencia de rubros base en campo</p>
                             </div>
                         </div>
-                        <div className="flex flex-col gap-6 h-[800px]">
+                        <div className="flex flex-col gap-8 h-[950px]">
                             <div className="flex flex-col flex-1 min-h-0">
                                 <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-3 text-center bg-slate-50 py-2 rounded-xl">Top 15 Principales</h4>
                                 <div className="flex-1 min-h-0">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={splitChartData.privadoPresencia.top} layout="vertical" margin={{ left: 10, right: 30 }}>
+                                        <BarChart data={splitChartData.privadoPresencia.top} layout="vertical" margin={{ left: 10, right: 30, bottom: 20 }}>
                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
                                             <XAxis type="number" hide />
                                             <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
@@ -1159,7 +1159,7 @@ export default function JefeDashboard() {
                                 <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-3 text-center bg-slate-50 py-2 rounded-xl">Resto de Rubros</h4>
                                 <div className="flex-1 min-h-0">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={splitChartData.privadoPresencia.rest} layout="vertical" margin={{ left: 10, right: 30 }}>
+                                        <BarChart data={splitChartData.privadoPresencia.rest} layout="vertical" margin={{ left: 10, right: 30, bottom: 20 }}>
                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
                                             <XAxis type="number" hide />
                                             <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
@@ -1184,12 +1184,12 @@ export default function JefeDashboard() {
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Gráfico D: Consolidado de distribución (Terceros)</p>
                             </div>
                         </div>
-                        <div className="flex flex-col gap-6 h-[800px]">
+                        <div className="flex flex-col gap-8 h-[950px]">
                             <div className="flex flex-col flex-1 min-h-0">
                                 <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-3 text-center bg-slate-50 py-2 rounded-xl">Top 15 Principales</h4>
                                 <div className="flex-1 min-h-0">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={splitChartData.privadoVolumen.top} layout="vertical" margin={{ left: 10, right: 40 }}>
+                                        <BarChart data={splitChartData.privadoVolumen.top} layout="vertical" margin={{ left: 10, right: 40, bottom: 20 }}>
                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
                                             <XAxis type="number" hide />
                                             <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
@@ -1211,7 +1211,7 @@ export default function JefeDashboard() {
                                 <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.1em] mb-3 text-center bg-slate-50 py-2 rounded-xl">Resto de Rubros</h4>
                                 <div className="flex-1 min-h-0">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={splitChartData.privadoVolumen.rest} layout="vertical" margin={{ left: 10, right: 40 }}>
+                                        <BarChart data={splitChartData.privadoVolumen.rest} layout="vertical" margin={{ left: 10, right: 40, bottom: 20 }}>
                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.05} />
                                             <XAxis type="number" hide />
                                             <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} interval={0} axisLine={false} tickLine={false} />
@@ -1238,11 +1238,13 @@ export default function JefeDashboard() {
                                     data={splitChartData.entesActividad.top} 
                                     title="Actividad por Ente (Top 15 Líderes)" 
                                     color="#6366F1"
+                                    height={500}
                                 />
                                 <ParetoChart 
                                     data={splitChartData.entesActividad.rest} 
                                     title="Actividad por Ente (Resto de Entes)" 
                                     color="#94A3B8"
+                                    height={700}
                                 />
                             </div>
 
