@@ -296,11 +296,14 @@ export default function JefeDashboard() {
             tn: 0
         }));
 
+        const removeAccents = (str: string) => 
+            str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
         filteredReports.forEach((r: any) => {
             if (r.tipo_actividad === 'Bodega Móvil' && r.bodega_movil_nombre) {
                 const targetBodega = bodegasStats.find(b =>
-                    b.estado.toUpperCase() === r.estado_geografico?.toUpperCase() &&
-                    b.nombre.toUpperCase() === r.bodega_movil_nombre?.toUpperCase()
+                    removeAccents(b.estado.toUpperCase()) === removeAccents((r.estado_geografico || '').toUpperCase()) &&
+                    removeAccents(b.nombre.toUpperCase()) === removeAccents((r.bodega_movil_nombre || '').toUpperCase())
                 );
                 if (targetBodega) {
                     targetBodega.activa = true;

@@ -77,6 +77,9 @@ export interface Entrepreneur {
 
 
 export function useDashboardData(session: any, authLoading: boolean) {
+    const removeAccents = (str: string) => 
+        str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
     const [reports, setReports] = useState<Report[]>([]);
     const [reportItems, setReportItems] = useState<ReportItem[]>([]);
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -159,9 +162,9 @@ export function useDashboardData(session: any, authLoading: boolean) {
             if (catalogData) {
                 const normalize = (items: any[], type: string) => {
                     if (type === 'ARTICULO') {
-                        return Array.from(new Set(items.filter(i => i.type === 'ARTICULO' || i.type === 'RUBRO').map(i => i.name.trim().toUpperCase()))).sort() as string[];
+                        return Array.from(new Set(items.filter(i => i.type === 'ARTICULO' || i.type === 'RUBRO').map(i => removeAccents(i.name.trim().toUpperCase())))).sort() as string[];
                     }
-                    return Array.from(new Set(items.filter(i => i.type === type).map(i => i.name.trim().toUpperCase()))).sort() as string[];
+                    return Array.from(new Set(items.filter(i => i.type === type).map(i => removeAccents(i.name.trim().toUpperCase())))).sort() as string[];
                 }
 
                 const minppalEntes = normalize(catalogData, 'MINPPAL');
@@ -276,13 +279,13 @@ export function useDashboardData(session: any, authLoading: boolean) {
                 (r.municipio || '').toLowerCase().includes(cleanSearch);
 
             const matchesEstado = filterEstado === 'Todos' ||
-                (r.estado_geografico || '').trim().toUpperCase() === filterEstado.trim().toUpperCase();
+                removeAccents((r.estado_geografico || '').trim().toUpperCase()) === removeAccents(filterEstado.trim().toUpperCase());
 
             const matchesTipo = filterTipo === 'Todos' ||
-                (r.tipo_actividad || '').trim().toUpperCase() === filterTipo.trim().toUpperCase();
+                removeAccents((r.tipo_actividad || '').trim().toUpperCase()) === removeAccents(filterTipo.trim().toUpperCase());
 
             const matchesEnte = filterEnte === 'Todos' ||
-                (r.empresa || '').trim().toUpperCase() === filterEnte.trim().toUpperCase();
+                removeAccents((r.empresa || '').trim().toUpperCase()) === removeAccents(filterEnte.trim().toUpperCase());
 
             let matchesRubro = true;
             if (filterRubro !== 'Todos') {
