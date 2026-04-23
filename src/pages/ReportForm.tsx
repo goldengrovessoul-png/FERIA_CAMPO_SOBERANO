@@ -78,15 +78,24 @@ export default function ReportForm() {
 
     /* dpaEstados se eliminó: el dropdown de Estado usa catalogos.estados */
 
+    const removeAccents = (str: string) => {
+        return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    };
+
     const dpaMunicipios = useMemo(() => {
-        const estadoNorm = estadoGeo.toUpperCase().trim();
-        return Array.from(new Set(dpaData.filter(d => d.estado.toUpperCase().trim() === estadoNorm).map(d => d.municipio))).sort();
+        if (!estadoGeo) return [];
+        const estadoNorm = removeAccents(estadoGeo.trim());
+        return Array.from(new Set(dpaData.filter(d => removeAccents(d.estado.trim()) === estadoNorm).map(d => d.municipio))).sort();
     }, [dpaData, estadoGeo]);
 
     const dpaParroquias = useMemo(() => {
-        const estadoNorm = estadoGeo.toUpperCase().trim();
-        const municipioNorm = municipio.toUpperCase().trim();
-        return Array.from(new Set(dpaData.filter(d => d.estado.toUpperCase().trim() === estadoNorm && d.municipio.toUpperCase().trim() === municipioNorm).map(d => d.parroquia))).sort();
+        if (!estadoGeo || !municipio) return [];
+        const estadoNorm = removeAccents(estadoGeo.trim());
+        const municipioNorm = removeAccents(municipio.trim());
+        return Array.from(new Set(dpaData.filter(d => 
+            removeAccents(d.estado.trim()) === estadoNorm && 
+            removeAccents(d.municipio.trim()) === municipioNorm
+        ).map(d => d.parroquia))).sort();
     }, [dpaData, estadoGeo, municipio]);
 
     // Totales por Categoría (En Toneladas)
@@ -907,7 +916,7 @@ export default function ReportForm() {
                                         >
                                             <option value="">{estadoGeo ? '-- Seleccionar Bodega --' : '-- Seleccione el Estado Geográfico primero --'}</option>
                                             {estadoGeo && catalogos.bodegas
-                                                .filter(b => b.estado.toUpperCase() === estadoGeo.toUpperCase())
+                                                .filter(b => removeAccents(b.estado) === removeAccents(estadoGeo))
                                                 .map(b => <option key={b.id} value={b.nombre} className="notranslate">{b.nombre}</option>)}
                                         </select>
                                         <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-black pointer-events-none" size={18} />
