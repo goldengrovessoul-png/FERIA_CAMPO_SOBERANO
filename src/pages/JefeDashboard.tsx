@@ -382,8 +382,8 @@ export default function JefeDashboard() {
                         <button
                             onClick={() => setActiveTab('ESTRATEGICA')}
                             className={`flex-1 flex items-center justify-center gap-3 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${activeTab === 'ESTRATEGICA'
-                                    ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/30 scale-[1.02]'
-                                    : 'text-slate-400 hover:text-slate-600 hover:bg-white'
+                                ? 'bg-[#007AFF] text-white shadow-lg shadow-blue-500/30 scale-[1.02]'
+                                : 'text-slate-400 hover:text-slate-600 hover:bg-white'
                                 }`}
                         >
                             <Activity size={18} className={activeTab === 'ESTRATEGICA' ? 'animate-pulse' : ''} />
@@ -392,8 +392,8 @@ export default function JefeDashboard() {
                         <button
                             onClick={() => setActiveTab('OPERATIVA')}
                             className={`flex-1 flex items-center justify-center gap-3 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${activeTab === 'OPERATIVA'
-                                    ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/30 scale-[1.02]'
-                                    : 'text-slate-400 hover:text-slate-600 hover:bg-white'
+                                ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/30 scale-[1.02]'
+                                : 'text-slate-400 hover:text-slate-600 hover:bg-white'
                                 }`}
                         >
                             <Search size={18} />
