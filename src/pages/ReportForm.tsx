@@ -565,32 +565,71 @@ export default function ReportForm() {
         setEntrepreneurs(newEnts);
     };
 
-    const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (!files) return;
+    const uploadImage = async (file: File) => {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+        const filePath = `${fileName}`;
 
-        const newPhotos = [...photos];
-        Array.from(files).forEach(file => {
-            if (newPhotos.length < 3) {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    setPhotos(prev => [...prev, reader.result as string].slice(0, 3));
-                };
-                reader.readAsDataURL(file);
+        const { error } = await supabase.storage
+            .from('reports')
+            .upload(filePath, file);
+
+        if (error) {
+            console.error('Error al subir imagen:', error);
+            throw error;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('reports')
+            .getPublicUrl(filePath);
+
+        return publicUrl;
+    };
+
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        setLoading(true);
+        try {
+            const availableSlots = 3 - photos.length;
+            if (availableSlots <= 0) {
+                alert('Ya has alcanzado el máximo de 3 fotos.');
+                setLoading(false);
+                return;
             }
-        });
+
+            const filesToUpload = Array.from(files).slice(0, availableSlots);
+            const uploadPromises = filesToUpload.map(file => uploadImage(file));
+            
+            const urls = await Promise.all(uploadPromises);
+            setPhotos(prev => [...prev, ...urls].slice(0, 3));
+        } catch (error) {
+            console.error('Error en carga de fotos:', error);
+            alert('No se pudieron subir algunas fotos. Por favor intente de nuevo.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const removePhoto = (index: number) => {
         setPhotos(photos.filter((_, i) => i !== index));
     };
 
-    const handleGuiaSicaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleGuiaSicaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onloadend = () => setGuiaSicaFoto(reader.result as string);
-        reader.readAsDataURL(file);
+
+        setLoading(true);
+        try {
+            const url = await uploadImage(file);
+            setGuiaSicaFoto(url);
+        } catch (error) {
+            console.error('Error en carga de guía SICA:', error);
+            alert('No se pudo subir la foto de la guía SICA.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSubmit = async (estadoReporte: 'borrador' | 'enviado') => {
