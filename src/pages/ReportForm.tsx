@@ -471,7 +471,6 @@ export default function ReportForm() {
                 setGuiaSicaEstado(data.guia_sica_estado || '');
                 setGuiaSicaFoto(data.guia_sica_foto || '');
 
-                const df = data.datos_formulario || {};
                 setLugarExacto(df.lugar_exacto !== undefined ? df.lugar_exacto : null);
 
                 // Cargar rubros (desde la tabla report_items)

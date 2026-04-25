@@ -2,7 +2,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, MapPin, Calendar, Download, Printer, User, Users, CheckCircle2, Home, Package, Star } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Download, Printer, User, Users, CheckCircle2, Home, Package, Star, FileText } from 'lucide-react';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -50,6 +50,8 @@ interface ReportDetails {
     presencia_detallada?: { nombre: string; productos: string[] }[];
     entrepreneurs?: { nombre: string; actividad: string; telefono: string }[];
     profiles?: { nombre: string; apellido: string }; // Nombre del Inspector
+    guia_sica_foto?: string;
+    guia_sica_estado?: string;
 }
 
 export default function ReportView() {
