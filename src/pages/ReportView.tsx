@@ -359,7 +359,7 @@ export default function ReportView() {
                     <div>
                         <div className="flex items-center gap-3 border-b border-slate-100 pb-2 mb-6">
                             <CheckCircle2 size={18} className="text-blue-600" />
-                            <h2 className="text-xs font-black uppercase tracking-widest text-slate-800">Presencia productos MINPPAL</h2>
+                            <h2 className="text-xs font-black uppercase tracking-widest text-slate-800">Se venden los productos de las Empresas MINPPAL</h2>
                         </div>
                         
                         {report.presencia_detallada && report.presencia_detallada.length > 0 ? (
@@ -475,6 +475,43 @@ export default function ReportView() {
                             </table>
                         </div>
                     </div>
+
+                    {/* Nueva Sección: Verificación de Lugar de Envío */}
+                    <div>
+                        <div className="flex items-center gap-3 border-b border-slate-100 pb-2 mb-4">
+                            <MapPin size={18} className="text-emerald-600" />
+                            <h2 className="text-xs font-black uppercase tracking-widest text-slate-800">Verificación de Ubicación de Envío</h2>
+                        </div>
+                        <div className={`p-4 rounded-2xl border flex items-center justify-between ${report.datos_formulario?.lugar_exacto ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
+                            <p className="text-[10px] font-black uppercase tracking-widest">
+                                ¿REPORTE ENVIADO DESDE EL LUGAR EXACTO DE LA ACTIVIDAD?
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <div className={`w-3 h-3 rounded-full ${report.datos_formulario?.lugar_exacto ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`}></div>
+                                <span className="text-xs font-black uppercase">
+                                    {report.datos_formulario?.lugar_exacto ? 'CONFIRMADO: SÍ' : 'ADVERTENCIA: NO'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Nueva Sección: Guía SICA (Foto) */}
+                    {report.guia_sica_foto && (
+                        <div>
+                            <div className="flex items-center gap-3 border-b border-slate-100 pb-2 mb-6">
+                                <FileText size={18} className="text-blue-600" />
+                                <h2 className="text-xs font-black uppercase tracking-widest text-slate-800">Evidencia de Guía SICA</h2>
+                            </div>
+                            <div className="w-full max-w-2xl mx-auto aspect-[4/3] bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                                <img 
+                                    src={report.guia_sica_foto} 
+                                    alt="Fotografía Guía SICA" 
+                                    className="w-full h-full object-contain"
+                                />
+                            </div>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-2 text-center">Captura obligatoria de la Guía SICA presentada en el punto</p>
+                        </div>
+                    )}
 
                     {/* Sección 6: Fotografías (Evidencia) */}
                     <div>

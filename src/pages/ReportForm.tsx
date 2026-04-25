@@ -149,6 +149,9 @@ export default function ReportForm() {
     const [guiaSicaEstado, setGuiaSicaEstado] = useState('');
     const [guiaSicaFoto, setGuiaSicaFoto] = useState('');
 
+    // Lugar Exacto
+    const [lugarExacto, setLugarExacto] = useState<boolean | null>(null);
+
     // Cargar datos si es edición y catálogos
     useEffect(() => {
         fetchCatalogs();
@@ -169,7 +172,7 @@ export default function ReportForm() {
                 totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalViveres,
                 responsableActividad, responsableComuna, condiciones,
                 presenciaEntes, metodosPago, rubros, entrepreneurs, ratingRubros, photos,
-                guiaSicaEstado, guiaSicaFoto
+                guiaSicaEstado, guiaSicaFoto, lugarExacto
             };
             localStorage.setItem('fcs_report_draft', JSON.stringify(draftData));
         }
@@ -179,7 +182,7 @@ export default function ReportForm() {
         totalProteina, totalFrutas, totalHortalizas, totalVerduras, totalViveres,
         responsableActividad, responsableComuna, condiciones,
         presenciaEntes, metodosPago, rubros, entrepreneurs, ratingRubros, photos,
-        guiaSicaEstado, guiaSicaFoto,
+        guiaSicaEstado, guiaSicaFoto, lugarExacto,
         reportId, isRestoring, loadingCatalogs
     ]);
 
@@ -279,6 +282,7 @@ export default function ReportForm() {
                 setPhotos(data.photos || []);
                 setGuiaSicaEstado(data.guiaSicaEstado || '');
                 setGuiaSicaFoto(data.guiaSicaFoto || '');
+                setLugarExacto(data.lugarExacto !== undefined ? data.lugarExacto : null);
             } catch (e) {
                 console.error("Error al restaurar borrador local:", e);
             } finally {
@@ -466,6 +470,9 @@ export default function ReportForm() {
                 // Cargar Guía SICA (Nuevos campos)
                 setGuiaSicaEstado(data.guia_sica_estado || '');
                 setGuiaSicaFoto(data.guia_sica_foto || '');
+
+                const df = data.datos_formulario || {};
+                setLugarExacto(df.lugar_exacto !== undefined ? df.lugar_exacto : null);
 
                 // Cargar rubros (desde la tabla report_items)
                 const { data: items } = await supabase.from('report_items').select('*').eq('report_id', reportId);
@@ -677,6 +684,8 @@ export default function ReportForm() {
             if (metodosPago.length === 0) errors.metodosPago = true;
             if (photos.length === 0) errors.photos = true;
 
+            if (lugarExacto === null) errors.lugarExacto = true;
+
             setValidationErrors(errors);
             const hasErrors = Object.keys(errors).length > 0;
 
@@ -725,7 +734,8 @@ export default function ReportForm() {
                     condiciones,
                     presenciaEntes,
                     rating_rubros: ratingRubros,
-                    photos
+                    photos,
+                    lugar_exacto: lugarExacto
                 }
             };
 
@@ -1636,9 +1646,9 @@ export default function ReportForm() {
                             <div className="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
                                 <CheckCircle2 size={20} />
                             </div>
-                            <h2 className="text-lg font-black text-black uppercase tracking-tighter">Presencia productos MINPPAL</h2>
+                            <h2 className="text-lg font-black text-black uppercase tracking-tighter">Se venden los productos de las Empresas MINPPAL</h2>
                         </div>
-                        <p className="text-[9px] font-black text-black uppercase tracking-widest mb-8 ml-13">Vincule los entes presentes y sus respectivos productos</p>
+                        <p className="text-[9px] font-black text-black uppercase tracking-widest mb-8 ml-13">Vincule los entes presentes y sus respectivos productos.</p>
 
                         <div className={`space-y-4 p-4 rounded-[1.5rem] transition-all ${errorClass('presenciaEntes')}`}>
                             {catalogos.minppal.map((ente) => {
@@ -1762,6 +1772,42 @@ export default function ReportForm() {
                                     {metodo}
                                 </button>
                             ))}
+                        </div>
+                    </section>
+
+                    {/* NUEVA SECCIÓN: Lugar Exacto */}
+                    <section className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/40 border border-white">
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                                <MapPin size={20} />
+                            </div>
+                            <h2 className="text-lg font-black text-black uppercase tracking-tighter">Ubicación de Envío</h2>
+                        </div>
+
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-black uppercase tracking-widest ml-1">¿El reporte se envía desde el lugar exacto de la actividad?</label>
+                            <div className={`grid grid-cols-2 gap-4 p-2 rounded-[1.5rem] transition-all ${errorClass('lugarExacto')}`}>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setLugarExacto(true);
+                                        clearError('lugarExacto');
+                                    }}
+                                    className={`p-5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all border-2 ${lugarExacto === true ? 'bg-emerald-600 border-emerald-600 text-white shadow-xl shadow-emerald-500/20' : 'bg-slate-50 border-transparent text-black'}`}
+                                >
+                                    SÍ
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setLugarExacto(false);
+                                        clearError('lugarExacto');
+                                    }}
+                                    className={`p-5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all border-2 ${lugarExacto === false ? 'bg-red-600 border-red-600 text-white shadow-xl shadow-red-500/20' : 'bg-slate-50 border-transparent text-black'}`}
+                                >
+                                    NO
+                                </button>
+                            </div>
                         </div>
                     </section>
 
