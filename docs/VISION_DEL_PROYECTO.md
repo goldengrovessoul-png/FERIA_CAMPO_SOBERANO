@@ -1,45 +1,49 @@
-# Visión del Proyecto: Reporte Feria del Campo Soberano (Suplemento Técnico)
+# Visión del Proyecto: Feria Campo Soberano
 
-Este documento complementa el **"VISION FERIA DEL CAMPO SOBERANO.pdf"** y establece las bases técnicas, arquitectónicas y de experiencia de usuario acordadas para el desarrollo de la aplicación. Sirve como la "biblia" técnica del proyecto.
+Este documento establece las bases técnicas, arquitectónicas y estratégicas de la aplicación Feria Campo Soberano. Sirve como la "fuente de verdad" para el desarrollo, mantenimiento y futura migración del sistema.
 
-## 1. Arquitectura de Sistema y Base de Datos (Supabase)
+## 1. Descripción General
+Feria Campo Soberano es una plataforma integral diseñada para la gestión, seguimiento y reporte en tiempo real de actividades de distribución de alimentos. Facilita la labor de los inspectores en campo y proporciona herramientas analíticas de alto nivel para la toma de decisiones estratégicas.
 
-*   **Proyecto Supabase:** `cuspal_feria_campo-soberano` (ID: `oiszovahzjohxadzxpag`)
-*   **Gestión Dinámica de Campos:** Para cumplir con el requerimiento de que el Administrador pueda modificar los campos del formulario dinámicamente, se utilizará un esquema basado en **JSONB** en Supabase para almacenar la estructura de los formularios y las respuestas de los reportes. Esto asegura máxima flexibilidad sin requerir migraciones constantes de esquema SQL.
-*   **Seguridad a Nivel de Filas (RLS):** Se implementarán políticas estrictas de RLS en Supabase asegurando que:
-    *   Los **Inspectores** solo puedan leer y editar (en estado borrador) sus propios reportes del día actual.
-    *   Los **Jefes** y **Administradores** tengan acceso de lectura a todos los reportes enviados para alimentar el Dashboard.
-*   **Bitácora de Auditoría (Postpuesto):** Se ha decidido por ahora no implementar el sistema de auditoría. Se evaluará su inclusión en fases posteriores del proyecto.
+## 2. Pilares Tecnológicos
+- **Frontend**: React 19 + Vite (TypeScript).
+- **Mobile**: Capacitor 8 para despliegue nativo en Android/iOS.
+- **Estilos**: Tailwind CSS con estética premium (Neon/Dark Mode).
+- **Backend**: Supabase (PostgreSQL 17, Auth, Storage).
+- **IA**: Integración con Google Gemini para análisis inteligente mediante lenguaje natural.
 
-## 2. Estrategia de Autenticación y Acceso Bifurcado
+## 3. Arquitectura y Base de Datos
+- **Proyecto Supabase**: `cuspal_feria_campo-soberano` (ID: `oiszovahzjohxadzxpag`)
+- **Gestión Dinámica (JSONB)**: Se utiliza el tipo de dato JSONB para almacenar estructuras de formularios y respuestas, permitiendo cambios dinámicos en los campos sin afectar la integridad del esquema SQL.
+- **Rendimiento**: 
+    - **Índices**: Todas las tablas cuentan con índices estratégicos en llaves foráneas y filtros frecuentes (`inspector_id`, `estado_geografico`, `fecha`).
+    - **DPA**: Optimización de búsqueda en la División Político Administrativa (Venezuela) mediante índices compuestos.
 
-Para balancear la facilidad de prueba durante el desarrollo con la seguridad en producción y la usabilidad multiplataforma, se implementa un modelo de acceso bifurcado:
+## 4. Seguridad y Control de Acceso
+- **Seguridad a Nivel de Filas (RLS)**: 
+    - Implementación de políticas optimizadas mediante subconsultas `(SELECT auth.uid())` para garantizar alto rendimiento.
+    - Los **Inspectores** solo pueden gestionar sus propios reportes.
+    - **Jefes** y **Admins** poseen acceso de lectura global para análisis.
+- **Blindaje de Funciones (RPC)**:
+    - La función `execute_ai_query` está protegida internamente, permitiendo ejecución solo a roles `ADMIN` y `JEFE`.
+    - Todas las funciones `SECURITY DEFINER` tienen configurado el `search_path = public`.
+- **Modelo de Acceso Bifurcado**:
+    - `/app`: Interfaz móvil-first para Inspectores.
+    - `/dashboard`: Interfaz analítica para Jefes/Admins.
+    - `/admin`: Panel de control total.
 
-*   **Punto de Entrada Unificado, Experiencias Diferenciadas:** La SPA (Single Page Application) detectará la plataforma (móvil vs. escritorio) y el rol del usuario para dirigirlo a la interfaz adecuada.
-*   **Ruta Protectoria (Routing):**
-    *   `/app`: Área operativa (Móvil-first) exclusiva para el rol **Inspector**. Logueo mediante Cédula + PIN personal de 6 dígitos.
-    *   `/dashboard`: Área analítica exclusiva para roles **Jefe** y **Administrador**.
-    *   `/admin`: Área de configuración y auditoría exclusiva para **Administrador**.
-*   **Credenciales "Maestras" de Desarrollo:**
-    *   Rol Jefe: `JEFE` / `123456`
-    *   Rol Admin: `ADMIN` / `654321`
-    *   *Mecanismo de Seguridad Futuro:* Se preparará la columna `password_changed` en la base de datos. Para el despliegue en producción, se activará una regla que obligue a cambiar estos PINs genéricos en el primer inicio de sesión.
+## 5. Experiencia de Usuario (UX)
+- **Mobile-First & Offline-Ready**: Capacidad de guardar borradores localmente en zonas de baja conectividad y sincronización automática al detectar red.
+- **Georreferenciación**: Captura obligatoria de latitud/longitud con validación de precisión GPS.
+- **Visualización Estratégica**: Mapas con Clustering y gráficas de Pareto para identificar puntos críticos de distribución.
+- **Exportación**: Generación de reportes PDF con evidencias fotográficas y ubicación GPS precisa.
 
-## 3. Experiencia de Usuario (UX) y Movilidad ("Mobile-First")
+## 6. Estado Actual y Próximos Pasos (Abril 2026)
+- **Hito Reciente**: Completado el blindaje de seguridad y optimización de rendimiento de la base de datos (Paso 1 y 2).
+- **Próximos Pasos**:
+    - [ ] Optimización avanzada de la carga de imágenes (compresión en cliente).
+    - [ ] Implementación del módulo de Planificación (Planner).
+    - [ ] Sincronización robusta offline para reportes persistentes.
 
-*   **Capacidad "Offline-First" (Trabajo en Campo):** Es un requerimiento crítico. La vista del Inspector (`/app`) implementará estrategias de almacenamiento local (ej. LocalStorage o IndexedDB) para permitir la creación y guardado de "Borradores" de reportes incluso sin conexión a internet. La sincronización (paso a "Enviado") se realizará al recuperar la conexión.
-*   **Georreferenciación Precisa:** Se capturará obligatoriamente la latitud/longitud. Se implementará un filtro de precisión: si el error del GPS es significativo, se alertará al Inspector para mejorar la señal antes de permitir el envío.
-*   **Dashboard Gerencial Ubicuo:**
-    *   **Escritorio:** Vista panorámica, mapa amplio y gráficos en cuadrícula.
-    *   **Dispositivo Móvil:** Si el Jefe accede desde su teléfono, el Dashboard será completamente responsivo. Los gráficos se apilarán verticalmente, el mapa se optimizará para interacción táctil y los controles de filtrado se agruparán en menús colapsables. Esto permite la **decisión rápida en terreno**.
-*   **Mapas y Rendimiento:** Se utilizará **Clustering (Agrupamiento de Pines)** en el mapa del Dashboard para evitar la saturación visual y mejorar el rendimiento renderizando cientos de jornadas simultáneas.
-*   **Exportación PDF:** Los reportes exportables incluirán, de forma clara, las evidencias fotográficas (hasta 3), un minimapa estático de la ubicación y los datos resumidos.
-
-## 4. Stack Tecnológico
-
-*   **Frontend:** React (TypeScript) + Vite. SPA con diseño Mobile-First.
-*   **Estilos:** CSS Vanilla o TailwindCSS (optimizado para consistencia y responsividad extrema).
-*   **Backend as a Service (BaaS):** Supabase (PostgreSQL, Auth, Storage, Edge Functions si fueran necesarias para la auditoría compleja).
-*   **Alojamiento (Previsto):** Vercel o similar para el Frontend, apuntando al proyecto de Supabase actual (`cuspal_feria_campo-soberano`).
-
-Este documento representa el consenso técnico y debe ser consultado para cualquier decisión de diseño o implementación durante el ciclo de vida del proyecto.
+---
+*Este documento es dinámico y debe actualizarse ante cualquier cambio estructural significativo en el proyecto.*
