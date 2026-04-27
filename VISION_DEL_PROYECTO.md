@@ -16,7 +16,9 @@ Feria Campo Soberano es una aplicación diseñada para la gestión, seguimiento 
 - **Dashboard IA**: Consultas en lenguaje natural sobre el estado de las ferias.
 
 ## 4. Estado de Seguridad y Datos
-- **RLS (Row Level Security)**: Activo y reforzado. Los inspectores solo gestionan sus propios reportes.
+- **RLS (Row Level Security)**: Optimizado con subconsultas para alto rendimiento. Los inspectores solo gestionan sus propios reportes.
+- **Seguridad**: Función de IA (`execute_ai_query`) blindada con validación de roles internos y acceso restringido.
+- **Rendimiento**: Índices estratégicos creados en todas las tablas para garantizar velocidad en servidores privados.
 - **Storage**: Gestión de fotos de evidencias en buckets protegidos.
 - **Funciones RPC**: Protegidas y con `search_path` configurado.
 
