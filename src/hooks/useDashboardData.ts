@@ -253,6 +253,7 @@ export function useDashboardData(session: any, authLoading: boolean) {
         if (!authLoading && session?.access_token) {
             fetchData();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [authLoading, session?.access_token]);
 
     // Estados para el Drill-down

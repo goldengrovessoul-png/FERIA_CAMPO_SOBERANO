@@ -722,9 +722,10 @@ export default function AdminPanel() {
                 estado: ''
             });
             fetchProfiles();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error adding planner:', error);
-            alert('Error al crear planificador: ' + (error.message || 'Error desconocido'));
+            const msg = error instanceof Error ? error.message : 'Error desconocido';
+            alert('Error al crear planificador: ' + msg);
         } finally {
             setCreatingPlanner(false);
         }
@@ -737,7 +738,7 @@ export default function AdminPanel() {
             await AdminService.deleteUser(id);
             alert('Planificador eliminado');
             fetchProfiles();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error deleting planner:', error);
             alert('Error al eliminar planificador');
         } finally {
@@ -788,9 +789,10 @@ export default function AdminPanel() {
                 estado: ''
             });
             fetchProfiles();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error updating planner:', error);
-            alert('Error al actualizar planificador: ' + (error.message || 'Error desconocido'));
+            const msg = error instanceof Error ? error.message : 'Error desconocido';
+            alert('Error al actualizar planificador: ' + msg);
         } finally {
             setCreatingPlanner(false);
         }

@@ -341,7 +341,7 @@ export default function JefeDashboard() {
             byState,
             bodegasStats
         };
-    }, [filteredReports]);
+    }, [filteredReports, catalogos.bodegas]);
 
     return (
         <div className="min-h-screen bg-[#F2F2F7] text-slate-900 font-sans relative">
