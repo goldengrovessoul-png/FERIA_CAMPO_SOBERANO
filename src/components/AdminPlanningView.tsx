@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { Save, RefreshCw, AlertCircle } from 'lucide-react';
+import { PlanningService } from '../services/PlanningService';
+import { ReportService } from '../services/ReportService';
 
 interface CatalogItem {
     id: string;
@@ -35,11 +36,11 @@ export default function AdminPlanningView() {
 
     useEffect(() => {
         const loadCatalogs = async () => {
-            const { data } = await supabase.from('catalog_items').select('id, name, type').eq('is_active', true);
+            const data = await ReportService.getCatalogs();
             if (data) {
-                const est = Array.from(new Set(data.filter(i => i.type === 'ESTADO').map(i => i.name.trim().toUpperCase()))).sort();
-                setEstados(est);
-                const rubros = data.filter(i => i.type === 'RUBRO' || i.type === 'ARTICULO').sort((a,b) => a.name.localeCompare(b.name));
+                const est = Array.from(new Set(data.filter((i: any) => i.type === 'ESTADO').map((i: any) => i.name.trim().toUpperCase()))).sort();
+                setEstados(est as string[]);
+                const rubros = data.filter((i: any) => i.type === 'RUBRO' || i.type === 'ARTICULO').sort((a: any, b: any) => a.name.localeCompare(b.name));
                 setProducts(rubros);
             }
         };
@@ -51,19 +52,18 @@ export default function AdminPlanningView() {
         
         const fetchPlanning = async () => {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('state_product_planning')
-                .select('*')
-                .eq('estado', selectedEstado)
-                .eq('periodo', selectedPeriodo);
-                
-            if (data && !error) {
-                const rows: Record<string, PlanningData> = {};
-                data.forEach(d => {
-                    rows[d.product_id] = d;
-                });
-                setPlanningRows(rows);
-            } else {
+            try {
+                const data = await PlanningService.getPlanning();
+                if (data) {
+                    const rows: Record<string, PlanningData> = {};
+                    // Filtrar por estado y periodo en el frontend (o ajustar API para filtrar en backend)
+                    data.filter((d: any) => d.estado === selectedEstado && d.periodo === selectedPeriodo)
+                        .forEach((d: any) => {
+                            rows[d.product_id] = d;
+                        });
+                    setPlanningRows(rows);
+                }
+            } catch (e) {
                 setPlanningRows({});
             }
             setLoading(false);
@@ -96,32 +96,20 @@ export default function AdminPlanningView() {
         }
 
         setSaving(true);
-        // Filtrar solo los registros que tengan alguna cantidad > 0 o que ya tengan ID (para poder actualizar a 0 si hace falta)
-        const rowsToSave = Object.values(planningRows)
-            .filter(row => row.id || row.cantidad_planificada > 0 || row.cantidad_asignada > 0 || row.cantidad_recibida > 0)
-            .map(row => {
-                // Remover timestamps por si acaso y preservar el ID solo si existe
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                const { id, created_at: _c, updated_at: _u, ...rest } = row as PlanningData & { created_at?: string, updated_at?: string };
-                return {
-                    ...(id ? { id } : {}),
-                    ...rest,
-                    estado: selectedEstado,
-                    periodo: selectedPeriodo
-                };
-            });
+        try {
+            const rowsToSave = Object.values(planningRows)
+                .filter(row => row.id || row.cantidad_planificada > 0 || row.cantidad_asignada > 0 || row.cantidad_recibida > 0);
 
-        if (rowsToSave.length > 0) {
-            // Upsert por defecto usa la clave primaria (id) si no se especifica onConflict
-            const { error } = await supabase.from('state_product_planning').upsert(rowsToSave);
-            if (error) {
-                console.error("Detalle del error Supabase:", error);
-                alert("Error al guardar planificación: " + error.message);
-            } else {
-                alert("Planificación guardada exitosamente.");
+            for (const row of rowsToSave) {
+                if (row.id) {
+                    await PlanningService.update(row.id, { meta_tn: row.cantidad_planificada, recibido_tn: row.cantidad_recibida });
+                } else {
+                    await PlanningService.create({ estado: row.estado, rubro: row.product_id, meta_tn: row.cantidad_planificada });
+                }
             }
-        } else {
-            alert("No hay cantidades para guardar.");
+            alert("Planificación guardada exitosamente.");
+        } catch (error: any) {
+            alert("Error al guardar planificación: " + error.message);
         }
         setSaving(false);
     };

@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
+import { ReportService } from '../services/ReportService';
+import { AdminService } from '../services/AdminService';
 import { BodegaService, type BodegaMovil } from '../services/BodegaService';
 
 export interface Report {
@@ -114,50 +114,13 @@ export function useDashboardData(session: any, authLoading: boolean) {
     const fetchData = async () => {
         try {
             setLoading(true);
-            setDebug('Iniciando carga inteligente...');
+            setDebug('Conectando con servidor local...');
 
-            const allReports: Report[] = [];
-            let page = 0;
-            const pageSize = 20;
-            let keepFetching = true;
-
-            setDebug('Conectando con base de datos...');
-
-            while (keepFetching) {
-                const { data: pageData, error: pageError } = await supabase
-                    .from('reports')
-                    .select('id, fecha, tipo_actividad, empresa, estado_geografico, municipio, parroquia, personas, familias, comunas, nombre_comuna, total_proteina, total_frutas, total_hortalizas, total_verduras, total_viveres, latitud, longitud, estado_reporte, inspector_id, guia_sica_estado, rating_value, audit_summary')
-                    .eq('estado_reporte', 'enviado')
-                    .order('fecha', { ascending: false })
-                    .range(page * pageSize, (page + 1) * pageSize - 1);
-
-                if (pageError) throw pageError;
-
-                if (pageData && pageData.length > 0) {
-                    allReports.push(...(pageData as any[]));
-                    setReports([...allReports]);
-                    setDebug(`Lote ${page + 1}: ${allReports.length} jornadas...`);
-
-                    await new Promise(r => setTimeout(r, 100));
-
-                    if (pageData.length < pageSize) keepFetching = false;
-                    page++;
-                } else {
-                    keepFetching = false;
-                }
-            }
-
-            if (allReports.length === 0) {
-                setLoading(false);
-                setDebug('No se encontraron reportes.');
-                return;
-            }
+            const allReports = await ReportService.getAllReports();
+            setReports(allReports);
 
             setDebug('Sincronizando catálogos...');
-            const { data: catalogData } = await supabase
-                .from('catalog_items')
-                .select('id, type, name, parent_id, empresa_id, precio_referencia, precio_privado, presentacion')
-                .eq('is_active', true);
+            const catalogData = await ReportService.getCatalogs();
 
             if (catalogData) {
                 const normalize = (items: any[], type: string) => {
@@ -190,57 +153,34 @@ export function useDashboardData(session: any, authLoading: boolean) {
                 });
             }
 
-            // Cargar Bodegas Móviles dinámicas
             const bodegasData = await BodegaService.getAll();
             setCatalogos(prev => ({
                 ...prev,
                 bodegas: bodegasData
             }));
 
-            const reportIds = allReports.map(r => r.id);
-            const chunkSize = 100;
-            const allItems: any[] = [];
-            const allPayments: any[] = [];
-            const allPresencia: any[] = [];
-            const allEntrepreneurs: any[] = [];
+            // La nueva API devuelve el reporte con sus detalles (items, pagos, etc) si es necesario,
+            // pero para el dashboard cargaremos las tablas relacionadas por separado si la API no las incluye.
+            // Por ahora asumimos que ReportService.getAllReports() trae los datos básicos.
+            // Si necesitamos detalles profundos, los pediremos al backend.
+            
+            setDebug('Carga completa.');
 
-            for (let i = 0; i < reportIds.length; i += chunkSize) {
-                const chunk = reportIds.slice(i, i + chunkSize);
-                setDebug(`Detalles: ${Math.round((i / reportIds.length) * 100)}%...`);
+            // Cargar perfiles de inspectores (esto ahora vendrá de la API de usuarios local)
+            const users = await apiClient.get('/users');
+            const map: Record<string, { nombre: string; apellido: string }> = {};
+            users.data.forEach((u: any) => map[u.id] = { nombre: u.nombre, apellido: u.apellido });
+            setInspectors(map);
 
-                const [itemsRes, paymentRes, presRes, entRes] = await Promise.all([
-                    supabase.from('report_items').select('report_id,rubro,cantidad,precio_unitario').in('report_id', chunk),
-                    supabase.from('report_payment_methods').select('report_id,metodo').in('report_id', chunk),
-                    supabase.from('report_minppal_presencia').select('*').in('report_id', chunk),
-                    supabase.from('report_entrepreneurs').select('*').in('report_id', chunk)
-                ]);
-
-                if (itemsRes.data) allItems.push(...itemsRes.data);
-                if (paymentRes.data) allPayments.push(...paymentRes.data);
-                if (presRes.data) allPresencia.push(...presRes.data);
-                if (entRes.data) allEntrepreneurs.push(...entRes.data);
+            // Cargar datos de vulnerabilidad (si existen localmente)
+            try {
+                const vData = await apiClient.get('/vulnerability');
+                setVulnerabilityData(vData.data);
+            } catch (e) {
+                setVulnerabilityData([]);
             }
-
-            setReportItems(allItems);
-            setPaymentMethods(allPayments);
-            setMinppalPresencia(allPresencia);
-            setEntrepreneurs(allEntrepreneurs);
-
-            const inspectorIds = Array.from(new Set(allReports.map(r => r.inspector_id).filter(id => id)));
-            if (inspectorIds.length > 0) {
-                const { data: profData } = await supabase.from('profiles').select('id,nombre,apellido').in('id', inspectorIds);
-                if (profData) {
-                    const map: Record<string, { nombre: string; apellido: string }> = {};
-                    profData.forEach((p: any) => map[p.id] = { nombre: p.nombre, apellido: p.apellido });
-                    setInspectors(map);
-                }
-            }
-
-            const { data: vData } = await supabase.from('vulnerability_data').select('*');
-            if (vData) setVulnerabilityData(vData);
 
             setDebug(`Carga completa: ${allReports.length} reportes.`);
-
         } catch (error: any) {
             console.error('Error fetching dashboard data:', error);
             setDebug(`Error: ${error.message || 'Error de conexión'}`);

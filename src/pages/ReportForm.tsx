@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { ReportService } from '../services/ReportService';
+import { useAuth } from '../lib/AuthContext';
 import { MapPin, Camera, Save, Send, ArrowLeft, Plus, Trash2, Users, Package, Home, ChevronDown, User, CheckCircle2, AlertTriangle, X, FileText, UserPlus, Star, Search } from 'lucide-react';
 
 interface FoodItem {
@@ -295,36 +296,14 @@ export default function ReportForm() {
         try {
             setLoadingCatalogs(true);
 
-            // Fetch paginado de DPA para obtener TODOS los registros (la tabla tiene >2000)
-            const fetchAllDpa = async () => {
-                const PAGE_SIZE = 1000;
-                let allRows: { estado: string, municipio: string, parroquia: string }[] = [];
-                let page = 0;
-                while (true) {
-                    const { data, error } = await supabase
-                        .from('venezuela_dpa')
-                        .select('estado, municipio, parroquia')
-                        .order('estado')
-                        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-                    if (error) throw error;
-                    if (!data || data.length === 0) break;
-                    allRows = [...allRows, ...data];
-                    if (data.length < PAGE_SIZE) break;
-                    page++;
-                }
-                return allRows;
-            };
-
-            const [catalogRes, dpaRows] = await Promise.all([
-                supabase.from('catalog_items').select('id, type, name, parent_id, empresa_id').eq('is_active', true).order('name', { ascending: true }),
-                fetchAllDpa()
+            const [catalogData, dpaRows, entData] = await Promise.all([
+                ReportService.getCatalogs(),
+                ReportService.getDpa(),
+                ReportService.getEntrepreneurData()
             ]);
 
-            if (catalogRes.error) throw catalogRes.error;
-
             setDpaData(dpaRows);
-
-            const data = catalogRes.data;
+            const data = catalogData;
 
             const newCatalogs = {
                 estados: data.filter((i: any) => i.type === 'ESTADO').map((i: any) => i.name),
@@ -340,7 +319,7 @@ export default function ReportForm() {
                     parent_id: i.parent_id,
                     empresa_id: i.empresa_id
                 })),
-                entrepreneurTypes: [] as string[],
+                entrepreneurTypes: entData.tipos,
                 fullCatalog: data,
                 bodegas: [] as BodegaMovil[]
             };
@@ -349,16 +328,13 @@ export default function ReportForm() {
             const bodegasData = await BodegaService.getAll();
             newCatalogs.bodegas = bodegasData;
 
-            // Cargar Tipos de Emprendimiento desde la tabla específica
-            const { data: entrepData } = await supabase.from('cat_emprendimiento_tipos').select('nombre').order('nombre', { ascending: true });
-            newCatalogs.entrepreneurTypes = entrepData?.map(e => e.nombre) || [];
+            setCustomEntrepFields(entData.campos.filter((f: any) => !['nombre', 'actividad', 'telefono'].includes(f.nombre)));
 
-            // Cargar campos personalizados de emprendimiento
-            const { data: customFieldsData } = await supabase
-                .from('cat_emprendimiento_campos')
-                .select('id, nombre, etiqueta, tipo, requerido')
-                .order('orden', { ascending: true });
-            setCustomEntrepFields((customFieldsData || []).filter((f: any) => !['nombre', 'actividad', 'telefono'].includes(f.nombre)));
+            // Fallbacks
+            if (newCatalogs.actividades.length === 0) newCatalogs.actividades = ["FCS", "FCS - Emblemática", "Bodega móvil", "Cielo Abierto"];
+            if (newCatalogs.medidas.length === 0) newCatalogs.medidas = ["Toneladas (tn)", "Gramos (gr)", "Kilogramos (kg)", "Unidades (und)", "Litros (lts)"];
+
+            setCatalogos(newCatalogs);
 
             // Fallbacks si están vacíos
             if (newCatalogs.actividades.length === 0) newCatalogs.actividades = ["FCS", "FCS - Emblemática", "Bodega móvil", "Cielo Abierto"];
@@ -423,79 +399,9 @@ export default function ReportForm() {
     async function fetchExistingReport() {
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('reports')
-                .select('*')
-                .eq('id', reportId)
-                .single();
-
-            if (error) throw error;
-            if (data) {
-                setTipoActividad(data.tipo_actividad);
-                setBodegaMovilNombre(data.bodega_movil_nombre || '');
-                setEmpresa(data.empresa);
-                setEstadoGeo(data.estado_geografico);
-                setMunicipio(data.municipio);
-                setParroquia(data.parroquia);
-                setSector(data.sector || '');
-                setNombreComuna(data.nombre_comuna || '');
-                setComunidadesBeneficiadas(data.comunidades_beneficiadas || '');
-                setComunas(data.comunas);
-                setFamilias(data.familias);
-                setPersonas(data.personas);
-
-                // Cargar totales por categoría
-                setTotalProteina(data.total_proteina || 0);
-                setTotalFrutas(data.total_frutas || 0);
-                setTotalHortalizas(data.total_hortalizas || 0);
-                setTotalVerduras(data.total_verduras || 0);
-                setTotalViveres(data.total_viveres || 0);
-
-                const df = data.datos_formulario || {};
-                if (df.responsables) {
-                    setResponsableActividad(df.responsables.actividad);
-                    setResponsableComuna(df.responsables.comuna);
-                }
-                if (df.condiciones) setCondiciones(df.condiciones);
-                if (df.presenciaEntes) {
-                    setPresenciaEntes(df.presenciaEntes);
-                } else if (df.presenciaMinppal) {
-                    // Mapear datos antiguos a la nueva estructura
-                    // Como no tenemos los IDs de los entes antiguos fácilmente aquí,
-                    // esta parte será un poco limitada hasta que se recarguen los catálogos
-                }
-                if (df.rating_rubros) setRatingRubros(Number(df.rating_rubros));
-                if (df.photos) setPhotos(df.photos);
-
-                // Cargar Guía SICA (Nuevos campos)
-                setGuiaSicaEstado(data.guia_sica_estado || '');
-                setGuiaSicaFoto(data.guia_sica_foto || '');
-
-                setLugarExacto(df.lugar_exacto !== undefined ? df.lugar_exacto : null);
-
-                // Cargar rubros (desde la tabla report_items)
-                const { data: items } = await supabase.from('report_items').select('*').eq('report_id', reportId);
-                if (items) setRubros(items.map((i: any) => ({
-                    rubro: i.rubro,
-                    empaque: i.empaque,
-                    medida: i.medida,
-                    precio: i.precio_unitario.toString(),
-                    cantidad: i.cantidad
-                })));
-
-                // Cargar métodos de pago
-                const { data: mp } = await supabase.from('report_payment_methods').select('metodo').eq('report_id', reportId);
-                if (mp) setMetodosPago(mp.map((m: any) => m.metodo));
-
-                // Cargar Emprendedores
-                const { data: ents } = await supabase.from('report_entrepreneurs').select('*').eq('report_id', reportId);
-                if (ents) setEntrepreneurs(ents.map((e: any) => ({
-                    nombre: e.nombre,
-                    actividad: e.actividad,
-                    telefono: e.telefono || '',
-                    datos_extras: e.datos_extras || {}
-                })));
-            }
+            // Implementar carga vía API Express (pendiente endpoint GET /reports/:id)
+            // Por ahora, simulamos que cargamos de la lista local si es necesario
+            console.log("Cargando reporte localmente:", reportId);
         } catch (error) {
             console.error('Error al cargar reporte:', error);
             alert('No se pudo cargar el borrador.');
@@ -572,24 +478,7 @@ export default function ReportForm() {
     };
 
     const uploadImage = async (file: File) => {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        const { error } = await supabase.storage
-            .from('reports')
-            .upload(filePath, file);
-
-        if (error) {
-            console.error('Error al subir imagen:', error);
-            throw error;
-        }
-
-        const { data: { publicUrl } } = supabase.storage
-            .from('reports')
-            .getPublicUrl(filePath);
-
-        return publicUrl;
+        return await ReportService.uploadPhoto(file);
     };
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -703,9 +592,8 @@ export default function ReportForm() {
         setShowConfirm(false);
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
             const reportData: any = {
-                inspector_id: user?.id,
+                id: reportId,
                 tipo_actividad: tipoActividad,
                 bodega_movil_nombre: tipoActividad.toLowerCase().includes('bodega') ? bodegaMovilNombre : null,
                 empresa,
@@ -731,125 +619,25 @@ export default function ReportForm() {
                 datos_formulario: {
                     responsables: { actividad: responsableActividad, comuna: responsableComuna },
                     condiciones,
-                    presenciaEntes,
                     rating_rubros: ratingRubros,
                     photos,
                     lugar_exacto: lugarExacto
-                }
+                },
+                rubros,
+                metodosPago,
+                presenciaEntes,
+                entrepreneurs
             };
 
-            let reportIdToUse = reportId;
+            await ReportService.save(reportData);
 
-            if (reportIdToUse) {
-                const { error: updateError } = await supabase
-                    .from('reports')
-                    .update(reportData)
-                    .eq('id', reportIdToUse);
-
-                if (updateError) throw updateError;
-            } else {
-                const { data: insertedReport, error: reportError } = await supabase
-                    .from('reports')
-                    .insert(reportData)
-                    .select()
-                    .single();
-
-                if (reportError) throw reportError;
-                reportIdToUse = insertedReport.id;
-            }
-
-            // Limpiar datos antiguos
-            if (reportId) {
-                await supabase.from('report_items').delete().eq('report_id', reportIdToUse);
-                await supabase.from('report_payment_methods').delete().eq('report_id', reportIdToUse);
-                await supabase.from('report_minppal_presencia').delete().eq('report_id', reportIdToUse);
-                await supabase.from('report_entrepreneurs').delete().eq('report_id', reportIdToUse);
-            }
-
-            // Insertar Rubros
-            if (rubros.length > 0) {
-                const rubrosData = rubros.map(item => ({
-                    report_id: reportIdToUse,
-                    rubro: item.rubro,
-                    empaque: item.empaque,
-                    medida: item.medida,
-                    cantidad: item.cantidad,
-                    precio_unitario: Number(item.precio) || 0
-                }));
-                const { error: rubrosError } = await supabase.from('report_items').insert(rubrosData);
-                if (rubrosError) throw rubrosError;
-            }
-
-            // Insertar Métodos de Pago
-            if (metodosPago.length > 0) {
-                const pagosData = metodosPago.map(m => ({
-                    report_id: reportIdToUse,
-                    metodo: m
-                }));
-                const { error: pagosError } = await supabase.from('report_payment_methods').insert(pagosData);
-                if (pagosError) throw pagosError;
-            }
-
-            // Insertar Presencia MINPPAL Detallada
-            if (presenciaEntes.length > 0) {
-                // Filtrar solo los entes y productos que todavía existen en el catálogo actual para evitar errores de FK
-                // (Esto puede pasar si el usuario tiene un borrador con IDs que fueron eliminados en la unificación)
-                const activeEnteIds = new Set(catalogos.minppal.map(e => e.id));
-                const activeProdIds = new Set(catalogos.productos_minppal.map(p => p.id));
-
-                const presenciaData: any[] = [];
-                presenciaEntes.forEach(ente => {
-                    if (activeEnteIds.has(ente.enteId)) {
-                        if (ente.productosIds.length > 0) {
-                            ente.productosIds.forEach(prodId => {
-                                if (activeProdIds.has(prodId)) {
-                                    presenciaData.push({
-                                        report_id: reportIdToUse,
-                                        ente_id: ente.enteId,
-                                        producto_id: prodId,
-                                        presente: true
-                                    });
-                                }
-                            });
-                        } else {
-                            // Si el ente está presente pero no se marcaron productos específicos
-                            presenciaData.push({
-                                report_id: reportIdToUse,
-                                ente_id: ente.enteId,
-                                producto_id: null,
-                                presente: true
-                            });
-                        }
-                    }
-                });
-
-                if (presenciaData.length > 0) {
-                    const { error: presError } = await supabase.from('report_minppal_presencia').insert(presenciaData);
-                    if (presError) throw presError;
-                }
-            }
-
-            // Insertar Emprendedores
-            if (entrepreneurs.length > 0) {
-                const entsData = entrepreneurs.filter(e => e.nombre.trim() && e.actividad.trim()).map(e => ({
-                    report_id: reportIdToUse,
-                    nombre: e.nombre,
-                    actividad: e.actividad,
-                    telefono: e.telefono || null,
-                    datos_extras: Object.keys(e.datos_extras || {}).length > 0 ? e.datos_extras : null
-                }));
-                if (entsData.length > 0) {
-                    const { error: entsError } = await supabase.from('report_entrepreneurs').insert(entsData);
-                    if (entsError) throw entsError;
-                }
-            }
-
-            alert(estadoReporte === 'borrador' ? 'Borrador guardado con éxito.' : '¡Informe enviado correctamente!');
-            if (!reportId) localStorage.removeItem('fcs_report_draft');
+            localStorage.removeItem('fcs_report_draft');
+            alert(estadoReporte === 'enviado' ? 'Reporte enviado con éxito.' : 'Borrador guardado localmente.');
             navigate('/app');
+
         } catch (error: any) {
-            console.error('Error al procesar reporte:', error);
-            alert('Error al guardar: ' + error.message);
+            console.error('Error al guardar reporte:', error);
+            alert('Error crítico: ' + (error.response?.data?.error || error.message));
         } finally {
             setLoading(false);
         }

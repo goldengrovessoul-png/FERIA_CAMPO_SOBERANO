@@ -1,11 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, LogOut, ChevronRight, CheckCircle2, FileEdit, User, MapPin, Loader2, RefreshCw, Camera, Trash2, FileText } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import ChatBox from '../components/chat/ChatBox';
 import { MessageCircle, X } from 'lucide-react';
 import { ChatService } from '../services/ChatService';
+import { ReportService } from '../services/ReportService';
 import type { ChatMessage } from '../services/ChatService';
 
 interface Report {
@@ -38,16 +38,15 @@ export default function InspectorDashboard() {
     useEffect(() => {
         async function getAdmin() {
             try {
-                const { data } = await supabase
-                    .from('profiles')
-                    .select('id, nombre')
-                    .eq('rol', 'ADMIN')
-                    .limit(1)
-                    .maybeSingle();
+                // Usamos el apiClient para buscar un admin
+                const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/admins`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('fcs_token')}` }
+                });
+                const admins = await response.json();
 
-                if (data) {
-                    setAdminInfo({ id: data.id, name: `Admin ${data.nombre}` });
-                    fetchUnreadCount(data.id);
+                if (admins && admins.length > 0) {
+                    setAdminInfo({ id: admins[0].id, name: `Admin ${admins[0].nombre}` });
+                    fetchUnreadCount(admins[0].id);
                 }
             } catch (err) {
                 console.error('[InspectorDashboard] Error al buscar Admin para chat:', err);
@@ -67,10 +66,12 @@ export default function InspectorDashboard() {
         }
     }
 
-    // Suscripción Realtime para el Inspector
+    // Suscripción Realtime para el Inspector (Ahora vía Polling o Socket si se implementó, 
+    // por ahora mantenemos la lógica pero apuntando a que no bloquee)
     useEffect(() => {
         if (!profile?.id || !adminInfo?.id) return;
 
+        // El ChatService ya maneja la lógica de suscripción local
         const channel = ChatService.subscribeToMessages(profile.id, (msg: ChatMessage) => {
             if (msg.sender_id === adminInfo.id && !isChatOpen) {
                 setUnreadCount(prev => prev + 1);
@@ -114,14 +115,8 @@ export default function InspectorDashboard() {
         if (!profile?.id) return;
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('reports')
-                .select('id, tipo_actividad, parroquia, fecha, estado_reporte')
-                .eq('inspector_id', profile.id)
-                .order('fecha', { ascending: false })
-                .limit(20);
-
-            if (error) throw error;
+            // Usamos el servicio local de reportes
+            const data = await ReportService.getInspectorReports(profile.id);
             setReports(data || []);
         } catch (error) {
             console.error('Error fetching reports:', error);

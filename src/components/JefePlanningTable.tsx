@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
+import { PlanningService } from '../services/PlanningService';
 import { AlertCircle, Target, RefreshCw, ArrowDownRight } from 'lucide-react';
 
 interface PlanningData {
@@ -48,18 +48,16 @@ export default function JefePlanningTable({ filterEstado, reportItems, filteredR
         }
 
         const fetchSemanas = async () => {
-            const { data, error } = await supabase
-                .from('state_product_planning')
-                .select('periodo')
-                .eq('estado', filterEstado);
-            if (data && !error) {
-                const uniqueSemanas = Array.from(new Set(data.map(d => d.periodo))).sort((a,b) => b.localeCompare(a));
+            try {
+                const uniqueSemanas: string[] = await PlanningService.getPlanningWeeks(filterEstado);
                 setSemanas(uniqueSemanas);
                 if (uniqueSemanas.length > 0) {
-                    setSelectedSemana(uniqueSemanas[0]); // Por defecto la más reciente
+                    setSelectedSemana(uniqueSemanas[0]);
                 } else {
                     setSelectedSemana('');
                 }
+            } catch (error) {
+                console.error('Error fetching weeks:', error);
             }
         };
         fetchSemanas();
@@ -70,16 +68,14 @@ export default function JefePlanningTable({ filterEstado, reportItems, filteredR
 
         const fetchPlanning = async () => {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('state_product_planning')
-                .select('*')
-                .eq('estado', filterEstado)
-                .eq('periodo', selectedSemana);
-            
-            if (data && !error) {
-                setPlanningRows(data);
+            try {
+                const data = await PlanningService.getPlanningByWeek(filterEstado, selectedSemana);
+                setPlanningRows(data || []);
+            } catch (error) {
+                console.error('Error fetching planning:', error);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
         fetchPlanning();
     }, [filterEstado, selectedSemana]);

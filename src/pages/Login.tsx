@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Soup, User, Lock, ArrowRight, Eye, EyeOff, AlertCircle, UserPlus, FileText, ShieldCheck } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { useAuth } from '../lib/AuthContext';
 
 export default function Login() {
+    const { login, register } = useAuth();
     const [isRegistering, setIsRegistering] = useState(false);
     const [cedula, setCedula] = useState('');
     const [nombre, setNombre] = useState('');
@@ -52,117 +53,50 @@ export default function Login() {
         setLoading(true);
 
         try {
-            // Se envía la orden de limpieza al fondo sin "await" para que no bloquee eternamente el proceso
-            supabase.auth.signOut().catch(() => { });
-
             const cedulaPura = normalizarCedula(cedula);
             const emailForAuth = `${cedulaPura.toLowerCase()}@fcs.com`;
 
             if (isRegistering) {
-                // ---------- MODO REGISTRO ----------
+                // ---------- MODO REGISTRO LOCAL ----------
                 let rol = 'INSPECTOR';
                 if (cedulaPura === 'JEFE') rol = 'JEFE';
                 if (cedulaPura === 'ADMIN') rol = 'ADMIN';
 
-                const response = await withTimeout(supabase.auth.signUp({
+                await register({
                     email: emailForAuth,
                     password: pin.trim(),
-                    options: {
-                        data: {
-                            nombre: nombre.trim(),
-                            apellido: apellido.trim(),
-                            cedula: cedulaPura,
-                            rol: rol
-                        }
-                    }
-                }));
+                    nombre: nombre.trim(),
+                    apellido: apellido.trim(),
+                    cedula: cedulaPura,
+                    rol: rol
+                });
 
-                if (response === 'TIMEOUT') {
-                    throw new Error('Tiempo de espera agotado conectando al registro.');
-                }
-
-                const { data, error: registerError } = response;
-
-                if (registerError) {
-                    if (registerError.message.includes('already registered')) {
-                        setError('Esta cédula ya está registrada. Por favor, inicia sesión.');
-                    } else {
-                        setError(`Error al registrar: ${registerError.message} `);
-                    }
-                    setLoading(false);
-                    return;
-                }
-
-                if (data.user) {
-                    setSuccess('¡Registro exitoso! Iniciando tu sesión...');
-                    setTimeout(() => window.location.reload(), 1500);
-                }
+                setSuccess('¡Registro exitoso! Iniciando tu sesión...');
+                setTimeout(() => window.location.reload(), 1500);
 
             } else {
-                // ---------- MODO LOGIN ----------
-                console.log('Intentando inicio de sesión...', emailForAuth);
-                const response = await withTimeout(supabase.auth.signInWithPassword({
-                    email: emailForAuth,
-                    password: pin.trim(),
-                }));
+                // ---------- MODO LOGIN LOCAL ----------
+                console.log('Intentando inicio de sesión local...', emailForAuth);
+                
+                await login(emailForAuth, pin.trim());
 
-                if (response === 'TIMEOUT') {
-                    throw new Error('Tiempo de espera agotado intentando iniciar sesión. Revisa tu internet o la base de datos.');
-                }
-
-                const { data, error: authError } = response;
-
-                if (authError) {
-                    if (authError.message.includes('Invalid login credentials')) {
-                        setError('Credenciales incorrectas o usuario no existe. Regístrate en la pestaña superior.');
-                    } else {
-                        setError(authError.message);
+                setSuccess('¡Sesión confirmada! Cargando panel...');
+                
+                // Pequeña pausa para mostrar el éxito
+                setTimeout(() => {
+                    const savedUser = localStorage.getItem('fcs_user');
+                    if (savedUser) {
+                        const user = JSON.parse(savedUser);
+                        if (user.rol === 'ADMIN') navigate('/admin');
+                        else if (user.rol === 'JEFE') navigate('/dashboard');
+                        else navigate('/app');
                     }
-                    setLoading(false);
-                    return;
-                }
-
-                if (!data?.user) {
-                    setError('Respuesta vacía del servidor, no hubo inicio de sesión.');
-                    setLoading(false);
-                    return;
-                }
-
-                console.log('Sesión confirmada, cargando perfil...');
-                const profileRes = await withTimeout(supabase
-                    .from('profiles')
-                    .select('rol, is_active')
-                    .eq('id', data.user.id)
-                    .single());
-
-                if (profileRes === 'TIMEOUT') throw new Error('Tiempo de espera agotado leyendo el perfil.');
-
-                const { data: profile, error: profileError } = profileRes;
-
-                if (profileError || !profile) {
-                    setError('Tu usuario existe pero no tiene un perfil asociado. Inténtalo de nuevo.');
-                    await supabase.auth.signOut();
-                    setLoading(false);
-                    return;
-                }
-
-                // VALIDACIÓN CRÍTICA: Bloquear usuarios suspendidos
-                if (profile.is_active === false) {
-                    setError('Tu cuenta ha sido SUSPENDIDA temporal o permanentemente por un Administrador.');
-                    await supabase.auth.signOut();
-                    setLoading(false);
-                    return;
-                }
-
-                console.log('Perfil verificado:', profile.rol);
-                if (profile.rol === 'ADMIN') navigate('/admin');
-                else if (profile.rol === 'JEFE') navigate('/dashboard');
-                else navigate('/app');
+                }, 1000);
             }
 
-        } catch (err: unknown) {
-            console.error('Error de autenticación capturado:', err);
-            setError(err instanceof Error && err.message ? err.message : 'Error grave de conexión o timeout. Verifica tu internet e intenta de nuevo.');
+        } catch (err: any) {
+            console.error('Error de autenticación:', err);
+            setError(err.message || 'Error de conexión con el servidor local.');
         } finally {
             if (!success) setLoading(false);
         }

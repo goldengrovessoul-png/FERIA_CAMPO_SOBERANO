@@ -1,107 +1,118 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { User, Session } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import { apiClient } from './api';
 
 interface Profile {
     id: string;
-    rol: 'INSPECTOR' | 'JEFE' | 'ADMIN';
+    rol: 'INSPECTOR' | 'JEFE' | 'ADMIN' | 'PLANIFICADOR';
     nombre: string;
     apellido: string;
     cedula: string;
     estado?: string | null;
     telefono?: string | null;
     is_active?: boolean;
+    email: string;
 }
 
 interface AuthContextType {
-    user: User | null;
+    user: any | null;
     profile: Profile | null;
-    session: Session | null;
     loading: boolean;
-    signOut: () => Promise<void>;
-    fetchProfile: (userId: string) => Promise<void>;
+    login: (email: string, pin: string) => Promise<void>;
+    register: (data: any) => Promise<void>;
+    signOut: () => void;
+    fetchProfile: (id: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
     user: null,
     profile: null,
-    session: null,
     loading: true,
-    signOut: async () => { },
+    login: async () => { },
+    register: async () => { },
+    signOut: () => { },
     fetchProfile: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<any | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
-    const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
 
-    async function fetchProfile(userId: string) {
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('id, rol, nombre, apellido, cedula, estado, telefono, is_active')
-            .eq('id', userId)
-            .single();
-
-        if (!error && data) {
-            if (data.is_active === false) {
-                // Usuario suspendido administrativamente
-                await supabase.auth.signOut();
-                setProfile(null);
-                setUser(null);
-                setSession(null);
-                alert("Tu cuenta ha sido suspendida. Contacta al administrador.");
-                return;
+    const fetchProfile = async (id: string) => {
+        try {
+            const data = await apiClient.get(`/admin/profiles/${id}`);
+            if (data) {
+                setProfile(data);
+                // Si es el usuario actual, actualizar también el estado user
+                const savedUser = localStorage.getItem('fcs_user');
+                if (savedUser) {
+                    const userData = JSON.parse(savedUser);
+                    if (userData.id === id) {
+                        localStorage.setItem('fcs_user', JSON.stringify(data));
+                        setUser(data);
+                    }
+                }
             }
-            setProfile(data as Profile);
-        } else {
-            setProfile(null);
+        } catch (error) {
+            console.error('Error fetching profile:', error);
         }
-    }
+    };
 
     useEffect(() => {
-        // Obtener sesión inicial
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            if (session?.user) {
-                fetchProfile(session.user.id).finally(() => setLoading(false));
-            } else {
-                setLoading(false);
-            }
-        });
+        const checkSession = async () => {
+            const token = localStorage.getItem('fcs_token');
+            const savedUser = localStorage.getItem('fcs_user');
 
-        // Escuchar cambios de auth
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            if (session?.user) {
-                fetchProfile(session.user.id);
-            } else {
-                setProfile(null);
+            if (token && savedUser) {
+                try {
+                    const userData = JSON.parse(savedUser);
+                    setUser(userData);
+                    setProfile(userData); // En nuestro sistema local, el usuario es el perfil
+                } catch (e) {
+                    signOut();
+                }
             }
-        });
+            setLoading(false);
+        };
 
-        return () => subscription.unsubscribe();
+        checkSession();
     }, []);
 
-    const signOut = async () => {
-        await supabase.auth.signOut();
+    const login = async (email: string, pin: string) => {
+        const response = await apiClient.post('/auth/login', { email, password: pin });
+        if (response.token) {
+            localStorage.setItem('fcs_token', response.token);
+            localStorage.setItem('fcs_user', JSON.stringify(response.user));
+            setUser(response.user);
+            setProfile(response.user);
+        }
+    };
+
+    const register = async (data: any) => {
+        const response = await apiClient.post('/auth/register', data);
+        if (response.token) {
+            localStorage.setItem('fcs_token', response.token);
+            localStorage.setItem('fcs_user', JSON.stringify(response.user));
+            setUser(response.user);
+            setProfile(response.user);
+        }
+    };
+
+    const signOut = () => {
+        localStorage.removeItem('fcs_token');
+        localStorage.removeItem('fcs_user');
         setUser(null);
         setProfile(null);
-        setSession(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, profile, session, loading, signOut, fetchProfile }}>
+        <AuthContext.Provider value={{ user, profile, loading, login, register, signOut, fetchProfile }}>
             {children}
         </AuthContext.Provider>
     );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
     return useContext(AuthContext);
 }

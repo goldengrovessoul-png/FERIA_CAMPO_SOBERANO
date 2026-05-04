@@ -8,12 +8,11 @@ import {
     Box, Briefcase, Ruler, ChevronDown, SlidersHorizontal,
     Pencil, MessageCircle, DollarSign, Truck
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { AdminService } from '../services/AdminService';
 import { useAuth } from '../lib/AuthContext';
 import ChatBox from '../components/chat/ChatBox';
 import { ChatService } from '../services/ChatService';
 import { BodegaService, type BodegaMovil } from '../services/BodegaService';
-import { AdminService } from '../services/AdminService';
 
 interface Profile {
     id: string;
@@ -190,12 +189,7 @@ export default function AdminPanel() {
     async function fetchProfiles() {
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .order('fecha_creacion', { ascending: false });
-
-            if (error) throw error;
+            const data = await AdminService.getAllProfiles();
             setProfiles(data || []);
         } catch (error) {
             console.error('Error fetching profiles:', error);
@@ -209,18 +203,7 @@ export default function AdminPanel() {
         if (!window.confirm(`¿Estás seguro de cambiar el rol a ${newRole}?`)) return;
 
         try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .update({ rol: newRole })
-                .eq('id', userId)
-                .select('id');
-
-            if (error) throw error;
-            if (!data || data.length === 0) {
-                alert('La asignación de rol falló (Posiblemente no tienes permisos de administrador para alterar roles).');
-                return;
-            }
-
+            await AdminService.updateProfile(userId, { rol: newRole });
             fetchProfiles();
             setShowRoleMenu(null);
         } catch (error) {
@@ -233,23 +216,12 @@ export default function AdminPanel() {
         if (!window.confirm(`¿Estás seguro de ${currentStatus ? 'SUSPENDER' : 'ACTIVAR'} a este usuario?`)) return;
 
         try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .update({ is_active: !currentStatus })
-                .eq('id', userId)
-                .select('id');
-
-            if (error) throw error;
-            if (!data || data.length === 0) {
-                alert('La actualización falló silenciosamente (Posiblemente no tienes nivel de administrador/jefe en Base de Datos).');
-                return;
-            }
-
+            await AdminService.updateProfile(userId, { is_active: !currentStatus });
             fetchProfiles();
             setShowActionMenu(null);
         } catch (e) {
             console.error(e);
-            alert('Error al cambiar estado del usuario. Asegúrate de que la columna is_active exista en la tabla profiles.');
+            alert('Error al cambiar estado del usuario.');
         }
     }
 
@@ -270,26 +242,14 @@ export default function AdminPanel() {
         if (!editingUser) return;
         setSaving(true);
         try {
-            // 1. Actualizar Perfil
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .update({
-                    nombre: editForm.nombre,
-                    apellido: editForm.apellido,
-                    cedula: editForm.cedula,
-                    telefono: editForm.telefono,
-                    estado: editForm.estado
-                })
-                .eq('id', editingUser.id);
+            await AdminService.updateProfile(editingUser.id, {
+                nombre: editForm.nombre,
+                apellido: editForm.apellido,
+                cedula: editForm.cedula,
+                telefono: editForm.telefono,
+                estado: editForm.estado
+            });
 
-            if (profileError) throw profileError;
-
-            // 2. Nota sobre contraseña
-            if (editForm.newPassword) {
-                alert("Perfil actualizado. Nota: Para cambiar la contraseña de otro usuario se requiere configuración de Service Role. Los cambios de datos personales se guardaron con éxito.");
-            }
-
-            // Si el usuario editado es el mismo que está logueado, refrescar perfil global
             if (editingUser.id === currentUser?.id) {
                 await fetchProfile(editingUser.id);
             }
@@ -308,35 +268,18 @@ export default function AdminPanel() {
     async function fetchCatalogItems() {
         try {
             setLoadingCatalog(true);
-            const query = supabase
-                .from('catalog_items')
-                .select('*, parent:parent_id(name), empresa:empresa_id(name)')
-                .eq('type', catalogType)
-                .order('name', { ascending: true });
-
-            const { data, error } = await query;
-
-            if (error) throw error;
+            const data = await AdminService.getCatalogItems(catalogType);
             setCatalogItems(data || []);
 
             // Si estamos en la vista de artículos, cargar también los rubros para el selector
             if (catalogType === 'ARTICULO') {
-                const { data: rubros } = await supabase
-                    .from('catalog_items')
-                    .select('id, name')
-                    .eq('type', 'RUBRO')
-                    .eq('is_active', true)
-                    .order('name', { ascending: true });
-                setRubrosForSelect(rubros || []);
+                const rubros = await AdminService.getCatalogItems('RUBRO');
+                setRubrosForSelect((rubros || []).filter((r: any) => r.is_active));
 
                 // También cargar las empresas MINPPAL y ENTES para vincular artículos
-                const { data: minppal } = await supabase
-                    .from('catalog_items')
-                    .select('id, name')
-                    .in('type', ['MINPPAL', 'ENTE'])
-                    .eq('is_active', true)
-                    .order('name', { ascending: true });
-                setMinppalForSelect(minppal || []);
+                const minppal = await AdminService.getCatalogItems('MINPPAL');
+                const entes = await AdminService.getCatalogItems('ENTE');
+                setMinppalForSelect([...(minppal || []), ...(entes || [])].filter(e => e.is_active));
             }
         } catch (error) {
             console.error('Error fetching catalogs:', error);
@@ -348,7 +291,8 @@ export default function AdminPanel() {
     async function addCatalogItem() {
         if (!newCatalogName.trim()) return;
         try {
-            const itemData: Record<string, string | number | null> = {
+            const itemData: any = {
+                id: editingCatalogId,
                 type: catalogType,
                 name: newCatalogName.trim().toUpperCase()
             };
@@ -361,21 +305,7 @@ export default function AdminPanel() {
                 itemData.presentacion = newCatalogPresentation.trim();
             }
 
-            if (editingCatalogId) {
-                // Modo Edición
-                const { error } = await supabase
-                    .from('catalog_items')
-                    .update(itemData)
-                    .eq('id', editingCatalogId);
-                if (error) throw error;
-                alert('Elemento actualizado correctamente.');
-            } else {
-                // Modo Creación
-                const { error } = await supabase
-                    .from('catalog_items')
-                    .insert([itemData]);
-                if (error) throw error;
-            }
+            await AdminService.saveCatalogItem(itemData);
 
             setNewCatalogName('');
             setSelectedParentId('');
@@ -385,12 +315,8 @@ export default function AdminPanel() {
             setNewCatalogPresentation('');
             setEditingCatalogId(null);
             fetchCatalogItems();
-        } catch (error: unknown) {
-            if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
-                alert('Este elemento ya existe en el catálogo.');
-            } else {
-                alert('Error al procesar la operación.');
-            }
+        } catch (error: any) {
+            alert('Error al procesar la operación: ' + (error.message || ''));
         }
     }
 
@@ -409,12 +335,7 @@ export default function AdminPanel() {
 
     async function toggleCatalogStatus(id: string, currentStatus: boolean) {
         try {
-            const { error } = await supabase
-                .from('catalog_items')
-                .update({ is_active: !currentStatus })
-                .eq('id', id);
-
-            if (error) throw error;
+            await AdminService.saveCatalogItem({ id, is_active: !currentStatus });
             fetchCatalogItems();
         } catch (e) {
             console.error(e);
@@ -425,12 +346,7 @@ export default function AdminPanel() {
     async function deleteCatalogItem(id: string) {
         if (!window.confirm('¿Estás seguro de eliminar este elemento?')) return;
         try {
-            const { error } = await supabase
-                .from('catalog_items')
-                .delete()
-                .eq('id', id);
-
-            if (error) throw error;
+            await AdminService.deleteCatalogItem(id);
             fetchCatalogItems();
         } catch (e) {
             console.error(e);
@@ -442,11 +358,7 @@ export default function AdminPanel() {
     async function fetchEntrepreneurTypes() {
         try {
             setLoadingEntrep(true);
-            const { data, error } = await supabase
-                .from('cat_emprendimiento_tipos')
-                .select('*')
-                .order('nombre', { ascending: true });
-            if (error) throw error;
+            const data = await AdminService.getEntrepreneurTypes();
             setEntrepreneurTypes(data || []);
         } catch (err) {
             console.error('Error fetching entrepreneur types:', err);
@@ -458,25 +370,18 @@ export default function AdminPanel() {
     async function addEntrepreneurType() {
         if (!newEntrepName.trim()) return;
         try {
-            const { error } = await supabase
-                .from('cat_emprendimiento_tipos')
-                .insert([{ nombre: newEntrepName.trim().toUpperCase() }]);
-            if (error) throw error;
+            await AdminService.saveEntrepreneurType({ nombre: newEntrepName.trim().toUpperCase() });
             setNewEntrepName('');
             fetchEntrepreneurTypes();
-        } catch (err: unknown) {
-            alert(err && typeof err === 'object' && 'code' in err && err.code === '23505' ? 'Este tipo ya existe.' : 'Error al guardar.');
+        } catch (err: any) {
+            alert('Error al guardar: ' + (err.message || ''));
         }
     }
 
     async function deleteEntrepreneurType(id: string) {
         if (!window.confirm('¿Eliminar este tipo de actividad?')) return;
         try {
-            const { error } = await supabase
-                .from('cat_emprendimiento_tipos')
-                .delete()
-                .eq('id', id);
-            if (error) throw error;
+            await AdminService.deleteEntrepreneurType(id);
             fetchEntrepreneurTypes();
         } catch (e) {
             console.error(e);
@@ -488,12 +393,8 @@ export default function AdminPanel() {
     async function fetchCustomFields() {
         try {
             setLoadingFields(true);
-            const { data, error } = await supabase
-                .from('cat_emprendimiento_campos')
-                .select('*')
-                .order('orden', { ascending: true });
-            if (error) throw error;
-            setCustomFields((data || []).filter((f: Record<string, unknown>) => !['nombre', 'actividad', 'telefono'].includes(String(f.nombre))));
+            const data = await AdminService.getCustomFields();
+            setCustomFields((data || []).filter((f: any) => !['nombre', 'actividad', 'telefono'].includes(String(f.nombre))));
         } catch (err) {
             console.error('Error:', err);
         } finally { setLoadingFields(false); }
@@ -502,18 +403,16 @@ export default function AdminPanel() {
         if (!newField.etiqueta.trim()) return;
         const nombre = newField.etiqueta.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
         try {
-            const { error } = await supabase.from('cat_emprendimiento_campos').insert([{ nombre, etiqueta: newField.etiqueta.trim(), tipo: newField.tipo, requerido: newField.requerido, orden: customFields.length + 10 }]);
-            if (error) throw error;
+            await AdminService.saveCustomField({ nombre, etiqueta: newField.etiqueta.trim(), tipo: newField.tipo, requerido: newField.requerido, orden: customFields.length + 10 });
             setNewField({ etiqueta: '', tipo: 'texto', requerido: false });
             setShowFieldForm(false);
             fetchCustomFields();
-        } catch (err: unknown) { alert(err && typeof err === 'object' && 'code' in err && err.code === '23505' ? 'Ya existe un campo con ese nombre.' : 'Error al guardar.'); }
+        } catch (err: any) { alert('Error al guardar.'); }
     }
     async function deleteCustomField(id: string) {
         if (!window.confirm('¿Eliminar este campo? Los datos ya guardados se conservarán.')) return;
         try {
-            const { error } = await supabase.from('cat_emprendimiento_campos').delete().eq('id', id);
-            if (error) throw error;
+            await AdminService.deleteCustomField(id);
             fetchCustomFields();
         } catch (e) {
             console.error(e); alert('Error al eliminar campo.');
@@ -524,12 +423,7 @@ export default function AdminPanel() {
     async function fetchVulnerabilities() {
         try {
             setLoadingVulnerability(true);
-            const { data, error } = await supabase
-                .from('vulnerability_data')
-                .select('*')
-                .order('fecha_registro', { ascending: false });
-
-            if (error) throw error;
+            const data = await AdminService.getVulnerabilities();
             setVulnerabilities(data || []);
         } catch (error) {
             console.error('Error fetching vulnerabilities:', error);
@@ -546,32 +440,14 @@ export default function AdminPanel() {
         }
 
         try {
-            if (editingVulnerabilityId) {
-                // Modo Edición
-                const { error } = await supabase
-                    .from('vulnerability_data')
-                    .update({
-                        ...newVulnerability,
-                        latitud: parseFloat(newVulnerability.latitud),
-                        longitud: parseFloat(newVulnerability.longitud)
-                    })
-                    .eq('id', editingVulnerabilityId);
+            await AdminService.saveVulnerability({
+                id: editingVulnerabilityId,
+                ...newVulnerability,
+                latitud: parseFloat(newVulnerability.latitud),
+                longitud: parseFloat(newVulnerability.longitud)
+            });
 
-                if (error) throw error;
-                alert('Punto actualizado correctamente.');
-            } else {
-                // Modo Creación
-                const { error } = await supabase
-                    .from('vulnerability_data')
-                    .insert([{
-                        ...newVulnerability,
-                        latitud: parseFloat(newVulnerability.latitud),
-                        longitud: parseFloat(newVulnerability.longitud)
-                    }]);
-
-                if (error) throw error;
-                alert('Punto registrado correctamente.');
-            }
+            alert('Punto procesado correctamente.');
 
             setNewVulnerability({
                 estado: '',
@@ -607,12 +483,7 @@ export default function AdminPanel() {
     async function deleteVulnerability(id: string) {
         if (!window.confirm('¿Desea eliminar este punto de vulnerabilidad?')) return;
         try {
-            const { error } = await supabase
-                .from('vulnerability_data')
-                .delete()
-                .eq('id', id);
-
-            if (error) throw error;
+            await AdminService.deleteVulnerability(id);
             fetchVulnerabilities();
         } catch (e) {
             console.error(e);

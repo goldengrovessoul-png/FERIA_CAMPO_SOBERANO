@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api';
 
 export interface BodegaMovil {
     id: string;
@@ -9,45 +9,18 @@ export interface BodegaMovil {
 
 export const BodegaService = {
     async getAll(): Promise<BodegaMovil[]> {
-        const { data, error } = await supabase
-            .from('cat_bodegas_moviles')
-            .select('*')
-            .order('estado', { ascending: true })
-            .order('nombre', { ascending: true });
-
-        if (error) throw error;
-        return data || [];
+        return apiClient.get('/bodegas');
     },
 
     async create(bodega: Omit<BodegaMovil, 'id' | 'created_at'>): Promise<BodegaMovil> {
-        const { data, error } = await supabase
-            .from('cat_bodegas_moviles')
-            .insert([bodega])
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data;
+        return apiClient.post('/bodegas', bodega);
     },
 
     async delete(id: string): Promise<void> {
-        const { error } = await supabase
-            .from('cat_bodegas_moviles')
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
+        return apiClient.delete(`/bodegas/${id}`);
     },
 
     async update(id: string, bodega: Partial<Omit<BodegaMovil, 'id' | 'created_at'>>): Promise<BodegaMovil> {
-        const { data, error } = await supabase
-            .from('cat_bodegas_moviles')
-            .update(bodega)
-            .eq('id', id)
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data;
+        return apiClient.put(`/bodegas/${id}`, bodega);
     }
 };
